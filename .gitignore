@@ -1,0 +1,9 @@
+node_modules
+.env
+.session-secret
+uploads/private/*
+uploads/
+tmp/
+dist/
+*.log
+*.zip

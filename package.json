@@ -1,0 +1,25 @@
+{
+  "name": "korrect-cars",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Korrect Cars - MERN website with Korrect Swap and Pay Small Small",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "seed": "node server/seed.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.4",
+    "multer": "^2.0.2",
+    "zod": "^3.23.8"
+  }
+}
