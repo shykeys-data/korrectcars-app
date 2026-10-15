@@ -2,7 +2,7 @@
 // For local tests only, DB_DRIVER=sqlite runs the same SQL on Node's built-in SQLite.
 const config = require('./config');
 
-const JSON_COLS = new Set(['features', 'specs', 'info', 'photos', 'papers', 'wants_makes', 'wants_bodies', 'recovery_codes']);
+const JSON_COLS = new Set(['features', 'specs', 'info', 'photos', 'papers', 'wants_makes', 'wants_bodies', 'recovery_codes', 'filters']);
 
 let driver;
 
@@ -71,7 +71,8 @@ const MIGRATIONS = [
   ['users', 'recovery_codes', 'TEXT NULL'],
   ['enquiries', 'notes', 'TEXT NULL'],
   ['enquiries', 'assigned_to', 'INT NULL'],
-  ['enquiries', 'updated_at', 'DATETIME NULL']
+  ['enquiries', 'updated_at', 'DATETIME NULL'],
+  ['enquiries', 'user_id', 'INT NULL']
 ];
 
 // Only plain values may reach the driver: an object or array from user input could
@@ -133,7 +134,10 @@ function schema(kind) {
       expires_at DATETIME NOT NULL, used_at DATETIME NULL, created_at ${TS}${k('et_hash', 'token_hash')})${TAIL}`,
     `CREATE TABLE IF NOT EXISTS audit (id ${ID}, user_id ${FK}, user_name ${S(80)}, action ${S(160)}, target ${S(300)}, ip ${S(60)}, created_at ${TS})${TAIL}`,
     `CREATE TABLE IF NOT EXISTS settings (k ${S(60)} NOT NULL PRIMARY KEY, v TEXT, updated_at ${TSU})${TAIL}`,
-    idx('cars_mmb', 'cars', 'make, model, body'), idx('sl_status', 'swap_listings', 'status'), idx('of_from', 'offers', 'from_user'), idx('of_to', 'offers', 'to_user'), idx('msg_offer', 'messages', 'offer_id')
+    `CREATE TABLE IF NOT EXISTS saved_cars (user_id ${FK} NOT NULL, car_id ${FK} NOT NULL, created_at ${TS}, PRIMARY KEY (user_id, car_id))${TAIL}`,
+    `CREATE TABLE IF NOT EXISTS saved_searches (id ${ID}, user_id ${FK} NOT NULL, name ${S(160)}, filters TEXT, alerts TINYINT NOT NULL DEFAULT 1,
+      last_alert_at DATETIME NULL, created_at ${TS}${k('ss_user', 'user_id')})${TAIL}`,
+    idx('cars_mmb', 'cars', 'make, model, body'), idx('sl_status', 'swap_listings', 'status'), idx('of_from', 'offers', 'from_user'), idx('of_to', 'offers', 'to_user'), idx('msg_offer', 'messages', 'offer_id'), idx('ss_user', 'saved_searches', 'user_id')
   ].filter(Boolean);
 }
 

@@ -124,6 +124,15 @@ export function AppProvider({ children }) {
     api('/auth/me').then((d) => setUser(d.user)).catch(() => setUser(null));
   }, []);
   const loadCatalog = useCallback(() => { if (!catalog) api('/catalog').then(setCatalog).catch(() => {}); }, [catalog]);
+  // Saved cars follow the account: on sign-in, cars saved on this device are added to the
+  // account and the account's list comes back to this device. On sign-out the device list is cleared.
+  const wasIn = useRef(false);
+  useEffect(() => {
+    if (user) {
+      wasIn.current = true;
+      api('/me/saved', { method: 'PUT', body: { ids: readLocal('kc-saved') } }).then((d) => writeLocal('kc-saved', d.ids)).catch(() => {});
+    } else if (user === null && wasIn.current) { wasIn.current = false; writeLocal('kc-saved', []); }
+  }, [user && user.id]); // eslint-disable-line
   return <AppCtx.Provider value={{ cfg, user, setUser, catalog, loadCatalog }}>{children}</AppCtx.Provider>;
 }
 export const useApp = () => useContext(AppCtx);
@@ -139,17 +148,26 @@ export const waLink = (cfg, text) => `https://wa.me/${(cfg && cfg.whatsapp) || '
 
 export const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-// Saved cars and compare list live in this browser until accounts take them over
+// Saved cars and the compare list live in this browser; saved cars also sync to the account
+const readLocal = (key) => { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (_e) { return []; } };
+function writeLocal(key, list) { try { localStorage.setItem(key, JSON.stringify(list)); } catch (_e) { /* private mode */ } window.dispatchEvent(new Event('kc-local')); }
 export function useLocalList(key, max = 50) {
-  const read = () => { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (_e) { return []; } };
+  const app = useContext(AppCtx);
+  const synced = key === 'kc-saved' && app && app.user;
+  const read = () => readLocal(key);
   const [list, setList] = useState(read);
   useEffect(() => {
     const on = (e) => { if (!e.key || e.key === key) setList(read()); };
     window.addEventListener('storage', on); window.addEventListener('kc-local', on);
     return () => { window.removeEventListener('storage', on); window.removeEventListener('kc-local', on); };
   }, [key]); // eslint-disable-line
-  const save = (next) => { setList(next); try { localStorage.setItem(key, JSON.stringify(next)); } catch (_e) { /* private mode */ } window.dispatchEvent(new Event('kc-local')); };
-  const toggle = (id) => save(list.includes(id) ? list.filter((x) => x !== id) : list.length >= max ? list : [...list, id]);
+  const save = (next) => { setList(next); writeLocal(key, next); };
+  const toggle = (id) => {
+    const on = list.includes(id);
+    if (!on && list.length >= max) return;
+    save(on ? list.filter((x) => x !== id) : [...list, id]);
+    if (synced) api('/me/saved/' + id, { method: on ? 'DELETE' : 'POST' }).catch(() => {});
+  };
   return { list, has: (id) => list.includes(id), toggle, clear: () => save([]), full: list.length >= max };
 }
 

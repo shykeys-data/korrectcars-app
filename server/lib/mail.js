@@ -86,4 +86,4 @@ const templates = {
   })
 };
 
-module.exports = { send, templates, sent, hasSendmail: !!SENDMAIL };
+module.exports = { send, templates, sent, layout, button, hasSendmail: !!SENDMAIL };

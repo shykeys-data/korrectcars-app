@@ -237,9 +237,11 @@ r.post('/enquiries', limiter(60, 8, 'Too many messages sent. Please call or What
       bnpl = [plan.deposit, plan.months, plan.monthly];
     }
   }
-  await q(`INSERT INTO enquiries (car_id, type, name, phone, email, message, offer_amount, preferred_date, bnpl_deposit, bnpl_months, bnpl_monthly)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [carId, v.type, v.name, v.phone, v.email || null, v.message || null, v.offerAmount || null, v.preferredDate || null, ...bnpl]);
-  res.status(201).json({ ok: true });
+  // Signed-in customers can follow the request in My account
+  const userId = req.user ? req.user.id : null;
+  await q(`INSERT INTO enquiries (car_id, type, name, phone, email, message, offer_amount, preferred_date, bnpl_deposit, bnpl_months, bnpl_monthly, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [carId, v.type, v.name, v.phone, v.email || null, v.message || null, v.offerAmount || null, v.preferredDate || null, ...bnpl, userId]);
+  res.status(201).json({ ok: true, tracked: !!userId });
 });
 
 // Pay Small Small: minimum deposit, then a flat markup on the balance spread over the months

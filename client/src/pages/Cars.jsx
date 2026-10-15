@@ -106,7 +106,8 @@ export function Inventory({ makeSlug, modelSlug }) {
               <button className={'pill' + (!f.condition ? ' on' : '')} onClick={() => setF({ condition: '' })}>Any</button>
               {conds.map((m) => <button key={m} className={'pill' + (f.condition === m ? ' on' : '')} onClick={() => setF({ condition: m })}>{m}</button>)}
             </div></div>}
-            <a className="btn btn-line btn-block" href={waLink(cfg, alertMsg)} target="_blank" rel="noopener noreferrer">Alert me on WhatsApp</a>
+            <SaveSearch filters={f} />
+            <a className="btn btn-line btn-block" style={{ marginTop: 8 }} href={waLink(cfg, alertMsg)} target="_blank" rel="noopener noreferrer">Alert me on WhatsApp</a>
             <button className="btn btn-red btn-block filt-toggle" style={{ marginTop: 10 }} onClick={() => setOpen(false)}>Show {cars.length} car{cars.length === 1 ? '' : 's'}</button>
           </aside>
           <div>
@@ -121,7 +122,7 @@ export function Inventory({ makeSlug, modelSlug }) {
             </div>
             {chips.length > 0 && <div className="chips">{chips.map(([l, patch]) => <button key={l} className="chip" onClick={() => setF(patch)} aria-label={`Remove filter ${l}`}>{l} ✕</button>)}<button className="chip" style={{ background: 'none', color: 'var(--muted)' }} onClick={reset}>Clear all</button></div>}
             {list.error ? <div className="err">{list.error.message}</div> : !list.loading && !cars.length
-              ? <div className="empty box center"><h3>No cars match right now</h3><p className="muted">Tell us what you want and we will alert you on WhatsApp when one arrives.</p><div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}><a className="btn btn-wa" href={waLink(cfg, alertMsg)} target="_blank" rel="noopener noreferrer">Alert me on WhatsApp</a><button className="btn btn-line" onClick={reset}>Clear filters</button></div></div>
+              ? <div className="empty box center"><h3>No cars match right now</h3><p className="muted">Save this search and we will email you as soon as one arrives, or ask us on WhatsApp.</p><div style={{ maxWidth: 340, margin: '0 auto 10px' }}><SaveSearch filters={f} /></div><div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}><a className="btn btn-wa" href={waLink(cfg, alertMsg)} target="_blank" rel="noopener noreferrer">Alert me on WhatsApp</a><button className="btn btn-line" onClick={reset}>Clear filters</button></div></div>
               : <div className="cards">{cars.map((c) => <CarCard key={c.id} car={c} />)}</div>}
             {avail.length > 0 && (
               <section className="box faq-box">
@@ -142,6 +143,32 @@ export function Inventory({ makeSlug, modelSlug }) {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+// Save the current filters to the account; we email the customer when a matching car arrives
+function SaveSearch({ filters }) {
+  const { user } = useApp();
+  const { go } = useRouter();
+  const [state, setState] = useState({ busy: false, msg: '', err: '' });
+  const key = JSON.stringify({ ...filters, sort: undefined });
+  useEffect(() => { setState({ busy: false, msg: '', err: '' }); }, [key]);
+  const save = async () => {
+    if (!user) { go('/login?next=' + encodeURIComponent(window.location.pathname + window.location.search)); return; }
+    setState({ busy: true, msg: '', err: '' });
+    try {
+      const { sort, ...rest } = filters; // eslint-disable-line no-unused-vars
+      const d = await api('/me/searches', { method: 'POST', body: { filters: rest, alerts: true } });
+      setState({ busy: false, err: '', msg: d.existed ? 'Already saved. We will email you when a match arrives.' : 'Saved. We will email you when a matching car arrives.' });
+    } catch (e) { setState({ busy: false, msg: '', err: e.message }); }
+  };
+  if (state.msg) return <div className="okmsg small" role="status" style={{ margin: 0 }}>{state.msg} <Link to="/account?tab=searches">Manage</Link></div>;
+  return (
+    <>
+      <button className="btn btn-red btn-block" onClick={save} disabled={state.busy}>{state.busy ? 'Saving…' : '🔔 Save search & email me'}</button>
+      {!user && <div className="small muted" style={{ marginTop: 6, textAlign: 'center' }}>Free account · sign in to save</div>}
+      {state.err && <div className="err small" role="alert" style={{ marginTop: 8 }}>{state.err}</div>}
     </>
   );
 }
@@ -269,7 +296,7 @@ const PSS_FAQ = [
 export function PaySmallSmall() {
   useTitle('Pay Small Small — Car Payment Plans in Lagos | Korrect Cars');
   const { query } = useRouter();
-  const { cfg } = useApp();
+  const { cfg, user } = useApp();
   const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 };
   const partner = (cfg && cfg.bankPartner) || 'our credit bank partner';
   const list = useApi('/cars?limit=100');
@@ -279,7 +306,7 @@ export function PaySmallSmall() {
   const [pct, setPct] = useState(Math.max(b.minDeposit, Number(query.get('deposit')) || b.minDeposit));
   const [months, setMonths] = useState(Number(query.get('months')) || 24);
   const [step, setStep] = useState(1);
-  const [d, setD] = useState({ name: '', phone: '', email: '', employment: 'Salaried', employer: '', income: '', consent: false, website: '' });
+  const [d, setD] = useState({ name: (user && user.name) || '', phone: (user && user.phone) || '', email: (user && user.email) || '', employment: 'Salaried', employer: '', income: '', consent: false, website: '' });
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const car = cars.find((c) => c.slug === slug);
   const price = car ? Number(car.price) : custom;
@@ -368,7 +395,7 @@ export function PaySmallSmall() {
             <div className="okmsg"><div className="disp" style={{ fontSize: 28 }}>Application sent</div>We have passed your details to {partner}. They will contact you directly. We will also follow up on WhatsApp.</div>
             <h3 style={{ marginTop: 18 }}>What happens next</h3>
             <ol className="track"><li className="done">Application received</li><li className="on">Sent to our bank partner</li><li>Bank checks if you qualify</li><li>Approved: we sell you the car</li></ol>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}><Link to="/cars" className="btn btn-line">Back to cars</Link><a className="btn btn-wa" href={waLink(cfg, 'Hello Korrect Cars, I just applied for Pay Small Small.')} target="_blank" rel="noopener noreferrer">WhatsApp us</a></div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>{user ? <Link to="/account?tab=requests" className="btn btn-red">Track it in My account</Link> : <Link to="/register?next=/account?tab=requests" className="btn btn-red">Create an account to track it</Link>}<Link to="/cars" className="btn btn-line">Back to cars</Link><a className="btn btn-wa" href={waLink(cfg, 'Hello Korrect Cars, I just applied for Pay Small Small.')} target="_blank" rel="noopener noreferrer">WhatsApp us</a></div>
           </div>}
         </div>
       </div></section>

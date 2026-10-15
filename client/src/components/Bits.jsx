@@ -86,7 +86,8 @@ export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false })
 }
 
 export function EnquiryForm({ type, car, title, cta, extra, onDone }) {
-  const [f, setF] = useState({ name: '', phone: '', email: '', message: '', offerAmount: '', preferredDate: '', consent: false, website: '' });
+  const { user } = useApp();
+  const [f, setF] = useState({ name: (user && user.name) || '', phone: (user && user.phone) || '', email: (user && user.email) || '', message: '', offerAmount: '', preferredDate: '', consent: false, website: '' });
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [done, setDone] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   const submit = async (e) => {
@@ -100,7 +101,7 @@ export function EnquiryForm({ type, car, title, cta, extra, onDone }) {
       setDone(true); if (onDone) onDone();
     } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
   };
-  if (done) return <div className="okmsg">Thank you. We have your request and will contact you shortly{type === 'viewing' ? ' to confirm the time and send the address of the car lot on WhatsApp' : ''}.</div>;
+  if (done) return <div className="okmsg">Thank you. We have your request and will contact you shortly{type === 'viewing' ? ' to confirm the time and send the address of the car lot on WhatsApp' : ''}.{user ? <> You can follow it in <Link to="/account?tab=requests">My account</Link>.</> : null}</div>;
   const id = (k) => `${type}-${k}`;
   return (
     <form onSubmit={submit} noValidate={false}>

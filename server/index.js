@@ -86,6 +86,7 @@ api.use(loadUser);
 api.use(csrfGuard);
 api.use('/', require('./routes/public'));
 api.use('/swap', require('./routes/swap'));
+api.use('/me', require('./routes/me'));
 api.use('/admin', require('./routes/admin'));
 api.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 app.use('/api', api);

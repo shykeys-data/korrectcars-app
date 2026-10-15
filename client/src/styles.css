@@ -196,13 +196,23 @@ input[type=range]{width:100%;height:32px;accent-color:var(--red);cursor:pointer}
 
 /* Dashboard / admin */
 .dash{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:start}
-@media(max-width:860px){.dash{grid-template-columns:1fr}}
+@media(max-width:860px){.dash{grid-template-columns:minmax(0,1fr)}.dash>*{min-width:0}}
 .sidenav{display:grid;gap:4px}
 .sidenav button{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:0 14px;border-radius:10px;border:0;background:transparent;font:600 16px var(--body);cursor:pointer;text-align:left;color:inherit}
 .sidenav button:hover{background:rgba(127,127,127,.12)}
 .sidenav button.on{background:var(--red);color:#fff}
 .sidenav .n{margin-left:auto;background:var(--red);color:#fff;border-radius:999px;padding:1px 8px;font-size:13px}
 .sidenav button.on .n{background:#fff;color:var(--red)}
+/* Phones: account menu becomes one row of tabs you can swipe */
+@media(max-width:860px){
+  .acct-side{padding:10px!important}
+  .acct-who{padding:2px 4px 8px!important;margin-bottom:8px!important}
+  .acct-side .sidenav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:0 -10px;padding:0 10px}
+  .acct-side .sidenav::-webkit-scrollbar{display:none}
+  .acct-side .sidenav button{width:auto;flex:none;min-height:40px;padding:0 14px;border:1px solid var(--line);white-space:nowrap;font-size:15px}
+  .acct-side .sidenav button.on{border-color:var(--red)}
+  .acct-actions{display:none}
+}
 .admin-side{background:var(--ink);color:#e4e4e7;border-radius:18px;padding:14px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
 .kpi .v{font-family:var(--disp);font-weight:800;font-size:40px;line-height:1.05}
