@@ -34,6 +34,8 @@ export function Inventory({ makeSlug, modelSlug }) {
   const setF = (patch) => {
     const n = { ...f, ...patch };
     if ('make' in patch && patch.make !== f.make) n.model = patch.model || '';
+    // Body type follows make/model: drop a body type the chosen make/model doesn't come in
+    if (('make' in patch || 'model' in patch) && n.body && !all.some((c) => c.body === n.body && (!n.make || c.make === n.make) && (!n.model || c.model === n.model))) n.body = '';
     const rest = Object.entries({ body: n.body, condition: n.condition, maxPrice: n.maxPrice, yearMin: n.yearMin, yearMax: n.yearMax, sort: n.sort === 'price-desc' ? '' : n.sort }).filter(([, v]) => v);
     const base = n.make ? `/cars/${slugify(n.make)}${n.model ? '/' + slugify(n.model) : ''}` : '/cars';
     go(base + (rest.length ? '?' + new URLSearchParams(rest) : ''), { replace: true, keepScroll: true });
@@ -46,7 +48,9 @@ export function Inventory({ makeSlug, modelSlug }) {
   const count = (pred) => all.filter(pred).length;
   const makes = [...new Set(all.map((c) => c.make))].sort();
   const models = [...new Set(all.filter((c) => !f.make || c.make === f.make).map((c) => c.model))].sort();
-  const bodies = [...new Set(all.map((c) => c.body).filter(Boolean))].sort();
+  // Body types the chosen make/model actually come in; one body type for a model = selected automatically
+  const bodies = [...new Set(all.filter((c) => (!f.make || c.make === f.make) && (!f.model || c.model === f.model)).map((c) => c.body).filter(Boolean))].sort();
+  const autoBody = f.model && bodies.length === 1 ? bodies[0] : '';
   const conds = [...new Set(all.map((c) => c.car_condition).filter(Boolean))].sort();
   const years = [...new Set(all.map((c) => Number(c.year)).filter(Boolean))].sort((a, b) => a - b);
   const yMin = years[0] || 2000; const yMax = years[years.length - 1] || new Date().getFullYear();
@@ -91,9 +95,11 @@ export function Inventory({ makeSlug, modelSlug }) {
               </div>
               <div className="pills" style={{ marginTop: 8 }}>{YEAR_QUICK.map(([a, b, l]) => <button key={l} className={'pill' + (f.yearMin === a && f.yearMax === b ? ' on' : '')} onClick={() => setF({ yearMin: a, yearMax: b })}>{l}</button>)}</div>
             </div>
-            <div className="grp"><h3>Body type</h3><div className="pills">
-              <button className={'pill' + (!f.body ? ' on' : '')} onClick={() => setF({ body: '' })}>All</button>
-              {bodies.map((m) => <button key={m} className={'pill' + (f.body === m ? ' on' : '')} onClick={() => setF({ body: m })}>{m}</button>)}
+            <div className="grp"><h3>Body type {autoBody && <span className="small muted" style={{ fontWeight: 400 }}>· set by model</span>}</h3><div className="pills">
+              {autoBody ? <button className="pill on" disabled aria-disabled="true" title={`The ${f.model} comes as a ${autoBody}`}>{autoBody} ✓</button> : <>
+                <button className={'pill' + (!f.body ? ' on' : '')} onClick={() => setF({ body: '' })}>All</button>
+                {bodies.map((m) => <button key={m} className={'pill' + (f.body === m ? ' on' : '')} onClick={() => setF({ body: m })}>{m}</button>)}
+              </>}
             </div></div>
             <div className="grp"><h3>Budget</h3><div className="pills">{BUDGETS.map(([v, l]) => <button key={l} className={'pill' + (f.maxPrice === v ? ' on' : '')} onClick={() => setF({ maxPrice: v })}>{l}</button>)}</div></div>
             {conds.length > 1 && <div className="grp"><h3>Condition</h3><div className="pills">

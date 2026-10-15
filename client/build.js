@@ -5,8 +5,10 @@ const crypto = require('crypto');
 const esbuild = require(process.env.ESBUILD_PATH || 'esbuild');
 
 const root = __dirname;
-const out = path.join(root, '..', 'dist');
-fs.rmSync(out, { recursive: true, force: true });
+const out = process.env.OUT_DIR || path.join(root, '..', 'dist');
+// Only the built assets are replaced; images already in dist/img (hero, favicon, etc.) are kept
+fs.rmSync(path.join(out, 'assets', 'app.js'), { force: true });
+fs.rmSync(path.join(out, 'assets', 'app.css'), { force: true });
 fs.mkdirSync(path.join(out, 'assets'), { recursive: true });
 
 esbuild.build({

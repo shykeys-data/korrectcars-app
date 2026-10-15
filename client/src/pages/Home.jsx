@@ -18,7 +18,11 @@ export default function Home() {
   const makes = [...new Set(all.map((c) => c.make))].sort();
   const models = [...new Set(all.filter((c) => !s.make || c.make === s.make).map((c) => c.model))].sort();
   const years = [...new Set(all.map((c) => Number(c.year)).filter(Boolean))].sort((a, b) => b - a);
-  const bodies = [...new Set(all.map((c) => c.body).filter(Boolean))].sort();
+  const bodiesFor = (mk, md) => [...new Set(all.filter((c) => (!mk || c.make === mk) && (!md || c.model === md)).map((c) => c.body).filter(Boolean))].sort();
+  const bodies = bodiesFor(s.make, s.model);
+  const autoBody = s.model && bodies.length === 1 ? bodies[0] : '';
+  // When make or model changes, pick the body type automatically if there is only one, and drop one that no longer fits
+  const pick = (mk, md) => { const b = bodiesFor(mk, md); return md && b.length === 1 ? b[0] : (b.includes(s.body) && !autoBody ? s.body : ''); };
   const [calcIdx, setCalcIdx] = useState(0);
   const [customPrice, setCustomPrice] = useState(10000000);
   const calcPrice = calcIdx === -1 ? customPrice : (cars[calcIdx] ? Number(cars[calcIdx].price) : customPrice);
@@ -26,7 +30,7 @@ export default function Home() {
   const search = (e) => {
     e.preventDefault();
     const base = s.make ? `/cars/${slugify(s.make)}${s.model ? '/' + slugify(s.model) : ''}` : '/cars';
-    const qs = new URLSearchParams(Object.entries({ yearMin: s.yearMin, body: s.body, maxPrice: budget }).filter(([, v]) => v));
+    const qs = new URLSearchParams(Object.entries({ yearMin: s.yearMin, body: autoBody ? '' : s.body, maxPrice: budget }).filter(([, v]) => v));
     go(base + (qs.toString() ? '?' + qs : ''));
   };
 
@@ -48,10 +52,10 @@ export default function Home() {
 
       <div className="wrap">
         <form className="search-card" onSubmit={search} aria-label="Find a car">
-          <div className="field"><label className="f" htmlFor="home-make">Make</label><select id="home-make" className="input" value={s.make} onChange={(e) => setS({ ...s, make: e.target.value, model: '' })}><option value="">Any make</option>{makes.map((m) => <option key={m}>{m}</option>)}</select></div>
-          <div className="field"><label className="f" htmlFor="home-model">Model</label><select id="home-model" className="input" value={s.model} onChange={(e) => setS({ ...s, model: e.target.value, make: s.make || (all.find((c) => c.model === e.target.value) || {}).make || '' })}><option value="">Any model</option>{models.map((m) => <option key={m}>{m}</option>)}</select></div>
+          <div className="field"><label className="f" htmlFor="home-make">Make</label><select id="home-make" className="input" value={s.make} onChange={(e) => setS({ ...s, make: e.target.value, model: '', body: pick(e.target.value, '') })}><option value="">Any make</option>{makes.map((m) => <option key={m}>{m}</option>)}</select></div>
+          <div className="field"><label className="f" htmlFor="home-model">Model</label><select id="home-model" className="input" value={s.model} onChange={(e) => { const mk = s.make || (all.find((c) => c.model === e.target.value) || {}).make || ''; setS({ ...s, model: e.target.value, make: mk, body: pick(mk, e.target.value) }); }}><option value="">Any model</option>{models.map((m) => <option key={m}>{m}</option>)}</select></div>
           <div className="field"><label className="f" htmlFor="home-year">Year from</label><select id="home-year" className="input" value={s.yearMin} onChange={(e) => setS({ ...s, yearMin: e.target.value })}><option value="">Any year</option>{years.map((y) => <option key={y} value={y}>{y} or newer</option>)}</select></div>
-          <div className="field"><label className="f" htmlFor="home-body">Body type</label><select id="home-body" className="input" value={s.body} onChange={(e) => setS({ ...s, body: e.target.value })}><option value="">Any body type</option>{bodies.map((m) => <option key={m}>{m}</option>)}</select></div>
+          <div className="field"><label className="f" htmlFor="home-body">Body type{autoBody && <span className="muted small" style={{ fontWeight: 400 }}> · auto-selected</span>}</label><select id="home-body" className="input" value={autoBody || s.body} disabled={!!autoBody} onChange={(e) => setS({ ...s, body: e.target.value })}><option value="">Any body type</option>{bodies.map((m) => <option key={m}>{m}</option>)}</select></div>
           <div className="field">
             <label className="f" htmlFor="home-budget">Budget</label>
             <select id="home-budget" className="input" value={budget} onChange={(e) => setBudget(e.target.value)}>{BUDGETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
