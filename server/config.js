@@ -40,6 +40,8 @@ module.exports = {
   hoursSpec: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '08:00', closes: '18:00' },
   instagram: env.INSTAGRAM || 'korrectcarsofficial',
   bankPartner: env.BANK_PARTNER_NAME || '',
+  // Staff sign-in address. Not linked anywhere on the site; staff are given it directly. Change with ADMIN_PATH.
+  adminPath: '/' + String(env.ADMIN_PATH || 'myadm').replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9-_]/g, ''),
   uploadsDir: path.join(__dirname, '..', 'uploads'),
   distDir: path.join(__dirname, '..', 'dist')
 };

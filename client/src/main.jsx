@@ -5,7 +5,9 @@ import { Router, AppProvider, useRouter, match } from './lib/core.jsx';
 import { Header, Footer, WhatsApp } from './components/Layout.jsx';
 import Home from './pages/Home.jsx';
 import { Inventory, CarDetail, PaySmallSmall, Compare } from './pages/Cars.jsx';
-import { useApi, slugify } from './lib/core.jsx';
+import { useApi, slugify, booted } from './lib/core.jsx';
+// The staff address is only known when the page was opened at it (it is not in the site's code)
+const ADMIN_PATH = (booted('/config') || {}).adminPath || null;
 import { SwapHome, SwapListing, SwapNew } from './pages/Swap.jsx';
 import { Account, AuthPage, VerifyEmail, ForgotPassword, ResetPassword } from './pages/Account.jsx';
 import { Blog, Post, Page, Faqs, Contact, NotFound } from './pages/Content.jsx';
@@ -43,7 +45,7 @@ function Routes() {
   if (['/about-us', '/privacy-policy', '/terms-and-conditions'].includes(path)) return <Page slug={path.slice(1)} />;
   if (path === '/faqs') return <Faqs />;
   if (path === '/contact') return <Contact />;
-  if (path === '/myadm') return <Admin />;
+  if (ADMIN_PATH && path === ADMIN_PATH) return <Admin />;
   return <NotFound />;
 }
 

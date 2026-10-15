@@ -40,7 +40,7 @@ const STATIC = {
   '/contact': { title: 'Contact Korrect Cars — Lagos', desc: `Call, WhatsApp or email Korrect Cars. Online car dealer in Lagos, open ${config.hours}.`, h1: 'Contact us' },
   '/faqs': { title: 'Frequently Asked Questions | Korrect Cars', desc: 'Answers about buying, inspections, Pay Small Small and Korrect Swap.', h1: 'Frequently asked questions' }
 };
-const NOINDEX = /^\/(myadm|account|login|register|swap\/new|verify-email|forgot-password|reset-password|compare)(\/|$)/;
+const NOINDEX = /^\/(account|login|register|swap\/new|verify-email|forgot-password|reset-password|compare)(\/|$)/;
 
 const PSS_FAQ = [
   ['How does Pay Small Small work at Korrect Cars?', 'Pick a car and get an estimate of your deposit and monthly payment. Apply in minutes, and with your consent we pass your details to our credit bank partner. Once the bank approves you, Korrect Cars sells you the car.'],
@@ -90,9 +90,10 @@ async function resolveCars(p) {
 async function renderPage(req, nonce) {
   const p = req.path.replace(/\/+$/, '') || '/';
   let meta = { ...DEFAULT, url: config.siteUrl + (p === '/' ? '/' : p) };
-  let body = ''; let status = 200; let noindex = NOINDEX.test(p); let known = false;
+  const isAdmin = p === config.adminPath;
+  let body = ''; let status = 200; let noindex = NOINDEX.test(p) || isAdmin; let known = isAdmin;
   const ld = [];
-  const boot = { '/config': pub.publicConfig(), '/auth/me': { user: req.user ? pub.publicUser(req.user, req.mfa) : null } };
+  const boot = { '/config': isAdmin ? { ...pub.publicConfig(), adminPath: config.adminPath } : pub.publicConfig(), '/auth/me': { user: req.user ? pub.publicUser(req.user, req.mfa) : null } };
 
   if (STATIC[p]) { known = true; meta = { ...meta, ...STATIC[p] }; body = `<h1>${esc(STATIC[p].h1)}</h1><p>${esc(STATIC[p].desc)}</p>`; }
 
@@ -186,7 +187,7 @@ async function renderPage(req, nonce) {
     }
   }
 
-  known = known || /^\/(compare|swap\/new|myadm|account|login|register|verify-email|forgot-password|reset-password)$/.test(p) || /^\/swap\/\d+$/.test(p);
+  known = known || /^\/(compare|swap\/new|account|login|register|verify-email|forgot-password|reset-password)$/.test(p) || /^\/swap\/\d+$/.test(p);
   if (!known) { status = 404; noindex = true; meta.title = 'Page not found | Korrect Cars'; }
 
   const img = /^https?:/.test(meta.image) ? meta.image : config.siteUrl + meta.image;

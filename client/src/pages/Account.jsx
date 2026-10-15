@@ -10,7 +10,7 @@ export function AuthPage({ mode, adminGate = false }) {
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(''); const [unverified, setUnverified] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-  const next = adminGate ? '/myadm' : (query.get('next') || '/account');
+  const next = adminGate ? window.location.pathname : (query.get('next') || '/account');
   if (user && !adminGate) return (
     <div className="wrap sec-sm" style={{ maxWidth: 480 }}>
       <h1 style={{ fontSize: 44 }}>You are signed in</h1>
@@ -162,7 +162,6 @@ export function Account() {
           </div>
           <nav className="sidenav">{tabs.map(([k, l, n]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}{n ? <span className="n">{n}</span> : null}</button>)}</nav>
           <Link to="/swap/new" className="btn btn-red btn-sm btn-block" style={{ marginTop: 10, color: '#fff' }}>List a car</Link>
-          {['admin', 'moderator'].includes(user.role) && <Link to="/myadm" className="btn btn-dark btn-sm btn-block" style={{ marginTop: 8, color: '#fff' }}>Admin console</Link>}
           <button className="btn btn-line btn-sm btn-block" style={{ marginTop: 8 }} onClick={() => logout(false)}>Sign out</button>
         </aside>
         <main style={{ minWidth: 0, display: 'grid', gap: 18 }}>

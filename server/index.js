@@ -73,7 +73,7 @@ for (const f of ['favicon.ico', 'favicon.png']) app.get('/' + f, (_req, res) => 
 
 // Google Search Console site-verification files (e.g. /googlea3cf853783d752e5.html)
 app.get(/^\/(google[0-9a-f]{8,32})\.html$/, (req, res) => res.type('text/html').send(`google-site-verification: ${req.params[0]}.html`));
-app.get('/robots.txt', (_req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /myadm\nDisallow: /account\nDisallow: /api/\nAllow: /\n\nSitemap: ${config.siteUrl}/sitemap.xml\n`));
+app.get('/robots.txt', (_req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /account\nDisallow: /api/\nAllow: /\n\nSitemap: ${config.siteUrl}/sitemap.xml\n`));
 app.get('/ads.txt', (_req, res) => res.type('text/plain').send(process.env.ADS_TXT || 'google.com, pub-9741732903227479, DIRECT, f08c47fec0942fa0\n'));
 
 // ---------- API ----------
@@ -108,13 +108,13 @@ app.get('/sitemap.xml', async (_req, res, next) => {
 const LEGACY = {
   '/about-us/': '/about-us', '/contact-us/': '/contact', '/services/': '/', '/add-car-2/': '/swap', '/cars/': '/cars',
   '/privacy-policy/': '/privacy-policy', '/terms-and-conditions/': '/terms-and-conditions', '/blog/': '/blog', '/faqs/': '/faqs',
-  '/wp-login.php': '/myadm', '/wp-admin/': '/myadm', '/myadm/': '/myadm'
+  [config.adminPath + '/']: config.adminPath
 };
 app.use(async (req, res, next) => {
   if (req.method !== 'GET') return next();
   const p = req.path;
   if (LEGACY[p]) return res.redirect(301, LEGACY[p]);
-  if (/^\/(feed|comments\/feed)\/?$/.test(p) || p.startsWith('/wp-content/') || p.startsWith('/wp-includes/') || p === '/xmlrpc.php') return res.status(410).type('text/plain').send('Gone');
+  if (/^\/(feed|comments\/feed)\/?$/.test(p) || p.startsWith('/wp-content/') || p.startsWith('/wp-includes/') || p.startsWith('/wp-admin') || p === '/wp-login.php' || p === '/xmlrpc.php') return res.status(410).type('text/plain').send('Gone');
   const m = p.match(/^\/cars\/([a-z0-9-]+)\/$/);
   if (m) return res.redirect(301, `/cars/${m[1]}`);
   const m2 = p.match(/^\/(?:blog\/|\d{4}\/\d{2}\/(?:\d{2}\/)?)?([a-z0-9-]+)\/?$/);
@@ -129,6 +129,7 @@ app.get('*', loadUser, async (req, res, next) => {
   try {
     const { status, html } = await renderPage(req, res.locals.nonce);
     // private: the page embeds the signed-in user's name, so shared caches must never store it
+    if (req.path.replace(/\/+$/, '') === config.adminPath) res.set('X-Robots-Tag', 'noindex, nofollow');
     res.status(status).set('Cache-Control', 'private, no-cache').type('html').send(html);
   } catch (e) { next(e); }
 });

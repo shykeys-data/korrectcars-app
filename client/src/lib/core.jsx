@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 
 // ---------- Data embedded in the page by the server ----------
 // Each page arrives with the data it needs, so it shows straight away and still works when
@@ -71,15 +71,25 @@ export function Router({ children }) {
     window.addEventListener('popstate', on);
     return () => window.removeEventListener('popstate', on);
   }, []);
+  // New pages always open at the top: jump instantly (no smooth animation) right after the new page is drawn
+  const toTop = useRef(false);
   const go = useCallback((to, { replace = false, keepScroll = false } = {}) => {
     const u = new URL(to, window.location.origin);
     if (u.origin !== window.location.origin) { window.location.href = to; return; }
     window.history[replace ? 'replaceState' : 'pushState']({}, '', u.pathname + u.search + u.hash);
+    toTop.current = !u.hash && !keepScroll;
     setLoc({ path: u.pathname, search: u.search, hash: u.hash });
     setTimeout(() => { if (window.gtag) window.gtag('event', 'page_view', { page_location: window.location.href, page_title: document.title }); }, 300);
     if (u.hash) setTimeout(() => { const el = document.getElementById(u.hash.slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
-    else if (!keepScroll) window.scrollTo(0, 0);
   }, []);
+  useLayoutEffect(() => {
+    if (!toTop.current) return;
+    toTop.current = false;
+    const root = document.documentElement; const prev = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollTo(0, 0);
+    root.style.scrollBehavior = prev;
+  }, [loc]);
   const value = { path: loc.path.replace(/\/+$/, '') || '/', query: new URLSearchParams(loc.search), hash: loc.hash, go };
   return <RouterCtx.Provider value={value}>{children}</RouterCtx.Provider>;
 }

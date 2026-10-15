@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useRouter, useApp, waLink, api } from '../lib/core.jsx';
+import { Link, useRouter, useApp, waLink, api, booted } from '../lib/core.jsx';
 
 const NAV = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/swap', 'Swap your car'], ['/blog', 'Guides'], ['/contact', 'Contact']];
 
@@ -86,7 +86,7 @@ export function WhatsApp() {
   const [open, setOpen] = useState(false);
   const [topic, setTopic] = useState(0);
   const [msg, setMsg] = useState(TOPICS[0][1]);
-  if (path.startsWith('/myadm')) return null;
+  if ((booted('/config') || {}).adminPath === path) return null;
   const pick = (i) => { setTopic(i); setMsg(TOPICS[i][1] + (path.startsWith('/cars/') ? `\n(Page: ${window.location.href})` : '')); };
   return (
     <>
