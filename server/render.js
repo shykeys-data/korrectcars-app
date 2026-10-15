@@ -49,13 +49,14 @@ const PSS_FAQ = [
 ];
 
 function orgLd() {
+  const st = require('./lib/settings').current();
   return {
     '@context': 'https://schema.org', '@type': 'AutoDealer', '@id': config.siteUrl + '/#dealer', name: 'Korrect Cars', url: config.siteUrl + '/',
-    logo: config.siteUrl + '/img/logo.svg', image: config.siteUrl + DEFAULT.image, email: config.email, telephone: config.phones.map((p) => p.trim()),
+    logo: config.siteUrl + '/img/logo.svg', image: config.siteUrl + DEFAULT.image, email: st.email, telephone: st.phones,
     description: 'Online car dealer in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through bank partners and Korrect Swap.',
     areaServed: { '@type': 'City', name: 'Lagos' }, address: { '@type': 'PostalAddress', addressLocality: 'Lagos', addressCountry: 'NG' },
     openingHoursSpecification: [{ '@type': 'OpeningHoursSpecification', dayOfWeek: config.hoursSpec.days, opens: config.hoursSpec.opens, closes: config.hoursSpec.closes }],
-    sameAs: config.instagram ? [`https://www.instagram.com/${config.instagram}/`] : []
+    sameAs: st.instagram ? [`https://www.instagram.com/${st.instagram}/`] : []
   };
 }
 const faqLd = (pairs) => ({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: pairs.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) });
@@ -91,7 +92,7 @@ async function renderPage(req, nonce) {
   let meta = { ...DEFAULT, url: config.siteUrl + (p === '/' ? '/' : p) };
   let body = ''; let status = 200; let noindex = NOINDEX.test(p); let known = false;
   const ld = [];
-  const boot = { '/config': pub.publicConfig(), '/auth/me': { user: req.user ? pub.publicUser(req.user) : null } };
+  const boot = { '/config': pub.publicConfig(), '/auth/me': { user: req.user ? pub.publicUser(req.user, req.mfa) : null } };
 
   if (STATIC[p]) { known = true; meta = { ...meta, ...STATIC[p] }; body = `<h1>${esc(STATIC[p].h1)}</h1><p>${esc(STATIC[p].desc)}</p>`; }
 

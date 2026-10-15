@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
-import { Link, useApi, useApp, useTitle, naira, date, api, firstPhoto } from '../lib/core.jsx';
+import React, { useState, useMemo } from 'react';
+import qrcode from 'qrcode-generator';
+import { Link, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink } from '../lib/core.jsx';
 import { Loading, Modal } from '../components/Bits.jsx';
 import Cascade from '../components/Cascade.jsx';
 import { AuthPage } from './Account.jsx';
 
-const TABS = [['overview', 'Overview'], ['cars', 'Dealer cars'], ['enquiries', 'Enquiries'], ['listings', 'Swap listings'], ['swaps', 'Swaps & fees'], ['users', 'Users'], ['blog', 'Blog'], ['audit', 'Audit log']];
+// Tabs each role can see. admin = owner; moderator is the old name for sales.
+const ALL_TABS = [['overview', 'Overview', 'admin sales editor'], ['leads', 'Leads', 'admin sales'], ['cars', 'Dealer cars', 'admin sales editor'], ['listings', 'Swap listings', 'admin sales'], ['swaps', 'Swaps & fees', 'admin sales'], ['blog', 'Blog', 'admin editor'], ['users', 'Staff & users', 'admin'], ['settings', 'Settings', 'admin'], ['audit', 'Activity log', 'admin']];
+const roleKey = (r) => (r === 'moderator' ? 'sales' : r);
+const STAFF = ['admin', 'sales', 'editor', 'moderator'];
+const ROLE_LABEL = { admin: 'Owner', sales: 'Sales', moderator: 'Sales', editor: 'Editor', user: 'Customer' };
 const T = ({ c, children }) => <span className={'tag ' + c}>{children}</span>;
 const stTag = { pending: 'tag-warn', live: 'tag-ok', rejected: 'tag-bad', swapped: 'tag-grey', withdrawn: 'tag-grey', available: 'tag-ok', sold: 'tag-grey', hidden: 'tag-bad', new: 'tag-warn', contacted: 'tag-info', closed: 'tag-grey', accepted: 'tag-ok', inspection: 'tag-warn', completed: 'tag-ok', declined: 'tag-bad', cancelled: 'tag-grey', due: 'tag-bad', paid: 'tag-ok', none: 'tag-grey', published: 'tag-ok', draft: 'tag-grey' };
 
@@ -13,8 +18,70 @@ export default function Admin() {
   const { user } = useApp();
   if (user === undefined) return <Loading />;
   if (!user) return <AuthPage mode="login" adminGate />;
-  if (!['admin', 'moderator'].includes(user.role)) return <NoAccess user={user} />;
+  if (!STAFF.includes(user.role)) return <NoAccess user={user} />;
+  if (user.twofa && !user.twofa.enabled) return <TwoFASetup user={user} />;
+  if (user.twofa && !user.twofa.ok) return <TwoFAVerify user={user} />;
   return <Console user={user} />;
+}
+
+function TwoFASetup({ user }) {
+  const { setUser } = useApp();
+  const [data, setData] = useState(null); const [code, setCode] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const [codes, setCodes] = useState(null); const [doneUser, setDoneUser] = useState(null);
+  const start = async () => { setErr(''); try { setData(await api('/auth/2fa/setup', { method: 'POST' })); } catch (e) { setErr(e.message); } };
+  const svg = useMemo(() => { if (!data) return ''; const qr = qrcode(0, 'M'); qr.addData(data.url); qr.make(); return qr.createSvgTag({ cellSize: 5, margin: 2, scalable: true }); }, [data]);
+  const enable = async (e) => { e.preventDefault(); setErr(''); setBusy(true); try { const d = await api('/auth/2fa/enable', { method: 'POST', body: { code } }); setCodes(d.recoveryCodes); setDoneUser(d.user); } catch (e2) { setErr(e2.message); } finally { setBusy(false); } };
+  if (codes) return (
+    <div className="wrap sec-sm" style={{ maxWidth: 620 }}>
+      <h1 style={{ fontSize: 44 }}>Two-step login is on</h1>
+      <div className="box">
+        <h3>Save your backup codes</h3>
+        <p>If you lose your phone, each of these codes lets you sign in once. Write them down or save them somewhere safe. <b>They will not be shown again.</b></p>
+        <div className="codes">{codes.map((c) => <code key={c}>{c}</code>)}</div>
+        <button className="btn btn-red" style={{ marginTop: 16 }} onClick={() => setUser(doneUser)}>I have saved them, open the admin</button>
+      </div>
+    </div>
+  );
+  return (
+    <div className="wrap sec-sm" style={{ maxWidth: 620 }}>
+      <h1 style={{ fontSize: 44 }}>Protect your staff account</h1>
+      <p>Staff accounts need two-step login: your password plus a 6-digit code from an app on your phone. This keeps customer details safe even if a password leaks.</p>
+      {err && <div className="err">{err}</div>}
+      {!data ? <div className="box">
+        <ol className="small" style={{ paddingLeft: 18 }}><li>Install <b>Google Authenticator</b> or <b>Microsoft Authenticator</b> on your phone (free).</li><li>Press the button below and scan the code with the app.</li><li>Type the 6-digit code the app shows.</li></ol>
+        <button className="btn btn-red" onClick={start}>Start setup</button>
+      </div> : <form className="box" onSubmit={enable}>
+        <div className="qr-wrap"><div className="qr" dangerouslySetInnerHTML={{ __html: svg }} aria-label="QR code for your authenticator app" role="img" />
+          <div><p className="small" style={{ marginTop: 0 }}>Scan this with your authenticator app. Can't scan? Choose "enter a setup key" in the app and type:</p><code className="secret">{data.secret.replace(/(.{4})/g, '$1 ').trim()}</code></div></div>
+        <div className="field" style={{ marginTop: 16 }}><label className="f" htmlFor="tf-code">6-digit code from the app</label><input id="tf-code" className="input code-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} /></div>
+        <button className="btn btn-red" disabled={busy || code.length !== 6}>{busy ? 'Checking…' : 'Turn on two-step login'}</button>
+      </form>}
+      <p className="small muted" style={{ marginTop: 14 }}>Signed in as {user.email}.</p>
+    </div>
+  );
+}
+
+function TwoFAVerify({ user }) {
+  const { setUser } = useApp();
+  const [code, setCode] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [backup, setBackup] = useState(false);
+  const submit = async (e) => { e.preventDefault(); setErr(''); setBusy(true); try { const d = await api('/auth/2fa/verify', { method: 'POST', body: { code } }); setUser(d.user); } catch (e2) { setErr(e2.message); setCode(''); } finally { setBusy(false); } };
+  const signOut = async () => { await api('/auth/logout', { method: 'POST' }); setUser(null); };
+  return (
+    <div className="wrap sec-sm" style={{ maxWidth: 480 }}>
+      <h1 style={{ fontSize: 44 }}>Enter your code</h1>
+      <form className="box" onSubmit={submit}>
+        <p style={{ marginTop: 0 }}>Open your authenticator app and type the 6-digit code for <b>Korrect Cars</b> ({user.email}).</p>
+        {err && <div className="err" role="alert">{err}</div>}
+        <div className="field"><label className="f" htmlFor="tv-code">{backup ? 'Backup code' : '6-digit code'}</label>
+          <input id="tv-code" className={'input' + (backup ? '' : ' code-input')} inputMode={backup ? 'text' : 'numeric'} autoComplete="one-time-code" autoFocus maxLength={backup ? 11 : 6} required value={code} onChange={(e) => setCode(backup ? e.target.value : e.target.value.replace(/\D/g, ''))} /></div>
+        <button className="btn btn-red btn-block" disabled={busy || (!backup && code.length !== 6)}>{busy ? 'Checking…' : 'Continue'}</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }} className="small">
+          <button type="button" className="linkish" onClick={() => { setBackup(!backup); setCode(''); }}>{backup ? 'Use the app code' : 'Lost your phone? Use a backup code'}</button>
+          <button type="button" className="linkish" onClick={signOut}>Sign out</button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 function NoAccess({ user }) {
@@ -31,6 +98,8 @@ function NoAccess({ user }) {
 
 function Console({ user }) {
   const { setUser } = useApp();
+  const rk = roleKey(user.role);
+  const TABS = ALL_TABS.filter((t) => t[2].split(' ').includes(rk));
   const [tab, setTab] = useState('overview');
   const stats = useApi('/admin/stats');
   const logout = async () => { await api('/auth/logout', { method: 'POST' }); setUser(null); };
@@ -40,10 +109,10 @@ function Console({ user }) {
         <aside className="admin-side">
           <div style={{ padding: '6px 8px 14px', borderBottom: '1px solid #26262b', marginBottom: 8 }}>
             <div className="disp" style={{ fontSize: 22, color: '#fff' }}>Admin console</div>
-            <div className="small" style={{ color: '#a1a1aa' }}>{user.name} · {user.role}</div>
+            <div className="small" style={{ color: '#a1a1aa' }}>{user.name} · {ROLE_LABEL[user.role] || user.role}</div>
           </div>
           <nav className="sidenav">{TABS.map(([k, l]) => {
-            const n = stats.data ? { listings: stats.data.pendingListings, enquiries: stats.data.newEnquiries }[k] : 0;
+            const n = stats.data ? { listings: stats.data.pendingListings, leads: stats.data.newEnquiries }[k] : 0;
             return <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{n ? <span className="n">{n}</span> : null}</button>;
           })}</nav>
           <button className="btn btn-ghost btn-sm btn-block" style={{ marginTop: 12 }} onClick={logout}>Sign out</button>
@@ -51,11 +120,12 @@ function Console({ user }) {
         <main style={{ minWidth: 0, display: 'grid', gap: 18 }}>
           {tab === 'overview' && <Overview stats={stats} go={setTab} />}
           {tab === 'cars' && <Cars isAdmin={user.role === 'admin'} />}
-          {tab === 'enquiries' && <Enquiries onChange={stats.reload} />}
+          {tab === 'leads' && <Leads onChange={stats.reload} />}
+          {tab === 'settings' && <Settings />}
           {tab === 'listings' && <Listings onChange={stats.reload} />}
           {tab === 'swaps' && <Swaps />}
           {tab === 'users' && <Users me={user} />}
-          {tab === 'blog' && <Blog isAdmin={user.role === 'admin'} />}
+          {tab === 'blog' && <Blog isAdmin={['admin', 'editor'].includes(user.role)} />}
           {tab === 'audit' && <Audit />}
         </main>
       </div>
@@ -65,22 +135,23 @@ function Console({ user }) {
 
 function Overview({ stats, go }) {
   const s = stats.data;
-  const enq = useApi('/admin/enquiries');
+  const seesLeads = s && ['admin', 'sales', 'moderator'].includes(s.role);
+  const enq = useApi(seesLeads ? '/admin/enquiries' : null);
   if (!s) return <Loading />;
   const K = ({ l, v, sub, to }) => <button className="box kpi" style={{ textAlign: 'left', cursor: to ? 'pointer' : 'default', font: 'inherit' }} onClick={() => to && go(to)}><div className="small muted">{l}</div><div className="v">{v}</div>{sub && <div className="small muted">{sub}</div>}</button>;
   return (
     <>
       <div className="kpis">
         <K l="Cars in stock" v={s.carsAvail} sub={`${s.carsSold} sold`} to="cars" />
-        <K l="New enquiries" v={s.newEnquiries} to="enquiries" />
+        {seesLeads && <K l="New leads" v={s.newEnquiries} sub={s.newPss ? `${s.newPss} Pay Small Small` : ''} to="leads" />}
         <K l="Swap listings to review" v={s.pendingListings} sub={`${s.liveListings} live`} to="listings" />
         <K l="Open swap offers" v={s.openOffers} to="swaps" />
         <K l="Success fees paid" v={naira(s.feePaid)} sub={`${naira(s.feeDue)} due`} to="swaps" />
-        <K l="Registered users" v={s.users} sub={s.reported ? `${s.reported} reported messages` : ''} to="users" />
+        {s.role === 'admin' && <K l="Registered users" v={s.users} sub={s.reported ? `${s.reported} reported messages` : ''} to="users" />}
       </div>
-      <div className="box"><h3>Latest enquiries</h3>{enq.data && enq.data.enquiries.slice(0, 6).map((e) => (
-        <div className="row" key={e.id}><div><b>{e.name}</b> · {e.type}{e.car_title ? ` · ${e.car_title}` : ''}<div className="small muted">{e.phone} · {date(e.created_at)}</div></div><T c={stTag[e.status]}>{e.status}</T></div>
-      ))}{enq.data && !enq.data.enquiries.length && <p className="muted">No enquiries yet.</p>}</div>
+      {seesLeads && <div className="box"><h3>Latest leads</h3>{enq.data && enq.data.enquiries.slice(0, 6).map((e) => (
+        <div className="row" key={e.id}><div><b>{e.name}</b> · {TYPE_LABEL[e.type] || e.type}{e.car_title ? ` · ${e.car_title}` : ''}<div className="small muted">{e.phone} · {date(e.created_at)}</div></div><T c={stTag[e.status]}>{STATUS_LABEL[e.status] || e.status}</T></div>
+      ))}{enq.data && !enq.data.enquiries.length && <p className="muted">No leads yet.</p>}</div>}
     </>
   );
 }
@@ -168,23 +239,72 @@ function CarForm({ car, onClose, onSaved }) {
   );
 }
 
-function Enquiries({ onChange }) {
-  const { data, reload } = useApi('/admin/enquiries');
-  const setSt = async (e, status) => { await api(`/admin/enquiries/${e.id}/status`, { method: 'POST', body: { status } }); reload(); onChange(); };
+const TYPE_LABEL = { viewing: 'Viewing', offer: 'Offer', bnpl: 'Pay Small Small', contact: 'Message' };
+const STATUS_LABEL = { new: 'New', contacted: 'Contacted', viewing: 'Viewing booked', sent_to_bank: 'Sent to bank', won: 'Sold', lost: 'Lost', closed: 'Closed' };
+
+function Leads({ onChange }) {
+  const [type, setType] = useState(''); const [status, setStatus] = useState('');
+  const qs = new URLSearchParams(Object.entries({ type, status }).filter(([, v]) => v)).toString();
+  const { data, reload } = useApi('/admin/enquiries' + (qs ? '?' + qs : ''));
+  const { cfg } = useApp();
+  const [open, setOpen] = useState(null); const [notes, setNotes] = useState('');
+  const upd = async (e, body) => { try { await api('/admin/enquiries/' + e.id, { method: 'POST', body }); reload(); onChange(); } catch (x) { window.alert(x.message); } };
+  const statuses = (data && data.statuses) || Object.keys(STATUS_LABEL);
+  const wa = (e) => `https://wa.me/${String(e.phone).replace(/\D/g, '').replace(/^0/, '234')}?text=${encodeURIComponent(`Hello ${e.name.split(' ')[0]}, this is Korrect Cars${e.car_title ? ` about the ${e.car_title}` : ''}.`)}`;
   return (
-    <div className="box"><h2>Enquiries</h2>
-      {!data ? <Loading /> : !data.enquiries.length ? <p className="muted">No enquiries yet.</p> : <div className="scroll-x"><table className="tbl"><thead><tr><th>When</th><th>Who</th><th>Type</th><th>Details</th><th>Status</th></tr></thead><tbody>
-        {data.enquiries.map((e) => <tr key={e.id}>
-          <td className="small">{date(e.created_at)}</td>
-          <td><b>{e.name}</b><div className="small"><a href={'tel:' + e.phone}>{e.phone}</a>{e.email ? <> · <a href={'mailto:' + e.email}>{e.email}</a></> : null}</div></td>
-          <td>{e.type}</td>
-          <td className="small">{e.car_title && <div><Link to={'/cars/' + e.car_slug} target="_blank">{e.car_title}</Link></div>}
-            {e.offer_amount ? <div>Offer: {naira(e.offer_amount)}</div> : null}{e.preferred_date ? <div>Day: {e.preferred_date}</div> : null}
-            {e.bnpl_monthly ? <div>Deposit {naira(e.bnpl_deposit)}, {e.bnpl_months} months at {naira(e.bnpl_monthly)}</div> : null}{e.message && <div className="muted">{e.message}</div>}</td>
-          <td><select className="input" style={{ minHeight: 40, width: 'auto' }} value={e.status} onChange={(ev) => setSt(e, ev.target.value)}><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select></td>
-        </tr>)}
-      </tbody></table></div>}
+    <div className="box">
+      <div className="sec-head" style={{ marginBottom: 10 }}><h2 style={{ margin: 0 }}>Leads</h2>
+        <div className="pills">{[['', 'All'], ['bnpl', 'Pay Small Small'], ['viewing', 'Viewings'], ['offer', 'Offers'], ['contact', 'Messages']].map(([k, l]) => <button key={l} className={'pill' + (type === k ? ' on' : '')} onClick={() => setType(k)}>{l}</button>)}</div></div>
+      <div className="pills" style={{ marginBottom: 12 }}><span className="small muted" style={{ alignSelf: 'center' }}>Status:</span>{[['', 'Any'], ...statuses.map((x) => [x, STATUS_LABEL[x] || x])].map(([k, l]) => <button key={l} className={'pill' + (status === k ? ' on' : '')} onClick={() => setStatus(k)}>{l}</button>)}</div>
+      {!data ? <Loading /> : !data.enquiries.length ? <div className="empty"><p className="muted" style={{ margin: 0 }}>No leads here.</p></div> : data.enquiries.map((e) => (
+        <div className="lead" key={e.id}>
+          <div className="lead-top">
+            <div style={{ minWidth: 0 }}><b>{e.name}</b> <T c={e.type === 'bnpl' ? 'tag-info' : 'tag-grey'}>{TYPE_LABEL[e.type] || e.type}</T>
+              <div className="small muted">{date(e.created_at)}{e.assigned_name ? ` · handled by ${e.assigned_name}` : ''}</div></div>
+            <select className="input" aria-label="Lead status" style={{ minHeight: 40, width: 'auto' }} value={e.status} onChange={(ev) => upd(e, { status: ev.target.value })}>{statuses.map((x) => <option key={x} value={x}>{STATUS_LABEL[x] || x}</option>)}</select>
+          </div>
+          <div className="small lead-body">
+            {e.car_title && <div>Car: <Link to={'/cars/' + e.car_slug} target="_blank">{e.car_title}</Link>{e.car_price ? ` · ${naira(e.car_price)}` : ''}</div>}
+            {e.offer_amount ? <div>Offer: <b>{naira(e.offer_amount)}</b></div> : null}{e.preferred_date ? <div>Preferred day: {e.preferred_date}</div> : null}
+            {e.bnpl_monthly ? <div>Estimate: deposit {naira(e.bnpl_deposit)}, {e.bnpl_months} months, about {naira(e.bnpl_monthly)}/month</div> : null}
+            {e.message && <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{e.message}</div>}
+            {e.notes && open !== e.id && <div className="lead-notes"><b>Notes:</b> {e.notes}</div>}
+          </div>
+          <div className="lead-actions">
+            <a className="btn btn-wa btn-sm" href={wa(e)} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+            <a className="btn btn-line btn-sm" href={'tel:' + e.phone}>Call {e.phone}</a>
+            {e.email && <a className="btn btn-line btn-sm" href={'mailto:' + e.email}>Email</a>}
+            {!e.assigned_name && <button className="btn btn-line btn-sm" onClick={() => upd(e, { assignToMe: true })}>I'll handle it</button>}
+            <button className="btn btn-line btn-sm" onClick={() => { setOpen(open === e.id ? null : e.id); setNotes(e.notes || ''); }}>{open === e.id ? 'Close notes' : e.notes ? 'Edit notes' : 'Add notes'}</button>
+          </div>
+          {open === e.id && <div className="field" style={{ marginTop: 10 }}><textarea className="input" rows={3} value={notes} onChange={(ev) => setNotes(ev.target.value)} maxLength={2000} aria-label="Notes" placeholder="e.g. Called, wants to view Saturday" />
+            <button className="btn btn-dark btn-sm" style={{ marginTop: 8 }} onClick={async () => { await upd(e, { notes }); setOpen(null); }}>Save notes</button></div>}
+        </div>
+      ))}
+      <p className="small muted" style={{ marginTop: 12 }}>Pay Small Small applications: the customer agreed to share their details with {(cfg && cfg.bankPartner) || 'the credit bank partner'}. Set the status to "Sent to bank" once you have passed them on.</p>
     </div>
+  );
+}
+
+function Settings() {
+  const { data, reload } = useApi('/admin/settings');
+  const [f, setF] = useState(null); const [msg, setMsg] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  if (!data) return <Loading />;
+  const vals = f || { ...data.values, phones: data.values.phones.join(', '), bnplMinDeposit: data.values.bnpl.minDeposit, bnplMarkup: data.values.bnpl.markup, bnplMaxMonths: data.values.bnpl.maxMonths };
+  const save = async (e) => { e.preventDefault(); setErr(''); setMsg(''); setBusy(true); try { await api('/admin/settings', { method: 'PUT', body: vals }); setMsg('Saved. The website uses the new details straight away.'); setF(null); reload(); } catch (x) { setErr(x.message); } finally { setBusy(false); } };
+  return (
+    <form className="box" onSubmit={save}>
+      <h2>Settings</h2>
+      <p className="small muted">These show on the website (footer, contact buttons, Pay Small Small estimates). Changes are saved in the activity log.</p>
+      {msg && <div className="okmsg" style={{ marginBottom: 12 }}>{msg}</div>}{err && <div className="err">{err}</div>}
+      <div className="grid2">{Object.entries(data.fields).map(([k, fd]) => (
+        <div className="field" key={k}><label className="f" htmlFor={'st-' + k}>{fd.label}</label>
+          <input id={'st-' + k} className="input" inputMode={fd.type === 'number' ? 'numeric' : undefined} value={vals[k] === undefined || vals[k] === null ? '' : vals[k]} onChange={(e) => setF({ ...vals, [k]: e.target.value })} />
+          {k === 'phones' && <div className="hint">Separate numbers with commas. The first is shown in the header.</div>}
+          {k === 'bankPartner' && <div className="hint">Shown to customers on the Pay Small Small page.</div>}</div>
+      ))}</div>
+      <button className="btn btn-red" disabled={busy || !f}>{busy ? 'Saving…' : 'Save settings'}</button>
+    </form>
   );
 }
 
@@ -258,17 +378,19 @@ function Users({ me }) {
   const upd = async (u, body) => { try { await api('/admin/users/' + u.id, { method: 'POST', body }); reload(); } catch (e) { window.alert(e.message); } };
   const isAdmin = me.role === 'admin';
   return (
-    <div className="box"><h2>Users</h2>
+    <div className="box"><h2>Staff &amp; users</h2>
       {!data ? <Loading /> : <div className="scroll-x"><table className="tbl"><thead><tr><th>Name</th><th>Contact</th><th>Joined</th><th>Verified</th><th>Role</th><th /></tr></thead><tbody>
         {data.users.map((u) => <tr key={u.id}>
           <td><b>{u.name}</b>{u.disabled ? <div><T c="tag-bad">disabled</T></div> : null}{!u.email_verified ? <div><T c="tag-warn">email not confirmed</T></div> : null}</td>
           <td className="small">{u.email}<br />{u.phone}</td><td className="small">{date(u.created_at)}</td>
           <td>{isAdmin ? <button className={'btn btn-sm ' + (u.verified ? 'btn-ok' : 'btn-line')} onClick={() => upd(u, { verified: !u.verified })}>{u.verified ? 'Verified' : 'Verify'}</button> : (u.verified ? 'Yes' : 'No')}</td>
-          <td>{isAdmin && u.id !== me.id ? <select className="input" style={{ minHeight: 40, width: 'auto' }} value={u.role} onChange={(e) => upd(u, { role: e.target.value })}><option value="user">User</option><option value="moderator">Moderator</option><option value="admin">Admin</option></select> : u.role}</td>
-          <td>{isAdmin && u.id !== me.id && <button className="btn btn-line btn-sm" onClick={() => upd(u, { disabled: !u.disabled })}>{u.disabled ? 'Enable' : 'Disable'}</button>}</td>
+          <td>{isAdmin && u.id !== me.id ? <select className="input" aria-label="Role" style={{ minHeight: 40, width: 'auto' }} value={u.role === 'moderator' ? 'sales' : u.role} onChange={(e) => { if (e.target.value === 'admin' && !window.confirm(`Make ${u.name} an Owner? Owners can change everything, including staff.`)) return; upd(u, { role: e.target.value }); }}><option value="user">Customer</option><option value="sales">Sales</option><option value="editor">Editor</option><option value="admin">Owner</option></select> : ROLE_LABEL[u.role] || u.role}
+            {STAFF.includes(u.role) && <div className="small">{u.totp_enabled ? <T c="tag-ok">2-step on</T> : <T c="tag-warn">2-step not set up</T>}</div>}</td>
+          <td style={{ whiteSpace: 'nowrap' }}>{isAdmin && u.id !== me.id && <><button className="btn btn-line btn-sm" onClick={() => upd(u, { disabled: !u.disabled })}>{u.disabled ? 'Enable' : 'Disable'}</button>
+            {STAFF.includes(u.role) && u.totp_enabled ? <> <button className="btn btn-line btn-sm" onClick={() => { if (window.confirm(`Reset two-step login for ${u.name}? Use this if they lost their phone. They will set it up again at next sign-in.`)) upd(u, { reset2fa: true }); }}>Reset 2-step</button></> : null}</>}</td>
         </tr>)}
       </tbody></table></div>}
-      <p className="small muted" style={{ marginTop: 12 }}>Mark an owner as verified only after checking their ID against their phone number. Moderators can review listings and enquiries but cannot change users or delete cars.</p>
+      <p className="small muted" style={{ marginTop: 12 }}><b>Roles:</b> Owner can do everything. Sales handles leads, Pay Small Small, swaps and can edit cars. Editor manages cars and blog posts. Every staff account must use two-step login. To add staff, ask them to register on the site, then change their role here. Mark a customer as verified only after checking their ID against their phone number.</p>
     </div>
   );
 }
@@ -287,7 +409,7 @@ function Blog({ isAdmin }) {
 function Audit() {
   const { data } = useApi('/admin/audit');
   return (
-    <div className="box"><h2>Audit log</h2><p className="small muted">Every staff action and every view of a private document is recorded here.</p>
+    <div className="box"><h2>Activity log</h2><p className="small muted">Every staff action, sign-in code problem and view of a private document is recorded here.</p>
       {!data ? <Loading /> : !data.audit.length ? <p className="muted">Nothing yet.</p> : data.audit.map((a) => <div className="row" key={a.id} style={{ justifyContent: 'flex-start', gap: 16 }}><span className="small muted" style={{ minWidth: 110 }}>{date(a.created_at)}</span><b style={{ minWidth: 90 }}>{a.user_name}</b><span>{a.action}{a.target ? ` — ${a.target}` : ''}</span><span className="small muted" style={{ marginLeft: 'auto' }}>{a.ip}</span></div>)}
     </div>
   );

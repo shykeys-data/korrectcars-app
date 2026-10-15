@@ -5,10 +5,16 @@ const { one, q } = require('../db');
 
 const COOKIE = 'kc_session';
 
-function issueSession(res, user) {
-  const token = jwt.sign({ sub: user.id, v: user.token_version }, config.jwtSecret, { expiresIn: '7d' });
+const STAFF_ROLES = ['admin', 'sales', 'editor', 'moderator'];
+const isStaff = (u) => !!u && STAFF_ROLES.includes(u.role);
+
+// Staff sessions are shorter (12 hours) and carry mfa: true only after the two-step code was entered
+function issueSession(res, user, { mfa = false } = {}) {
+  const staff = isStaff(user);
+  const ttl = staff ? 12 * 3600 : 7 * 24 * 3600;
+  const token = jwt.sign({ sub: user.id, v: user.token_version, mfa: mfa ? 1 : 0 }, config.jwtSecret, { expiresIn: ttl });
   res.cookie(COOKIE, token, {
-    httpOnly: true, secure: config.isProd, sameSite: 'lax', maxAge: 7 * 24 * 3600 * 1000, path: '/'
+    httpOnly: true, secure: config.isProd, sameSite: 'lax', maxAge: ttl * 1000, path: '/'
   });
 }
 
@@ -21,8 +27,8 @@ async function loadUser(req, _res, next) {
   if (!token) return next();
   try {
     const p = jwt.verify(token, config.jwtSecret);
-    const user = await one('SELECT id, name, email, phone, role, verified, token_version, disabled FROM users WHERE id = ?', [p.sub]);
-    if (user && !user.disabled && user.token_version === p.v) req.user = user;
+    const user = await one('SELECT id, name, email, phone, role, verified, token_version, disabled, totp_enabled FROM users WHERE id = ?', [p.sub]);
+    if (user && !user.disabled && user.token_version === p.v) { req.user = user; req.mfa = p.mfa === 1; }
   } catch (_e) { /* invalid or expired token: treat as signed out */ }
   next();
 }
@@ -36,6 +42,19 @@ function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Please sign in.' });
     if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'Not allowed.' });
+    next();
+  };
+}
+
+// Staff areas: right role AND two-step login set up AND the code entered for this session.
+// 'moderator' is the old name for the sales role.
+function requireStaff(...roles) {
+  const allowed = roles.flatMap((r) => (r === 'sales' ? ['sales', 'moderator'] : [r]));
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Please sign in.' });
+    if (!allowed.includes(req.user.role)) return res.status(403).json({ error: 'Your role does not have access to this.' });
+    if (!req.user.totp_enabled) return res.status(403).json({ error: 'Set up two-step login to use the staff area.', needs2fa: 'setup' });
+    if (!req.mfa) return res.status(403).json({ error: 'Enter your two-step login code to continue.', needs2fa: 'verify' });
     next();
   };
 }
@@ -85,4 +104,4 @@ function maskContacts(text) {
   return { text: out, masked };
 }
 
-module.exports = { issueSession, clearSession, loadUser, requireAuth, requireRole, csrfGuard, sanitizeInput, limiter, audit, maskContacts, COOKIE };
+module.exports = { STAFF_ROLES, isStaff, requireStaff, issueSession, clearSession, loadUser, requireAuth, requireRole, csrfGuard, sanitizeInput, limiter, audit, maskContacts, COOKIE };

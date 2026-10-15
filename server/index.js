@@ -144,6 +144,7 @@ app.use((err, req, res, _next) => {
 
 db.init()
   .then(async () => {
+    await require('./lib/settings').load();
     try { const r = require('./photos').restorePhotos(); if (r.copied || r.missing) console.log('Photos restored from WordPress uploads:', r); } catch (e) { console.warn('Photo restore skipped:', e.message); }
     const c = await db.one('SELECT COUNT(*) AS n FROM cars');
     if (!Number(c.n)) console.log('Seeded live data:', await require('./seed').seed());

@@ -4,15 +4,16 @@ const config = require('../config');
 const catalog = require('../lib/catalog');
 const { q, one } = require('../db');
 const { validate } = require('../lib/validate');
-const { issueSession, clearSession, requireAuth, limiter } = require('../lib/security');
+const { issueSession, clearSession, requireAuth, limiter, isStaff, audit } = require('../lib/security');
+const totp = require('../lib/totp');
+const settings = require('../lib/settings');
 
 const r = express.Router();
 const DUMMY_HASH = bcrypt.hashSync('timing-equaliser', 12); // same work for unknown emails
 const PUBLIC_STATUSES = "('available','sold')";
 
 // ---------- Site settings for the client ----------
-const publicConfig = () => ({ whatsapp: config.whatsapp, phones: config.phones, email: config.email, bnpl: config.bnpl, swapFeePct: config.swapFeePct,
-  hours: config.hours, instagram: config.instagram, bankPartner: config.bankPartner });
+const publicConfig = () => settings.current();
 r.get('/config', (_req, res) => res.json(publicConfig()));
 r.get('/catalog', (_req, res) => res.json(catalog));
 
@@ -133,9 +134,48 @@ r.post('/auth/logout-all', requireAuth, async (req, res) => {
   await q('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [req.user.id]);
   clearSession(res); res.json({ ok: true });
 });
-r.get('/auth/me', (req, res) => res.json({ user: req.user ? publicUser(req.user) : null }));
+r.get('/auth/me', (req, res) => res.json({ user: req.user ? publicUser(req.user, req.mfa) : null }));
 
-function publicUser(u) { return { id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, verified: !!u.verified }; }
+// ---------- Two-step login for staff ----------
+const codeLimit = limiter(15, 10, 'Too many codes tried. Please wait 15 minutes.');
+const staffOnly = (req, res, next) => (isStaff(req.user) ? next() : res.status(403).json({ error: 'Only staff accounts use two-step login.' }));
+r.post('/auth/2fa/setup', requireAuth, staffOnly, async (req, res) => {
+  if (req.user.totp_enabled) return res.status(400).json({ error: 'Two-step login is already on. Ask the owner to reset it if you changed phones.' });
+  const secret = totp.newSecret();
+  await q('UPDATE users SET totp_secret = ? WHERE id = ?', [secret, req.user.id]);
+  res.json({ secret, url: totp.otpauthUrl(secret, req.user.email) });
+});
+r.post('/auth/2fa/enable', codeLimit, requireAuth, staffOnly, async (req, res) => {
+  const u = await one('SELECT id, totp_secret, totp_enabled FROM users WHERE id = ?', [req.user.id]);
+  if (u.totp_enabled) return res.status(400).json({ error: 'Two-step login is already on.' });
+  if (!totp.verify(u.totp_secret, req.body && req.body.code)) return res.status(400).json({ error: 'That code is not right. Check the time on your phone and try the newest code.' });
+  const codes = totp.newRecoveryCodes();
+  await q('UPDATE users SET totp_enabled = 1, recovery_codes = ? WHERE id = ?', [JSON.stringify(codes.map(totp.hashCode)), u.id]);
+  await audit(req, 'Turned on two-step login', req.user.email);
+  const user = await one('SELECT * FROM users WHERE id = ?', [u.id]);
+  issueSession(res, user, { mfa: true });
+  res.json({ user: publicUser(user, true), recoveryCodes: codes });
+});
+r.post('/auth/2fa/verify', codeLimit, requireAuth, staffOnly, async (req, res) => {
+  const u = await one('SELECT * FROM users WHERE id = ?', [req.user.id]);
+  if (!u.totp_enabled) return res.status(400).json({ error: 'Set up two-step login first.' });
+  const code = String((req.body && req.body.code) || '').trim();
+  let ok = totp.verify(u.totp_secret, code);
+  if (!ok && /^[a-z0-9]{5}-?[a-z0-9]{5}$/i.test(code)) { // a one-time backup code
+    const hashes = Array.isArray(u.recovery_codes) ? u.recovery_codes : [];
+    const h = totp.hashCode(code);
+    if (hashes.includes(h)) { ok = true; await q('UPDATE users SET recovery_codes = ? WHERE id = ?', [JSON.stringify(hashes.filter((x) => x !== h)), u.id]); await audit(req, 'Used a backup code', `${u.email}, ${hashes.length - 1} left`); }
+  }
+  if (!ok) { await audit(req, 'Wrong two-step code', u.email); return res.status(400).json({ error: 'That code is not right. Try the newest code in your authenticator app.' }); }
+  issueSession(res, u, { mfa: true });
+  res.json({ user: publicUser(u, true) });
+});
+
+function publicUser(u, mfa = false) {
+  const out = { id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, verified: !!u.verified };
+  if (isStaff(u)) out.twofa = { enabled: !!u.totp_enabled, ok: !!(u.totp_enabled && mfa) };
+  return out;
+}
 
 // ---------- Cars ----------
 async function facets() {
@@ -204,7 +244,7 @@ r.post('/enquiries', limiter(60, 8, 'Too many messages sent. Please call or What
 
 // Pay Small Small: minimum deposit, then a flat markup on the balance spread over the months
 function bnplPlan(price, depositIn, monthsIn) {
-  const b = config.bnpl;
+  const b = settings.current().bnpl;
   const months = Math.min(b.maxMonths, Math.max(b.minMonths, Math.round(monthsIn || b.minMonths)));
   const minDep = Math.ceil(price * b.minDeposit / 100);
   const deposit = Math.min(price, Math.max(minDep, Math.round(depositIn || 0)));

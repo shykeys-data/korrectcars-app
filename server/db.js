@@ -2,7 +2,7 @@
 // For local tests only, DB_DRIVER=sqlite runs the same SQL on Node's built-in SQLite.
 const config = require('./config');
 
-const JSON_COLS = new Set(['features', 'specs', 'info', 'photos', 'papers', 'wants_makes', 'wants_bodies']);
+const JSON_COLS = new Set(['features', 'specs', 'info', 'photos', 'papers', 'wants_makes', 'wants_bodies', 'recovery_codes']);
 
 let driver;
 
@@ -33,6 +33,10 @@ async function init() {
     for (const s of schema('sqlite')) driver.exec(s);
     const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
     if (!cols.includes('email_verified')) db.exec('ALTER TABLE users ADD COLUMN email_verified TINYINT NOT NULL DEFAULT 1');
+    for (const [t, c, def] of MIGRATIONS) {
+      const have = db.prepare(`PRAGMA table_info(${t})`).all().map((x) => x.name);
+      if (!have.includes(c)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${def.replace(/VARCHAR\(\d+\)/, 'TEXT').replace(/ ON UPDATE CURRENT_TIMESTAMP/, '')}`);
+    }
     return;
   }
   const mysql = require('mysql2/promise');
@@ -54,7 +58,21 @@ async function init() {
     await pool.query('ALTER TABLE users ADD COLUMN email_verified TINYINT NOT NULL DEFAULT 1');
     await pool.query('ALTER TABLE users ALTER COLUMN email_verified SET DEFAULT 0');
   }
+  for (const [t, c, def] of MIGRATIONS) {
+    const [have] = await pool.query(`SHOW COLUMNS FROM ${t} LIKE ?`, [c]);
+    if (!have.length) await pool.query(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`);
+  }
 }
+
+// New columns added after launch: [table, column, definition]
+const MIGRATIONS = [
+  ['users', 'totp_secret', 'VARCHAR(64) NULL'],
+  ['users', 'totp_enabled', 'TINYINT NOT NULL DEFAULT 0'],
+  ['users', 'recovery_codes', 'TEXT NULL'],
+  ['enquiries', 'notes', 'TEXT NULL'],
+  ['enquiries', 'assigned_to', 'INT NULL'],
+  ['enquiries', 'updated_at', 'DATETIME NULL']
+];
 
 // Only plain values may reach the driver: an object or array from user input could
 // otherwise be expanded by mysql2 into SQL fragments.
@@ -114,6 +132,7 @@ function schema(kind) {
     `CREATE TABLE IF NOT EXISTS email_tokens (id ${ID}, user_id ${FK} NOT NULL, token_hash ${S(64)} NOT NULL, purpose ${S(12)} NOT NULL,
       expires_at DATETIME NOT NULL, used_at DATETIME NULL, created_at ${TS}${k('et_hash', 'token_hash')})${TAIL}`,
     `CREATE TABLE IF NOT EXISTS audit (id ${ID}, user_id ${FK}, user_name ${S(80)}, action ${S(160)}, target ${S(300)}, ip ${S(60)}, created_at ${TS})${TAIL}`,
+    `CREATE TABLE IF NOT EXISTS settings (k ${S(60)} NOT NULL PRIMARY KEY, v TEXT, updated_at ${TSU})${TAIL}`,
     idx('cars_mmb', 'cars', 'make, model, body'), idx('sl_status', 'swap_listings', 'status'), idx('of_from', 'offers', 'from_user'), idx('of_to', 'offers', 'to_user'), idx('msg_offer', 'messages', 'offer_id')
   ].filter(Boolean);
 }
