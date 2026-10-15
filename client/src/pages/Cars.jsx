@@ -258,11 +258,11 @@ export function CarDetail({ slug }) {
             </div>
             {!sold && <p className="small muted" style={{ margin: '14px 0 0' }}>Parked at a partner car lot in Lagos. Book a viewing and we send you the address on WhatsApp. You inspect before you pay.</p>}
           </div>
-          <div className="box">
+          {cfg && cfg.swap && <div className="box">
             <h3 style={{ fontSize: 22 }}>Have a car to swap?</h3>
             <p className="small muted">Use your current car as part payment. List it on Korrect Swap and we will value it. 2% swap fee, paid only after a successful inspection.</p>
             <Link to="/swap/new" className="btn btn-line btn-sm">List my car</Link>
-          </div>
+          </div>}
           <div className="notice"><b>Stay safe:</b> only pay into the Korrect Cars company account, and only after you have seen the car and its papers.</div>
         </aside>
       </div>

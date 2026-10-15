@@ -225,7 +225,8 @@ export function Account() {
   const [view, setView] = useState(query.get('tab') || 'saved');
   const [open, setOpen] = useState(null);
   const saved = useLocalList('kc-saved');
-  const mine = useApi(user ? '/swap/mine' : null, [user]);
+  const swap = !!(cfg && cfg.swap);
+  const mine = useApi(user && swap ? '/swap/mine' : null, [user, swap]);
   useEffect(() => { if (user === null) go('/login?next=' + encodeURIComponent('/account' + (query.get('tab') ? '?tab=' + query.get('tab') : '')), { replace: true }); }, [user]); // eslint-disable-line
   useEffect(() => { const t = query.get('tab'); if (t && t !== view) setView(t); }, [query.get('tab')]); // eslint-disable-line
   if (!user) return <Loading />;
@@ -235,27 +236,28 @@ export function Account() {
   const logout = async (all) => { await api('/auth/' + (all ? 'logout-all' : 'logout'), { method: 'POST' }); setUser(null); go('/'); };
   const act = async (o, action) => { try { await api(`/swap/offers/${o.id}/respond`, { method: 'POST', body: { action } }); mine.reload(); } catch (e) { alertBox(e.message); } };
   const withdraw = async (l) => { await api(`/swap/listings/${l.id}/withdraw`, { method: 'POST' }); mine.reload(); };
-  const tabs = [['saved', 'Saved cars', saved.list.length], ['searches', 'Saved searches', 0], ['requests', 'My requests', 0], ['offers', 'Swap offers', waiting], ['cars', 'My swap cars', 0], ['security', 'Login & security', 0]];
+  const tabs = [['saved', 'Saved cars', saved.list.length], ['searches', 'Saved searches', 0], ['requests', 'My requests', 0], ...(swap ? [['offers', 'Swap offers', waiting], ['cars', 'My swap cars', 0]] : []), ['security', 'Login & security', 0]];
   const pick = (k) => { setView(k); go('/account?tab=' + k, { replace: true, keepScroll: true }); };
   return (
     <div className="wrap sec-sm">
       <div className="dash">
         <aside className="box acct-side" style={{ padding: 14 }}>
           <div className="acct-who" style={{ padding: '6px 6px 14px', borderBottom: '1px solid var(--line)', marginBottom: 8 }}>
-            <b>{user.name}</b><div className="small" style={{ color: user.verified ? 'var(--ok)' : 'var(--muted)', fontWeight: 600 }}>{user.verified ? 'Verified owner' : 'Owner ID not checked yet'}</div>
+            <b>{user.name}</b><div className="small" style={{ color: user.verified ? 'var(--ok)' : 'var(--muted)', fontWeight: 600 }}>{swap ? (user.verified ? 'Verified owner' : 'Owner ID not checked yet') : user.email}</div>
           </div>
           <nav className="sidenav">{tabs.map(([k, l, n]) => <button key={k} className={view === k ? 'on' : ''} aria-current={view === k ? 'page' : undefined} onClick={() => pick(k)}>{l}{n ? <span className="n">{n}</span> : null}</button>)}</nav>
           <div className="acct-actions">
-            <Link to="/swap/new" className="btn btn-red btn-sm btn-block" style={{ marginTop: 10, color: '#fff' }}>List a car to swap</Link>
+            {swap ? <Link to="/swap/new" className="btn btn-red btn-sm btn-block" style={{ marginTop: 10, color: '#fff' }}>List a car to swap</Link>
+              : <Link to="/cars" className="btn btn-red btn-sm btn-block" style={{ marginTop: 10, color: '#fff' }}>Browse cars</Link>}
             <button className="btn btn-line btn-sm btn-block" style={{ marginTop: 8 }} onClick={() => logout(false)}>Sign out</button>
           </div>
         </aside>
         <main style={{ minWidth: 0, display: 'grid', gap: 18 }}>
-          {view === 'saved' && <SavedCars user={user} />}
+          {(view === 'saved' || (!swap && ['offers', 'cars'].includes(view))) && <SavedCars user={user} />}
           {view === 'searches' && <SavedSearches user={user} />}
           {view === 'requests' && <MyRequests user={user} cfg={cfg} />}
-          {['offers', 'cars'].includes(view) && mine.loading && !mine.data ? <Loading /> : null}
-          {view === 'offers' && (offers.length === 0
+          {swap && ['offers', 'cars'].includes(view) && mine.loading && !mine.data ? <Loading /> : null}
+          {swap && view === 'offers' && (offers.length === 0
             ? <div className="empty"><h3>No swap offers yet</h3><p className="muted">When your car is live, browse cars and make offers, or wait for owners to make offers on yours.</p><Link to="/swap" className="btn btn-line">Browse swaps</Link></div>
             : offers.map((o) => (
               <div key={o.id} className="box">
@@ -281,7 +283,7 @@ export function Account() {
                 {open === o.id && <Chat offerId={o.id} closed={['declined', 'withdrawn', 'cancelled'].includes(o.status)} />}
               </div>
             )))}
-          {view === 'cars' && <div className="box">
+          {swap && view === 'cars' && <div className="box">
             <h2>My cars</h2>
             {listings.length === 0 ? <p className="muted">You have not listed a car yet. <Link to="/swap/new">List one now</Link>.</p>
               : listings.map((l) => (

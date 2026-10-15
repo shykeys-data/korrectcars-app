@@ -71,8 +71,8 @@ const templates = {
   }),
   verified: (name) => ({
     subject: 'Your Korrect Cars account is active',
-    text: `Hello ${name},\n\nYour email is confirmed and your Korrect Cars account is now active.\n\nYou can now list your car on Korrect Swap, make swap offers and track them from your account:\n${config.siteUrl}/account\n\nIf this was not you, reply to this email straight away.\n\nKorrect Cars`,
-    html: layout('Your account is active', `<p>Hello ${esc(name)},</p><p>Your email is confirmed and your Korrect Cars account is now active. You can list your car on Korrect Swap, make swap offers and follow them from your account.</p>${button(`${config.siteUrl}/account`, 'Go to my account')}<p style="font-size:14px;color:#52525b">If this was not you, reply to this email straight away.</p>`)
+    text: `Hello ${name},\n\nYour email is confirmed and your Korrect Cars account is now active.\n\nYou can now save cars and searches (we email you when a matching car arrives) and follow your requests from your account:\n${config.siteUrl}/account\n\nIf this was not you, reply to this email straight away.\n\nKorrect Cars`,
+    html: layout('Your account is active', `<p>Hello ${esc(name)},</p><p>Your email is confirmed and your Korrect Cars account is now active. You can save cars and searches (we email you when a matching car arrives) and follow your requests from your account.</p>${button(`${config.siteUrl}/account`, 'Go to my account')}<p style="font-size:14px;color:#52525b">If this was not you, reply to this email straight away.</p>`)
   }),
   reset: (name, url) => ({
     subject: 'Reset your Korrect Cars password',

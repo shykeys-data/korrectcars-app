@@ -8,6 +8,7 @@ export default function Home() {
   useTitle('Korrect Cars | Buy Tokunbo & Foreign-Used Cars in Lagos, Nigeria');
   const { go } = useRouter();
   const { cfg } = useApp();
+  const swap = !!(cfg && cfg.swap);
   const stock = useApi('/cars?limit=100');
   const posts = useApi('/posts?limit=3');
   const [s, setS] = useState({ make: '', model: '', yearMin: '', body: '' });
@@ -42,7 +43,7 @@ export default function Home() {
         <div className="wrap">
           <div className="eyebrow" style={{ color: '#fca5a5' }}>Lagos · Inspected · VIN-verified</div>
           <h1>Drive the right car. Pay the Korrect way.</h1>
-          <p className="lead">Tokunbo and foreign-used cars we have checked inside and out. Buy outright, pay small small through our credit bank partners, or swap your car with a verified owner.</p>
+          <p className="lead">Tokunbo and foreign-used cars we have checked inside and out. {swap ? 'Buy outright, pay small small through our credit bank partners, or swap your car with a verified owner.' : 'Buy outright or pay small small through our credit bank partners.'}</p>
           <div className="ctas">
             <Link to="/cars" className="btn btn-red">Browse cars</Link>
             <a className="btn btn-ghost" href={waLink(cfg, 'Hello Korrect Cars, I am looking for a car.')} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
@@ -66,7 +67,8 @@ export default function Home() {
           <div><b>Inspected</b><span className="muted">Mechanical, electrical and body checks on every car</span></div>
           <div><b>VIN-verified</b><span className="muted">History checked before we list it</span></div>
           <div><b>Pay Small Small</b><span className="muted">Spread the cost through our bank partners</span></div>
-          <div><b>Swap safely</b><span className="muted">Verified owners, inspection before handover</span></div>
+          {swap ? <div><b>Swap safely</b><span className="muted">Verified owners, inspection before handover</span></div>
+            : <div><b>See it first</b><span className="muted">View and test-drive at a partner car lot in Lagos</span></div>}
         </div>
       </div>
 
@@ -79,12 +81,12 @@ export default function Home() {
 
       <section className="sec sec-grey">
         <div className="wrap">
-          <div className="eyebrow">Three ways to own</div>
+          <div className="eyebrow">{swap ? 'Three ways to own' : 'Two ways to own'}</div>
           <h2>Your car, your way</h2>
           <div className="ways" style={{ marginTop: 24 }}>
             <div className="box"><h3>Buy outright</h3><p className="muted">Pick an inspected car, see it in person, pay and drive. Papers handed over the same day.</p><Link to="/cars">Browse cars</Link></div>
             <div className="box"><h3>Pay Small Small</h3><p className="muted">Get an estimate, apply in minutes, and we connect you to our credit bank partners. Once they approve you, we sell you the car.</p><Link to="/pay-small-small">See how it works</Link></div>
-            <div className="box"><h3>Swap your car</h3><p className="muted">List your car, say what you want, and swap with a verified owner. Add or receive cash to balance it. 2% swap fee.</p><Link to="/swap">How Korrect Swap works</Link></div>
+            {swap && <div className="box"><h3>Swap your car</h3><p className="muted">List your car, say what you want, and swap with a verified owner. Add or receive cash to balance it. 2% swap fee.</p><Link to="/swap">How Korrect Swap works</Link></div>}
           </div>
         </div>
       </section>
@@ -103,7 +105,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="sec sec-dark">
+      {swap ? <section className="sec sec-dark">
         <div className="wrap" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 32, alignItems: 'center' }}>
           <div>
             <div className="eyebrow">Korrect Swap</div>
@@ -118,7 +120,22 @@ export default function Home() {
             <li><b>Inspect and swap</b><div style={{ color: '#a1a1aa' }}>At a partner car lot in Lagos</div></li>
           </ol>
         </div>
-      </section>
+      </section> : <section className="sec sec-dark">
+        <div className="wrap" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 32, alignItems: 'center' }}>
+          <div>
+            <div className="eyebrow">Free account</div>
+            <h2>Not in stock yet? We will email you</h2>
+            <p style={{ color: '#d4d4d8' }}>Save the make, model, year and budget you want. The moment a matching car arrives, we email you, before it is shared anywhere else. Your saved cars follow you to every device.</p>
+            <div className="ctas" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}><Link to="/cars" className="btn btn-red">Choose a car and save the search</Link><Link to="/register" className="btn btn-ghost">Create a free account</Link></div>
+          </div>
+          <ol className="steps" style={{ gridTemplateColumns: '1fr 1fr', padding: 0, margin: 0 }}>
+            <li><b>Pick what you want</b><div style={{ color: '#a1a1aa' }}>Make, model, year, body type, budget</div></li>
+            <li><b>Save the search</b><div style={{ color: '#a1a1aa' }}>One tap on the cars page</div></li>
+            <li><b>Get an email</b><div style={{ color: '#a1a1aa' }}>As soon as a matching car arrives</div></li>
+            <li><b>Book a viewing</b><div style={{ color: '#a1a1aa' }}>At a partner car lot in Lagos</div></li>
+          </ol>
+        </div>
+      </section>}
 
       <section className="sec">
         <div className="wrap">

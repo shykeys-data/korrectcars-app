@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useRouter, useApp, waLink, api, booted } from '../lib/core.jsx';
 
+// Swap your car is switched on in admin Settings (on by default only on staging)
+export const swapOn = (cfg) => !!(cfg && cfg.swap);
 const NAV = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/swap', 'Swap your car'], ['/blog', 'Guides'], ['/contact', 'Contact']];
 
 export function Header() {
@@ -15,8 +17,8 @@ export function Header() {
       <div className="wrap">
         <Link to="/" className="logo" aria-label="Korrect Cars home"><img src="/img/logo.svg" alt="Korrect Cars" width="200" height="50" /></Link>
         <nav className={'nav' + (open ? ' open' : '')} aria-label="Main">
-          {NAV.map(([to, label]) => <Link key={to} to={to} className={path.startsWith(to) ? 'on' : ''}>{label}</Link>)}
-          <Link to="/swap/new" className="m-only">List my car</Link>
+          {NAV.filter(([to]) => to !== '/swap' || swapOn(cfg)).map(([to, label]) => <Link key={to} to={to} className={path.startsWith(to) ? 'on' : ''}>{label}</Link>)}
+          {swapOn(cfg) && <Link to="/swap/new" className="m-only">List my car</Link>}
           {user ? <><Link to="/account" className="m-only">My account</Link><a href="/" className="m-only" onClick={signOut}>Sign out</a></> : <Link to="/login" className="m-only">Sign in</Link>}
           <a className="m-only" href={'tel:' + phone.replace(/\s/g, '')}>Call {phone}</a>
         </nav>
@@ -42,11 +44,11 @@ export function Footer() {
         <div className="cols">
           <div>
             <img src="/img/logo-white.svg" alt="Korrect Cars" width="200" height="50" style={{ height: 46, width: 'auto', marginBottom: 14 }} loading="lazy" />
-            <p>Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright, pay small small through our bank partners, or swap your car with a verified owner.</p>
+            <p>Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright{swapOn(cfg) ? ', pay small small through our bank partners, or swap your car with a verified owner' : ' or pay small small through our credit bank partners'}.</p>
           </div>
           <div>
             <h4>Buy</h4>
-            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></ul>
+            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li>{swapOn(cfg) && <><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></>}</ul>
           </div>
           <div>
             <h4>Company</h4>
@@ -98,7 +100,7 @@ export function WhatsApp() {
           </div>
           <div className="bd">
             <div className="small muted">What do you need help with?</div>
-            <div className="wa-topics">{TOPICS.map((t, i) => <button key={t[0]} className={i === topic ? 'on' : ''} onClick={() => pick(i)}>{t[0]}</button>)}</div>
+            <div className="wa-topics">{TOPICS.map((t, i) => (t[0] === 'Swap my car' && !swapOn(cfg) ? null : <button key={t[0]} className={i === topic ? 'on' : ''} onClick={() => pick(i)}>{t[0]}</button>))}</div>
             <label className="sr" htmlFor="wa-msg">Your message</label>
             <textarea id="wa-msg" className="input" rows={4} value={msg} onChange={(e) => setMsg(e.target.value)} maxLength={800} />
             <a className="btn btn-wa btn-block" href={waLink(cfg, msg)} target="_blank" rel="noopener noreferrer">Open WhatsApp</a>

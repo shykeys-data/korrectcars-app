@@ -33,7 +33,7 @@ function shell() {
 
 const DEFAULT = {
   title: 'Korrect Cars | Buy Tokunbo & Foreign-Used Cars in Lagos, Nigeria',
-  desc: 'Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright, pay small small through our bank partners, or swap your car with a verified owner. Chat with us on WhatsApp.',
+  desc: 'Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright or pay small small through our credit bank partners. Chat with us on WhatsApp.',
   image: '/img/hero.jpg'
 };
 
@@ -44,7 +44,7 @@ const STATIC = {
   '/pay-small-small': { title: 'Pay Small Small — Car Payment Plans in Lagos | Korrect Cars', desc: 'Get an estimate of your monthly payment for any car at Korrect Cars, then apply through our credit bank partners. Once the bank approves you, we sell you the car.', h1: 'Pay Small Small' },
   '/blog': { title: 'Car Buying Guides for Nigeria | Korrect Cars Blog', desc: 'Guides on buying tokunbo cars, customs duty, VIN checks, maintenance and the best cars for Lagos roads.', h1: 'Guides' },
   '/contact': { title: 'Contact Korrect Cars — Lagos', desc: `Call, WhatsApp or email Korrect Cars. Online car dealer in Lagos, open ${config.hours}.`, h1: 'Contact us' },
-  '/faqs': { title: 'Frequently Asked Questions | Korrect Cars', desc: 'Answers about buying, inspections, Pay Small Small and Korrect Swap.', h1: 'Frequently asked questions' }
+  '/faqs': { title: 'Frequently Asked Questions | Korrect Cars', desc: 'Answers about buying, viewings and inspections, payments and Pay Small Small.', h1: 'Frequently asked questions' }
 };
 const NOINDEX = /^\/(account|login|register|swap\/new|verify-email|forgot-password|reset-password|compare)(\/|$)/;
 
@@ -59,7 +59,7 @@ function orgLd() {
   return {
     '@context': 'https://schema.org', '@type': 'AutoDealer', '@id': config.siteUrl + '/#dealer', name: 'Korrect Cars', url: config.siteUrl + '/',
     logo: config.siteUrl + '/img/logo.svg', image: config.siteUrl + DEFAULT.image, email: st.email, telephone: st.phones,
-    description: 'Online car dealer in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through bank partners and Korrect Swap.',
+    description: 'Online car dealer in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through credit bank partners.',
     areaServed: { '@type': 'City', name: 'Lagos' }, address: { '@type': 'PostalAddress', addressLocality: 'Lagos', addressCountry: 'NG' },
     openingHoursSpecification: [{ '@type': 'OpeningHoursSpecification', dayOfWeek: config.hoursSpec.days, opens: config.hoursSpec.opens, closes: config.hoursSpec.closes }],
     sameAs: st.instagram ? [`https://www.instagram.com/${st.instagram}/`] : []
@@ -102,7 +102,9 @@ async function renderPage(req, nonce) {
   let preload = '';
   const boot = { '/config': isAdmin ? { ...pub.publicConfig(), adminPath: config.adminPath } : pub.publicConfig(), '/auth/me': { user: req.user ? pub.publicUser(req.user, req.mfa) : null } };
 
-  if (STATIC[p]) { known = true; meta = { ...meta, ...STATIC[p] }; body = `<h1>${esc(STATIC[p].h1)}</h1><p>${esc(STATIC[p].desc)}</p>`; }
+  const swapOn = require('./lib/settings').current().swap;
+  const swapPath = /^\/swap(\/|$)/.test(p);
+  if (STATIC[p] && !(swapPath && !swapOn)) { known = true; meta = { ...meta, ...STATIC[p] }; body = `<h1>${esc(STATIC[p].h1)}</h1><p>${esc(STATIC[p].desc)}</p>`; }
 
   // Pages that list cars get the whole public stock (small) and filter it in the browser
   const needsCars = p === '/' || p === '/cars' || p === '/pay-small-small' || p === '/compare' || /^\/cars\/[a-z0-9-]+(\/[a-z0-9-]+)?$/.test(p);
@@ -190,13 +192,13 @@ async function renderPage(req, nonce) {
       boot['/pages/' + m[1]] = { page };
       if (m[1] === 'faqs') {
         let faqs = []; try { faqs = JSON.parse(page.content); } catch (_e) { /* not JSON */ }
-        const pairs = faqs.map((f) => [f.q || f.question, strip(f.a || f.answer)]).filter(([q, a]) => q && a);
+        const pairs = faqs.map((f) => [f.q || f.question, strip(f.a || f.answer)]).filter(([q, a]) => q && a && (swapOn || !/swap/i.test(q)));
         if (pairs.length) { ld.push(faqLd(pairs)); body += pairs.map(([q, a]) => `<h2>${esc(q)}</h2><p>${esc(a)}</p>`).join(''); }
       } else { meta = { ...meta, title: `${page.title} | Korrect Cars`, desc: clip(strip(page.content), 160) }; body = `<h1>${esc(page.title)}</h1>${safeHtml(page.content)}`; }
     }
   }
 
-  known = known || /^\/(compare|swap\/new|account|login|register|verify-email|forgot-password|reset-password)$/.test(p) || /^\/swap\/\d+$/.test(p);
+  known = known || /^\/(compare|account|login|register|verify-email|forgot-password|reset-password)$/.test(p) || (swapOn && /^\/swap\/(new|\d+)$/.test(p));
   if (!known) { status = 404; noindex = true; meta.title = 'Page not found | Korrect Cars'; }
 
   const img = /^https?:/.test(meta.image) ? meta.image : config.siteUrl + meta.image;

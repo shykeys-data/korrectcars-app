@@ -73,6 +73,7 @@ export function Page({ slug }) {
 
 export function Faqs() {
   useTitle('Frequently Asked Questions | Korrect Cars');
+  const { cfg } = useApp();
   const { data, loading } = useApi('/pages/faqs');
   let items = [];
   try { items = data ? JSON.parse(data.page.content) : []; } catch (_e) { items = []; }
@@ -81,10 +82,11 @@ export function Faqs() {
     { q: 'How does Korrect Swap work?', a: 'List your car with photos and papers. Our team verifies the owner and papers before it goes live. Owners make offers, agree any cash top-up, and both cars are inspected at a partner car lot in Lagos before anything changes hands. A success fee is due only when a swap completes.' }
   ];
   if (loading) return <Loading />;
+  const all = extra.concat(items).filter((f) => (cfg && cfg.swap) || !/swap/i.test(f.q || ''));
   return (
     <div className="wrap sec-sm" style={{ maxWidth: 860 }}>
       <h1>Frequently asked questions</h1>
-      {extra.concat(items).map((f, k) => <details key={k} className="box" style={{ marginBottom: 12 }}><summary style={{ fontWeight: 700, cursor: 'pointer', fontSize: 18 }}>{f.q}</summary><div className="prose" style={{ marginTop: 10 }} dangerouslySetInnerHTML={{ __html: clean(f.a) }} /></details>)}
+      {all.map((f, k) => <details key={k} className="box" style={{ marginBottom: 12 }}><summary style={{ fontWeight: 700, cursor: 'pointer', fontSize: 18 }}>{f.q}</summary><div className="prose" style={{ marginTop: 10 }} dangerouslySetInnerHTML={{ __html: clean(f.a) }} /></details>)}
     </div>
   );
 }

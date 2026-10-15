@@ -8,6 +8,7 @@ const cookieParser = require('cookie-parser');
 const config = require('./config');
 const db = require('./db');
 const { loadUser, csrfGuard, sanitizeInput, limiter } = require('./lib/security');
+const settings = require('./lib/settings');
 const { renderPage } = require('./render');
 
 // Send errors from async route handlers to the error handler instead of crashing the process
@@ -85,7 +86,7 @@ api.use(limiter(15, 600));
 api.use(loadUser);
 api.use(csrfGuard);
 api.use('/', require('./routes/public'));
-api.use('/swap', require('./routes/swap'));
+api.use('/swap', (_req, res, next) => (settings.current().swap ? next() : res.status(404).json({ error: 'Not found' })), require('./routes/swap'));
 api.use('/me', require('./routes/me'));
 api.use('/admin', require('./routes/admin'));
 api.use((_req, res) => res.status(404).json({ error: 'Not found' }));
@@ -101,7 +102,7 @@ app.get('/sitemap.xml', async (_req, res, next) => {
     const { slugify } = require('./render');
     const mm = await db.q("SELECT DISTINCT make, model FROM cars WHERE status IN ('available','sold')");
     const makePages = [...new Set(mm.map((x) => '/cars/' + slugify(x.make)))].concat(mm.map((x) => `/cars/${slugify(x.make)}/${slugify(x.model)}`));
-    const urls = ['/', '/cars', '/swap', '/pay-small-small', '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)
+    const urls = ['/', '/cars', ...(settings.current().swap ? ['/swap'] : []), '/pay-small-small', '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)
       .map((u) => `<url><loc>${config.siteUrl}${u}</loc></url>`)
       .concat(cars.map((c) => `<url><loc>${config.siteUrl}/cars/${c.slug}</loc><lastmod>${d(c.updated_at)}</lastmod>${(c.photos || []).slice(0, 5).map((ph) => `<image:image><image:loc>${config.siteUrl}${xml(ph)}</image:loc></image:image>`).join('')}</url>`))
       .concat(posts.map((p) => `<url><loc>${config.siteUrl}/blog/${p.slug}</loc><lastmod>${d(p.published_at)}</lastmod></url>`));
@@ -111,7 +112,7 @@ app.get('/sitemap.xml', async (_req, res, next) => {
 
 // ---------- Old WordPress URLs -> new pages (keeps Google rankings) ----------
 const LEGACY = {
-  '/about-us/': '/about-us', '/contact-us/': '/contact', '/services/': '/', '/add-car-2/': '/swap', '/cars/': '/cars',
+  '/about-us/': '/about-us', '/contact-us/': '/contact', '/services/': '/', '/add-car-2/': '/cars', '/cars/': '/cars',
   '/privacy-policy/': '/privacy-policy', '/terms-and-conditions/': '/terms-and-conditions', '/blog/': '/blog', '/faqs/': '/faqs',
   [config.adminPath + '/']: config.adminPath
 };

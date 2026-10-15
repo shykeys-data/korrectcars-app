@@ -217,7 +217,7 @@ r.post('/posts/:id/status', contentTeam, async (req, res) => {
 r.get('/audit', adminOnly, async (_req, res) => res.json({ audit: await q('SELECT * FROM audit ORDER BY id DESC LIMIT 300') }));
 
 // ---------- Settings (owner only) ----------
-r.get('/settings', adminOnly, (_req, res) => res.json({ fields: settings.FIELDS, values: settings.current() }));
+r.get('/settings', adminOnly, (_req, res) => { const v = settings.current(); res.json({ fields: settings.FIELDS, values: { ...v, swap: v.swap ? 'on' : 'off' } }); });
 r.put('/settings', adminOnly, async (req, res) => {
   const saved = await settings.save(req.body || {});
   await audit(req, 'Changed settings', Object.keys(saved).join(', '));

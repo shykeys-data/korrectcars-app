@@ -30,7 +30,7 @@ async function llmsTxt() {
   const lines = [
     '# Korrect Cars',
     '',
-    `> Online car dealer in Lagos, Nigeria. Sells inspected, VIN-verified tokunbo (foreign-used) cars. Customers can buy outright, pay small small (instalments) through Korrect Cars' credit bank partners, or swap their car with a verified owner through Korrect Swap.`,
+    `> Online car dealer in Lagos, Nigeria. Sells inspected, VIN-verified tokunbo (foreign-used) cars. Customers can buy outright or pay small small (instalments) through Korrect Cars' credit bank partners${st.swap ? ', or swap their car with a verified owner through Korrect Swap' : ''}.`,
     '',
     `- Website: ${u('/')}`,
     `- Phone: ${st.phones.join(', ')}`,
@@ -44,7 +44,7 @@ async function llmsTxt() {
     '- Every car is inspected and its VIN history checked before it is listed.',
     '- Book a viewing, inspect the car and its papers, then pay only into the Korrect Cars company account (never a personal account).',
     `- Pay Small Small: the website gives an estimate (about ${st.bnpl.minDeposit}% deposit and a ${st.bnpl.markup}% charge on the balance, over ${st.bnpl.minMonths} to ${st.bnpl.maxMonths} months). The credit bank partner${st.bankPartner ? ` (${st.bankPartner})` : ''} decides who qualifies and sets the final terms; once approved, Korrect Cars sells the car.`,
-    `- Korrect Swap: owners list their car, get matched, inspect both cars at a partner car lot, and pay a ${st.swapFeePct}% swap fee only after a successful inspection.`,
+    st.swap ? `- Korrect Swap: owners list their car, get matched, inspect both cars at a partner car lot, and pay a ${st.swapFeePct}% swap fee only after a successful inspection.` : null,
     '',
     `## Cars in stock (updated ${today})`,
     ...avail.map((c) => `- [${c.title}](${u('/cars/' + c.slug)}): ${naira(c.price)}${c.year ? `, ${c.year}` : ''}${c.body ? `, ${c.body}` : ''}${c.mileage ? `, ${c.mileage}` : ''}${c.transmission ? `, ${c.transmission}` : ''}`),
@@ -58,7 +58,7 @@ async function llmsTxt() {
     '## Key pages',
     `- [Cars for sale](${u('/cars')})`,
     `- [Pay Small Small](${u('/pay-small-small')})`,
-    `- [Korrect Swap](${u('/swap')})`,
+    st.swap ? `- [Korrect Swap](${u('/swap')})` : null,
     `- [Frequently asked questions](${u('/faqs')})`,
     `- [About Korrect Cars](${u('/about-us')})`,
     `- [Contact](${u('/contact')})`,
@@ -67,7 +67,7 @@ async function llmsTxt() {
     ...posts.map((p) => `- [${p.title}](${u('/blog/' + p.slug)})`),
     ''
   ];
-  return lines.filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
+  return lines.filter((l) => l !== null).filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
 }
 
 // IndexNow: Bing, Yandex, Seznam, Naver (Bing results also feed ChatGPT search and Copilot)

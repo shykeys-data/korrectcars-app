@@ -97,9 +97,9 @@ function NoAccess({ user }) {
 }
 
 function Console({ user }) {
-  const { setUser } = useApp();
+  const { setUser, cfg } = useApp();
   const rk = roleKey(user.role);
-  const TABS = ALL_TABS.filter((t) => t[2].split(' ').includes(rk));
+  const TABS = ALL_TABS.filter((t) => t[2].split(' ').includes(rk) && ((cfg && cfg.swap) || !['listings', 'swaps'].includes(t[0])));
   const [tab, setTab] = useState('overview');
   const stats = useApi('/admin/stats');
   const logout = async () => { await api('/auth/logout', { method: 'POST' }); setUser(null); };
@@ -134,6 +134,8 @@ function Console({ user }) {
 }
 
 function Overview({ stats, go }) {
+  const { cfg } = useApp();
+  const swap = !!(cfg && cfg.swap);
   const s = stats.data;
   const seesLeads = s && ['admin', 'sales', 'moderator'].includes(s.role);
   const enq = useApi(seesLeads ? '/admin/enquiries' : null);
@@ -144,9 +146,9 @@ function Overview({ stats, go }) {
       <div className="kpis">
         <K l="Cars in stock" v={s.carsAvail} sub={`${s.carsSold} sold`} to="cars" />
         {seesLeads && <K l="New leads" v={s.newEnquiries} sub={s.newPss ? `${s.newPss} Pay Small Small` : ''} to="leads" />}
-        <K l="Swap listings to review" v={s.pendingListings} sub={`${s.liveListings} live`} to="listings" />
-        <K l="Open swap offers" v={s.openOffers} to="swaps" />
-        <K l="Success fees paid" v={naira(s.feePaid)} sub={`${naira(s.feeDue)} due`} to="swaps" />
+        {swap && <K l="Swap listings to review" v={s.pendingListings} sub={`${s.liveListings} live`} to="listings" />}
+        {swap && <K l="Open swap offers" v={s.openOffers} to="swaps" />}
+        {swap && <K l="Success fees paid" v={naira(s.feePaid)} sub={`${naira(s.feeDue)} due`} to="swaps" />}
         {s.role === 'admin' && <K l="Registered users" v={s.users} sub={s.reported ? `${s.reported} reported messages` : ''} to="users" />}
       </div>
       {seesLeads && <div className="box"><h3>Latest leads</h3>{enq.data && enq.data.enquiries.slice(0, 6).map((e) => (

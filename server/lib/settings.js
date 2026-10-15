@@ -14,6 +14,7 @@ const FIELDS = {
   bnplMarkup: { type: 'number', label: 'Estimate: charge on balance %', min: 0, max: 100 },
   bnplMaxMonths: { type: 'number', label: 'Estimate: longest plan (months)', min: 6, max: 96 },
   swapFeePct: { type: 'number', label: 'Swap fee %', min: 0, max: 20 },
+  swap: { type: 'choice', label: 'Swap your car (Korrect Swap)', options: [['off', 'Hidden: not shown anywhere on the site'], ['on', 'Shown: menu, home page, swap pages and account tabs']] },
   aiTraining: { type: 'choice', label: 'AI training bots (GPTBot, ClaudeBot, Google-Extended, CCBot)', options: [['allow', 'Allow: the site can be used to train AI models'], ['block', 'Block: AI search assistants can still read and cite the site']] }
 };
 let cache = {};
@@ -32,7 +33,9 @@ function current() {
     bankPartner: g('bankPartner', config.bankPartner),
     bnpl: { ...config.bnpl, minDeposit: num('bnplMinDeposit', config.bnpl.minDeposit), markup: num('bnplMarkup', config.bnpl.markup), maxMonths: num('bnplMaxMonths', config.bnpl.maxMonths) },
     swapFeePct: num('swapFeePct', config.swapFeePct),
-    aiTraining: g('aiTraining', 'allow') === 'block' ? 'block' : 'allow'
+    aiTraining: g('aiTraining', 'allow') === 'block' ? 'block' : 'allow',
+    // Swap is being tested on staging first: shown there by default, hidden on the live site until switched on
+    swap: g('swap', /staging/.test(config.siteUrl) ? 'on' : 'off') === 'on'
   };
 }
 async function save(values) {

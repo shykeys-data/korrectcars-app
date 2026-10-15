@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
-import { Router, AppProvider, useRouter, match } from './lib/core.jsx';
+import { Router, AppProvider, useRouter, match, useApp } from './lib/core.jsx';
 import { Header, Footer, WhatsApp } from './components/Layout.jsx';
 import Home from './pages/Home.jsx';
 import { Inventory, CarDetail, PaySmallSmall, Compare } from './pages/Cars.jsx';
@@ -24,6 +24,7 @@ function CarOrMake({ slug }) {
 
 function Routes() {
   const { path } = useRouter();
+  const { cfg } = useApp();
   let m;
   if (path === '/') return <Home />;
   if (path === '/cars') return <Inventory />;
@@ -31,6 +32,7 @@ function Routes() {
   if ((m = match('/cars/:slug', path))) return <CarOrMake slug={m.slug} />;
   if (path === '/compare') return <Compare />;
   if (path === '/pay-small-small') return <PaySmallSmall />;
+  if (/^\/swap(\/|$)/.test(path) && !(cfg && cfg.swap)) return <NotFound />; // Swap is switched off in Settings
   if (path === '/swap') return <SwapHome />;
   if (path === '/swap/new') return <SwapNew />;
   if ((m = match('/swap/:id', path))) return <SwapListing id={m.id} />;
