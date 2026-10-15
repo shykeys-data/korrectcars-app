@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import qrcode from 'qrcode-generator';
-import { Link, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink } from '../lib/core.jsx';
+import { Link, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink, rs, srcset } from '../lib/core.jsx';
 import { Loading, Modal } from '../components/Bits.jsx';
 import Cascade from '../components/Cascade.jsx';
 import { AuthPage } from './Account.jsx';
@@ -167,7 +167,7 @@ function Cars({ isAdmin }) {
       <div className="sec-head" style={{ marginBottom: 12 }}><h2 style={{ margin: 0 }}>Dealer cars</h2><button className="btn btn-red" onClick={() => setEdit({})}>+ Add car</button></div>
       {!data ? <Loading /> : <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th>Views</th><th>Status</th><th /></tr></thead><tbody>
         {data.cars.map((c) => <tr key={c.id}>
-          <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={firstPhoto(c)} alt="" /><div><b>{c.title}</b><div className="small muted">{c.make} · {c.model} · {c.body}{c.featured ? ' · featured' : ''}</div></div></div></td>
+          <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">{c.make} · {c.model} · {c.body}{c.featured ? ' · featured' : ''}</div></div></div></td>
           <td>{naira(c.price)}{c.old_price ? <div className="small muted"><s>{naira(c.old_price)}</s></div> : null}</td><td>{c.views}</td>
           <td><T c={stTag[c.status]}>{c.status}</T></td>
           <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}><Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link> <button className="btn btn-dark btn-sm" onClick={() => setEdit(c)}>Edit</button> {isAdmin && <button className="btn btn-line btn-sm" onClick={() => del(c)}>Delete</button>}</td>
@@ -229,7 +229,7 @@ function CarForm({ car, onClose, onSaved }) {
         </div>
         <div className="field"><label className="f" htmlFor="cf-info">General information (one per line)</label><textarea id="cf-info" className="input" rows={3} value={f.infoText} onChange={set('infoText')} /></div>
         {!isNew && <div className="field"><div className="f">Photos (first one is the cover)</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>{keep.map((p, i) => (
-          <div key={p} style={{ position: 'relative' }}><img src={p} alt="" className="thumb" style={{ width: 120, height: 90 }} />
+          <div key={p} style={{ position: 'relative' }}><img src={rs(p, 400)} alt="" className="thumb" style={{ width: 120, height: 90 }} />
             <div style={{ display: 'flex', gap: 4, marginTop: 4 }}><button type="button" className="btn btn-line btn-sm" style={{ minHeight: 30, padding: '0 8px' }} onClick={() => move(i, -1)} aria-label="Move left">‹</button><button type="button" className="btn btn-line btn-sm" style={{ minHeight: 30, padding: '0 8px' }} onClick={() => move(i, 1)} aria-label="Move right">›</button><button type="button" className="btn btn-line btn-sm" style={{ minHeight: 30, padding: '0 8px' }} onClick={() => setKeep(keep.filter((x) => x !== p))}>Remove</button></div></div>
         ))}</div></div>}
         <div className="field"><label className="f" htmlFor="cf-ph">Add photos (JPG/PNG/WEBP, max 6 MB each)</label><input id="cf-ph" type="file" className="input" style={{ paddingTop: 12 }} multiple accept="image/jpeg,image/png,image/webp" onChange={(e) => setFiles(e.target.files)} /></div>
@@ -299,9 +299,12 @@ function Settings() {
       {msg && <div className="okmsg" style={{ marginBottom: 12 }}>{msg}</div>}{err && <div className="err">{err}</div>}
       <div className="grid2">{Object.entries(data.fields).map(([k, fd]) => (
         <div className="field" key={k}><label className="f" htmlFor={'st-' + k}>{fd.label}</label>
-          <input id={'st-' + k} className="input" inputMode={fd.type === 'number' ? 'numeric' : undefined} value={vals[k] === undefined || vals[k] === null ? '' : vals[k]} onChange={(e) => setF({ ...vals, [k]: e.target.value })} />
+          {fd.type === 'choice'
+            ? <select id={'st-' + k} className="input" value={vals[k] || fd.options[0][0]} onChange={(e) => setF({ ...vals, [k]: e.target.value })}>{fd.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+            : <input id={'st-' + k} className="input" inputMode={fd.type === 'number' ? 'numeric' : undefined} value={vals[k] === undefined || vals[k] === null ? '' : vals[k]} onChange={(e) => setF({ ...vals, [k]: e.target.value })} />}
           {k === 'phones' && <div className="hint">Separate numbers with commas. The first is shown in the header.</div>}
-          {k === 'bankPartner' && <div className="hint">Shown to customers on the Pay Small Small page.</div>}</div>
+          {k === 'bankPartner' && <div className="hint">Shown to customers on the Pay Small Small page.</div>}
+          {k === 'aiTraining' && <div className="hint">Either way, ChatGPT search, Perplexity, Copilot and Google can still find and quote your cars.</div>}</div>
       ))}</div>
       <button className="btn btn-red" disabled={busy || !f}>{busy ? 'Saving…' : 'Save settings'}</button>
     </form>

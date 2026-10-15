@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, naira, bnpl, useApp, waLink, useLocalList, firstPhoto } from '../lib/core.jsx';
+import { Link, naira, bnpl, useApp, waLink, useLocalList, firstPhoto, rs, srcset } from '../lib/core.jsx';
 
 // Quick view for car cards.
 // PC: hover the photo (or focus the "Quick view" button) and a details panel opens beside the card.
@@ -39,7 +39,7 @@ function Photos({ car, sheet }) {
     if (sheet && strip.current) strip.current.scrollTo({ left: k * strip.current.clientWidth, behavior: 'smooth' });
   }, [photos.length, sheet]);
   useEffect(() => { // warm the next photos so sliding is instant
-    photos.slice(1, 4).forEach((u) => { const im = new Image(); im.src = u; });
+    photos.slice(1, 4).forEach((u) => { const im = new Image(); im.src = rs(u, 800); });
   }, [car.id]); // eslint-disable-line
   useEffect(() => {
     if (sheet) return undefined;
@@ -51,7 +51,7 @@ function Photos({ car, sheet }) {
     return (
       <div className="qv-photos">
         <div className="qv-strip" ref={strip} onScroll={(e) => setI(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
-          {photos.map((u, k) => <img key={u} src={u} alt={`${car.title} photo ${k + 1}`} loading={k < 2 ? 'eager' : 'lazy'} />)}
+          {photos.map((u, k) => <img key={u} src={rs(u, 800)} srcSet={srcset(u)} sizes="100vw" alt={`${car.title} photo ${k + 1}`} loading={k < 2 ? 'eager' : 'lazy'} decoding="async" />)}
         </div>
         {sold && <div className="sold-ov">SOLD</div>}
         <span className="qv-count">{i + 1} / {photos.length}</span>
@@ -60,7 +60,7 @@ function Photos({ car, sheet }) {
   }
   return (
     <div className="qv-photos">
-      <img src={photos[i]} alt={`${car.title} photo ${i + 1}`} />
+      <img src={rs(photos[i], 800)} alt={`${car.title} photo ${i + 1}`} decoding="async" />
       {sold && <div className="sold-ov">SOLD</div>}
       {photos.length > 1 && <>
         <button type="button" className="qv-nav prev" aria-label="Previous photo" onClick={() => go(i - 1)}>‹</button>

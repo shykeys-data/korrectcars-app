@@ -6,6 +6,7 @@ const { validate, list } = require('../lib/validate');
 const { requireStaff, audit } = require('../lib/security');
 const settings = require('../lib/settings');
 const totp = require('../lib/totp');
+const seo = require('../lib/seo');
 const { memory, save, PRIVATE_DIR } = require('../lib/uploads');
 
 const r = express.Router();
@@ -63,7 +64,9 @@ r.post('/cars', carTeam, memory.array('photos', 15), validate('car'), async (req
   const cols = Object.keys(v);
   const ins = await q(`INSERT INTO cars (slug, photos, ${cols.join(', ')}) VALUES (?, ?, ${cols.map(() => '?').join(', ')})`, [slug, J(photos), ...cols.map((c) => v[c])]);
   await audit(req, 'Added car', v.title);
-  res.status(201).json({ car: await one('SELECT * FROM cars WHERE id = ?', [ins.insertId]) });
+  const added = await one('SELECT * FROM cars WHERE id = ?', [ins.insertId]);
+  seo.notify(seo.carPaths(added)); // tell Bing & co. straight away (does not slow the save)
+  res.status(201).json({ car: added });
 });
 
 r.put('/cars/:id', carTeam, memory.array('photos', 15), validate('car'), async (req, res) => {
@@ -77,14 +80,17 @@ r.put('/cars/:id', carTeam, memory.array('photos', 15), validate('car'), async (
   const cols = Object.keys(v);
   await q(`UPDATE cars SET ${cols.map((c) => `${c} = ?`).join(', ')}, photos = ? WHERE id = ?`, [...cols.map((c) => v[c]), J([...keep, ...added]), car.id]);
   await audit(req, 'Edited car', v.title);
-  res.json({ car: await one('SELECT * FROM cars WHERE id = ?', [car.id]) });
+  const saved = await one('SELECT * FROM cars WHERE id = ?', [car.id]);
+  seo.notify(seo.carPaths(saved));
+  res.json({ car: saved });
 });
 
 r.delete('/cars/:id', adminOnly, async (req, res) => {
   if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
-  const car = await one('SELECT title FROM cars WHERE id = ?', [req.params.id]);
+  const car = await one('SELECT title, slug, make, model FROM cars WHERE id = ?', [req.params.id]);
   if (!car) return res.status(404).json({ error: 'Not found' });
   await q('DELETE FROM cars WHERE id = ?', [req.params.id]);
+  seo.notify(seo.carPaths(car));
   await audit(req, 'Deleted car', car.title);
   res.json({ ok: true });
 });

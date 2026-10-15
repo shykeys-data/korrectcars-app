@@ -8,6 +8,12 @@ const config = require('./config');
 const db = require('./db');
 const pub = require('./routes/public');
 
+// Light photo URLs (same rule as the browser's rs()) and a preload tag for the page's main photo
+const RS = /^\/(?:uploads\/(cars|blog|swap|site)|(img))\/([A-Za-z0-9._-]+)\.(?:jpe?g|png|webp)$/i;
+const rs = (u, w) => { const m = String(u || '').match(RS); return m ? `/r/${w}/${m[1] || m[2]}/${m[3]}.webp` : u; };
+const preloadTag = (u, sizes, widths = [800, 1200, 1600]) => (RS.test(String(u || ''))
+  ? `<link rel="preload" as="image" href="${rs(u, widths[1])}" imagesrcset="${widths.map((w) => `${rs(u, w)} ${w}w`).join(', ')}" imagesizes="${sizes}" fetchpriority="high">` : '');
+
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
 const strip = (h) => String(h || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -93,6 +99,7 @@ async function renderPage(req, nonce) {
   const isAdmin = p === config.adminPath;
   let body = ''; let status = 200; let noindex = NOINDEX.test(p) || isAdmin; let known = isAdmin;
   const ld = [];
+  let preload = '';
   const boot = { '/config': isAdmin ? { ...pub.publicConfig(), adminPath: config.adminPath } : pub.publicConfig(), '/auth/me': { user: req.user ? pub.publicUser(req.user, req.mfa) : null } };
 
   if (STATIC[p]) { known = true; meta = { ...meta, ...STATIC[p] }; body = `<h1>${esc(STATIC[p].h1)}</h1><p>${esc(STATIC[p].desc)}</p>`; }
@@ -107,6 +114,7 @@ async function renderPage(req, nonce) {
   }
 
   if (p === '/') {
+    preload = preloadTag('/img/hero.jpg', '100vw');
     ld.push(orgLd());
     const posts = await db.q("SELECT slug, title, excerpt, image, published_at FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 3");
     boot['/posts?limit=3'] = { posts };
@@ -142,6 +150,7 @@ async function renderPage(req, nonce) {
     else {
       const car = d.car;
       boot['/cars/' + rc.slug] = d;
+      preload = preloadTag((car.photos || [])[0], '(max-width: 980px) 100vw, 62vw');
       const desc = car.seo_desc || clip(`${car.title} for sale in ${car.location || 'Lagos'} at ${naira(car.price)}. ${strip(car.description)}`, 160);
       meta = { ...meta, title: car.seo_title || `${car.title} for Sale in Lagos — ${naira(car.price)} | Korrect Cars`, desc, image: (car.photos || [])[0] || DEFAULT.image };
       body = `<h1>${esc(car.title)}</h1><p><strong>${esc(naira(car.price))}</strong>${car.status === 'sold' ? ' — SOLD' : ''}</p>`
@@ -194,6 +203,7 @@ async function renderPage(req, nonce) {
   const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
   const head = [
     `<title>${esc(meta.title)}</title>`,
+    preload,
     `<meta name="description" content="${esc(meta.desc)}">`,
     noindex ? '<meta name="robots" content="noindex, nofollow">' : `<link rel="canonical" href="${esc(meta.url)}">`,
     `<meta property="og:type" content="${meta.type || 'website'}">`, '<meta property="og:site_name" content="Korrect Cars">',

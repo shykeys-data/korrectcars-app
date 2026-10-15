@@ -152,3 +152,11 @@ export function useLocalList(key, max = 50) {
   const toggle = (id) => save(list.includes(id) ? list.filter((x) => x !== id) : list.length >= max ? list : [...list, id]);
   return { list, has: (id) => list.includes(id), toggle, clear: () => save([]), full: list.length >= max };
 }
+
+// Light photos: a resized WebP copy of an uploaded photo, e.g. rs('/uploads/cars/x.jpg', 800) -> /r/800/cars/x.webp
+const RS = /^\/(?:uploads\/(cars|blog|swap|site)|(img))\/([A-Za-z0-9._-]+)\.(?:jpe?g|png|webp)$/i;
+export function rs(url, w) {
+  const m = String(url || '').match(RS);
+  return m ? `/r/${w}/${m[1] || m[2]}/${m[3]}.webp` : url;
+}
+export const srcset = (url, widths = [400, 800]) => (RS.test(String(url || '')) ? widths.map((w) => `${rs(url, w)} ${w}w`).join(', ') : undefined);

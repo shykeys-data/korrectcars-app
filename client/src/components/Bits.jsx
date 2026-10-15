@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, naira, bnpl, useApp, api, firstPhoto, waLink, useLocalList } from '../lib/core.jsx';
+import { Link, naira, bnpl, useApp, api, firstPhoto, waLink, useLocalList, rs, srcset } from '../lib/core.jsx';
 import { useQV } from './QuickView.jsx';
 
 export function CarCard({ car }) {
@@ -16,7 +16,7 @@ export function CarCard({ car }) {
     <article className="card" ref={cardRef}>
       <Link to={url} className="card-link">
         <div className="ph" onMouseEnter={qv ? () => qv.hoverIn(car, cardRef.current) : undefined} onMouseLeave={qv ? qv.hoverOut : undefined}>
-          <img src={firstPhoto(car)} alt={car.title} loading="lazy" width="400" height="300" />
+          <img src={rs(firstPhoto(car), 800)} srcSet={srcset(firstPhoto(car))} sizes="(max-width: 640px) 92vw, 400px" alt={car.title} loading="lazy" decoding="async" width="400" height="300" />
           {car.old_price && !sold ? <span className="badge">Price drop</span> : null}
           {sold && <div className="sold-ov">SOLD</div>}
         </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { Router, AppProvider, useRouter, match } from './lib/core.jsx';
@@ -11,7 +11,7 @@ const ADMIN_PATH = (booted('/config') || {}).adminPath || null;
 import { SwapHome, SwapListing, SwapNew } from './pages/Swap.jsx';
 import { Account, AuthPage, VerifyEmail, ForgotPassword, ResetPassword } from './pages/Account.jsx';
 import { Blog, Post, Page, Faqs, Contact, NotFound } from './pages/Content.jsx';
-import Admin from './pages/Admin.jsx';
+const Admin = lazy(() => import('./pages/Admin.jsx'));
 import { QuickViewProvider } from './components/QuickView.jsx';
 
 // /cars/toyota is a make page; /cars/2018-toyota-camry-se is a single car
@@ -45,7 +45,7 @@ function Routes() {
   if (['/about-us', '/privacy-policy', '/terms-and-conditions'].includes(path)) return <Page slug={path.slice(1)} />;
   if (path === '/faqs') return <Faqs />;
   if (path === '/contact') return <Contact />;
-  if (ADMIN_PATH && path === ADMIN_PATH) return <Admin />;
+  if (ADMIN_PATH && path === ADMIN_PATH) return <Suspense fallback={<div className="loading">Loading…</div>}><Admin /></Suspense>;
   return <NotFound />;
 }
 

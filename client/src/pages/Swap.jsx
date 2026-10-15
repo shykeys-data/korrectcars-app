@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, api, firstPhoto } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, api, firstPhoto, rs, srcset } from '../lib/core.jsx';
 import Cascade, { bodiesFor } from '../components/Cascade.jsx';
 import { Loading, ErrorBox } from '../components/Bits.jsx';
 
 function ListingCard({ l }) {
   return (
     <Link to={'/swap/' + l.id} className="card">
-      <div className="ph"><img src={firstPhoto(l)} alt={`${l.year} ${l.make} ${l.model}`} loading="lazy" /></div>
+      <div className="ph"><img src={rs(firstPhoto(l), 800)} srcSet={srcset(firstPhoto(l))} sizes="(max-width: 640px) 92vw, 400px" alt={`${l.year} ${l.make} ${l.model}`} loading="lazy" /></div>
       <div className="bd">
         <div className="ttl">{l.year} {l.make} {l.model}</div>
         <div className="price" style={{ fontSize: 24 }}>Valued {naira(l.value)}</div>
@@ -93,8 +93,8 @@ export function SwapListing({ id }) {
       <nav className="small muted" style={{ marginBottom: 14 }}><Link to="/swap">Korrect Swap</Link> / {l.make} {l.model}</nav>
       <div className="detail">
         <div>
-          <div className="gallery"><div className="main"><img src={photos[i]} alt="" /><span className="count">{i + 1} / {photos.length}</span></div>
-            <div className="thumbs">{photos.map((p, k) => <button key={p} className={k === i ? 'on' : ''} onClick={() => setI(k)}><img src={p} alt="" /></button>)}</div></div>
+          <div className="gallery"><div className="main"><img src={rs(photos[i], 1200)} srcSet={srcset(photos[i], [800, 1200, 1600])} sizes="(max-width: 980px) 100vw, 62vw" alt="" /><span className="count">{i + 1} / {photos.length}</span></div>
+            <div className="thumbs">{photos.map((p, k) => <button key={p} className={k === i ? 'on' : ''} onClick={() => setI(k)}><img src={rs(p, 400)} alt="" loading="lazy" /></button>)}</div></div>
           <h1 style={{ fontSize: 46 }}>{l.year} {l.make} {l.model}</h1>
           <table className="specs"><tbody>
             {[['Valued at', naira(l.value)], ['Body type', l.body], ['Mileage', l.mileage], ['Condition', l.car_condition], ['Transmission', l.transmission], ['Colour', l.color], ['Location', l.location], ['Owner', `${l.owner.name}${l.owner.verified ? ' · verified' : ''}`]].filter(([, v]) => v).map(([k, v]) => <tr key={k}><td>{k}</td><td>{v}</td></tr>)}

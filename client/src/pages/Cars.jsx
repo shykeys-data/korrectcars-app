@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, slugify, useLocalList, bnpl, firstPhoto, api } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, slugify, useLocalList, bnpl, firstPhoto, api, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal } from '../components/Bits.jsx';
 
 const BUDGETS = [['', 'Any budget'], ['20000000', 'Under ₦20m'], ['30000000', 'Under ₦30m'], ['50000000', 'Under ₦50m'], ['100000000', 'Under ₦100m']];
@@ -161,7 +161,7 @@ export function Compare() {
       {list.loading ? <Loading /> : !cars.length ? <div className="box"><p>Pick up to 3 cars with the Compare button on <Link to="/cars">Cars for sale</Link>.</p></div> : (
         <div style={{ overflowX: 'auto' }}>
           <table className="compare-tbl">
-            <thead><tr><th scope="col">Car</th>{cars.map((c) => <th key={c.id} scope="col" style={{ width: 'auto', background: '#fff' }}><Link to={'/cars/' + c.slug}><img src={firstPhoto(c)} alt="" style={{ borderRadius: 8, aspectRatio: '4/3', objectFit: 'cover', marginBottom: 8 }} />{c.title}</Link></th>)}</tr></thead>
+            <thead><tr><th scope="col">Car</th>{cars.map((c) => <th key={c.id} scope="col" style={{ width: 'auto', background: '#fff' }}><Link to={'/cars/' + c.slug}><img src={rs(firstPhoto(c), 400)} alt="" style={{ borderRadius: 8, aspectRatio: '4/3', objectFit: 'cover', marginBottom: 8 }} />{c.title}</Link></th>)}</tr></thead>
             <tbody>{rows.map(([l, fn]) => <tr key={l}><th scope="row">{l}</th>{cars.map((c) => <td key={c.id}>{fn(c) || '—'}</td>)}</tr>)}</tbody>
           </table>
         </div>
@@ -194,7 +194,7 @@ export function CarDetail({ slug }) {
         <div>
           <div className="gallery">
             <div className="main">
-              <img src={photos[i]} alt={`${car.title} photo ${i + 1}`} />
+              <img src={rs(photos[i], 1200)} srcSet={srcset(photos[i], [800, 1200, 1600])} sizes="(max-width: 980px) 100vw, 62vw" alt={`${car.title} photo ${i + 1}`} fetchpriority={i === 0 ? 'high' : undefined} />
               {sold && <div className="sold-ov">SOLD</div>}
               {photos.length > 1 && <>
                 <button className="nav-btn prev" aria-label="Previous photo" onClick={() => setI((i - 1 + photos.length) % photos.length)}>‹</button>
@@ -202,7 +202,7 @@ export function CarDetail({ slug }) {
               </>}
               <span className="count">{i + 1} / {photos.length}</span>
             </div>
-            <div className="thumbs">{photos.map((p, k) => <button key={p} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={`Show photo ${k + 1}`}><img src={p} alt="" loading="lazy" /></button>)}</div>
+            <div className="thumbs">{photos.map((p, k) => <button key={p} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={`Show photo ${k + 1}`}><img src={rs(p, 400)} alt="" loading="lazy" /></button>)}</div>
           </div>
           <h1 style={{ fontSize: 'clamp(32px,4.4vw,52px)', marginTop: 10 }}>{car.title}</h1>
           <div className="tabs" role="tablist">

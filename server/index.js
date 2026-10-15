@@ -69,11 +69,14 @@ app.use((req, res, next) => {
 app.use('/uploads', express.static(path.join(config.uploadsDir, 'public'), { maxAge: '30d', immutable: true, index: false, dotfiles: 'deny' }));
 app.use('/assets', express.static(path.join(config.distDir, 'assets'), { maxAge: '1y', immutable: true, index: false }));
 app.use('/img', express.static(path.join(config.distDir, 'img'), { maxAge: '30d', index: false }));
+// Resized WebP photos (much lighter on phones)
+require('./lib/images').route(app);
 for (const f of ['favicon.ico', 'favicon.png']) app.get('/' + f, (_req, res) => res.sendFile(path.join(config.distDir, 'img', 'favicon.png')));
 
 // Google Search Console site-verification files (e.g. /googlea3cf853783d752e5.html)
 app.get(/^\/(google[0-9a-f]{8,32})\.html$/, (req, res) => res.type('text/html').send(`google-site-verification: ${req.params[0]}.html`));
-app.get('/robots.txt', (_req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /account\nDisallow: /api/\nAllow: /\n\nSitemap: ${config.siteUrl}/sitemap.xml\n`));
+// robots.txt, llms.txt (summary for AI assistants) and the IndexNow key file
+require('./lib/seo').routes(app);
 app.get('/ads.txt', (_req, res) => res.type('text/plain').send(process.env.ADS_TXT || 'google.com, pub-9741732903227479, DIRECT, f08c47fec0942fa0\n'));
 
 // ---------- API ----------
@@ -90,17 +93,18 @@ app.use('/api', api);
 // ---------- Sitemap ----------
 app.get('/sitemap.xml', async (_req, res, next) => {
   try {
-    const cars = await db.q("SELECT slug, updated_at FROM cars WHERE status IN ('available','sold')");
+    const cars = await db.q("SELECT slug, title, photos, updated_at FROM cars WHERE status IN ('available','sold')");
     const posts = await db.q("SELECT slug, published_at FROM posts WHERE status = 'published'");
+    const xml = (x) => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const d = (x) => (x ? new Date(String(x).replace(' ', 'T') + (String(x).includes('Z') ? '' : 'Z')).toISOString().slice(0, 10) : '');
     const { slugify } = require('./render');
     const mm = await db.q("SELECT DISTINCT make, model FROM cars WHERE status IN ('available','sold')");
     const makePages = [...new Set(mm.map((x) => '/cars/' + slugify(x.make)))].concat(mm.map((x) => `/cars/${slugify(x.make)}/${slugify(x.model)}`));
     const urls = ['/', '/cars', '/swap', '/pay-small-small', '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)
       .map((u) => `<url><loc>${config.siteUrl}${u}</loc></url>`)
-      .concat(cars.map((c) => `<url><loc>${config.siteUrl}/cars/${c.slug}</loc><lastmod>${d(c.updated_at)}</lastmod></url>`))
+      .concat(cars.map((c) => `<url><loc>${config.siteUrl}/cars/${c.slug}</loc><lastmod>${d(c.updated_at)}</lastmod>${(c.photos || []).slice(0, 5).map((ph) => `<image:image><image:loc>${config.siteUrl}${xml(ph)}</image:loc></image:image>`).join('')}</url>`))
       .concat(posts.map((p) => `<url><loc>${config.siteUrl}/blog/${p.slug}</loc><lastmod>${d(p.published_at)}</lastmod></url>`));
-    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`);
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${urls.join('')}</urlset>`);
   } catch (e) { next(e); }
 });
 

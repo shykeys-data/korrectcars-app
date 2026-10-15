@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink, rs, srcset } from '../lib/core.jsx';
 import { Loading } from '../components/Bits.jsx';
 
 export function AuthPage({ mode, adminGate = false }) {
@@ -177,7 +177,7 @@ export function Account() {
                 </div>
                 <div className="grid2" style={{ marginTop: 14 }}>
                   {[['Their car', o.mine ? o.target : o.offered], ['Your car', o.mine ? o.offered : o.target]].map(([lab, c]) => (
-                    <div key={lab} style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={firstPhoto(c)} alt="" /><div><div className="small muted">{lab}</div><b>{c.year} {c.make} {c.model}</b><div className="small">{naira(c.value)}{c.location ? ' · ' + c.location : ''}</div></div></div>
+                    <div key={lab} style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><div className="small muted">{lab}</div><b>{c.year} {c.make} {c.model}</b><div className="small">{naira(c.value)}{c.location ? ' · ' + c.location : ''}</div></div></div>
                   ))}
                 </div>
                 {o.top_up > 0 && <p style={{ marginTop: 12 }}><b>Cash top-up:</b> {(o.top_up_payer === 'from') === o.mine ? 'you add' : 'they add'} {naira(o.top_up)}</p>}
@@ -197,7 +197,7 @@ export function Account() {
             {listings.length === 0 ? <p className="muted">You have not listed a car yet. <Link to="/swap/new">List one now</Link>.</p>
               : listings.map((l) => (
                 <div className="row" key={l.id}>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={firstPhoto(l)} alt="" /><div><b>{l.year} {l.make} {l.model}</b><div className="small muted">{naira(l.value)} · listed {date(l.created_at)}</div>{l.status === 'rejected' && l.reject_reason && <div className="small" style={{ color: 'var(--bad)' }}>{l.reject_reason}</div>}</div></div>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(l), 400)} alt="" /><div><b>{l.year} {l.make} {l.model}</b><div className="small muted">{naira(l.value)} · listed {date(l.created_at)}</div>{l.status === 'rejected' && l.reject_reason && <div className="small" style={{ color: 'var(--bad)' }}>{l.reject_reason}</div>}</div></div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Tag s={l.status} />{['pending', 'live'].includes(l.status) && <button className="btn btn-line btn-sm" onClick={() => withdraw(l)}>Withdraw</button>}</div>
                 </div>))}
           </div>}

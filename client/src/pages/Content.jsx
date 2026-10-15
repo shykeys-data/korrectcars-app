@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useApi, useApp, useTitle, date, waLink } from '../lib/core.jsx';
+import { Link, useApi, useApp, useTitle, date, waLink, rs, srcset } from '../lib/core.jsx';
 import { Loading, ErrorBox, EnquiryForm } from '../components/Bits.jsx';
 
 // Post HTML comes from our own admin/WordPress import; strip anything executable before showing it.
@@ -28,7 +28,7 @@ export function Blog() {
       <div className="post-cards" style={{ marginTop: 20 }}>
         {data.posts.map((p) => (
           <Link key={p.slug} to={'/blog/' + p.slug} className="card">
-            <div className="ph" style={{ aspectRatio: '16/9' }}>{p.image && <img src={p.image} alt="" loading="lazy" />}</div>
+            <div className="ph" style={{ aspectRatio: '16/9' }}>{p.image && <img src={rs(p.image, 800)} srcSet={srcset(p.image)} sizes="(max-width: 640px) 92vw, 400px" alt="" loading="lazy" />}</div>
             <div className="bd"><div className="small muted">{date(p.published_at)}</div><div className="ttl">{p.title}</div></div>
           </Link>
         ))}
@@ -49,14 +49,14 @@ export function Post({ slug }) {
       <nav className="small muted" style={{ marginBottom: 12 }}><Link to="/blog">Guides</Link></nav>
       <h1 style={{ maxWidth: 900 }}>{p.title}</h1>
       <div className="muted" style={{ marginBottom: 20 }}>{date(p.published_at)} · Korrect Cars</div>
-      {p.image && <img src={p.image} alt="" style={{ borderRadius: 18, marginBottom: 28, maxHeight: 460, width: '100%', objectFit: 'cover' }} />}
+      {p.image && <img src={rs(p.image, 1200)} srcSet={srcset(p.image, [800, 1200, 1600])} sizes="(max-width: 900px) 100vw, 860px" alt="" style={{ borderRadius: 18, marginBottom: 28, maxHeight: 460, width: '100%', objectFit: 'cover' }} />}
       <div className="prose" dangerouslySetInnerHTML={{ __html: clean(p.content) }} />
       <div className="box" style={{ marginTop: 32, maxWidth: 760, display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <div><b>Looking for a car?</b><div className="muted small">See inspected cars in Lagos or ask us on WhatsApp.</div></div>
         <div style={{ display: 'flex', gap: 10 }}><Link to="/cars" className="btn btn-red btn-sm">Browse cars</Link><a className="btn btn-wa btn-sm" href={waLink(cfg, `Hello Korrect Cars, I just read "${p.title}".`)} target="_blank" rel="noopener noreferrer">WhatsApp</a></div>
       </div>
       {data.more.length > 0 && <section className="sec-sm"><h2>More guides</h2><div className="post-cards">{data.more.map((m) => (
-        <Link key={m.slug} to={'/blog/' + m.slug} className="card"><div className="ph" style={{ aspectRatio: '16/9' }}>{m.image && <img src={m.image} alt="" loading="lazy" />}</div><div className="bd"><div className="ttl">{m.title}</div></div></Link>
+        <Link key={m.slug} to={'/blog/' + m.slug} className="card"><div className="ph" style={{ aspectRatio: '16/9' }}>{m.image && <img src={rs(m.image, 800)} alt="" loading="lazy" />}</div><div className="bd"><div className="ttl">{m.title}</div></div></Link>
       ))}</div></section>}
     </article>
   );

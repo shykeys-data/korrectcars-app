@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, date, waLink, slugify } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, date, waLink, slugify, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc } from '../components/Bits.jsx';
 
 const BUDGETS = [['', 'Any budget'], ['20000000', 'Up to ₦20m'], ['30000000', 'Up to ₦30m'], ['50000000', 'Up to ₦50m'], ['100000000', 'Up to ₦100m']];
@@ -37,7 +37,7 @@ export default function Home() {
   return (
     <>
       <section className="hero">
-        <div className="bg" style={{ backgroundImage: 'url(/img/hero.jpg)' }} />
+        <img className="bg" src={rs('/img/hero.jpg', 1600)} srcSet={srcset('/img/hero.jpg', [800, 1200, 1600])} sizes="100vw" alt="" fetchpriority="high" decoding="async" />
         <div className="shade" />
         <div className="wrap">
           <div className="eyebrow" style={{ color: '#fca5a5' }}>Lagos · Inspected · VIN-verified</div>
@@ -139,7 +139,7 @@ export default function Home() {
           <div className="post-cards">
             {((posts.data && posts.data.posts) || []).map((p) => (
               <Link key={p.slug} to={'/blog/' + p.slug} className="card">
-                <div className="ph" style={{ aspectRatio: '16/9' }}>{p.image && <img src={p.image} alt="" loading="lazy" />}</div>
+                <div className="ph" style={{ aspectRatio: '16/9' }}>{p.image && <img src={rs(p.image, 800)} srcSet={srcset(p.image)} sizes="(max-width: 640px) 92vw, 400px" alt="" loading="lazy" />}</div>
                 <div className="bd"><div className="small muted">{date(p.published_at)}</div><div className="ttl">{p.title}</div></div>
               </Link>
             ))}
