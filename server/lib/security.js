@@ -34,13 +34,13 @@ async function loadUser(req, _res, next) {
 }
 
 function requireAuth(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'Please sign in.' });
+  if (!req.user) return res.status(403).json({ error: 'Please sign in.', signIn: true });
   next();
 }
 
 function requireRole(...roles) {
   return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ error: 'Please sign in.' });
+    if (!req.user) return res.status(403).json({ error: 'Please sign in.', signIn: true });
     if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'Not allowed.' });
     next();
   };
@@ -51,7 +51,7 @@ function requireRole(...roles) {
 function requireStaff(...roles) {
   const allowed = roles.flatMap((r) => (r === 'sales' ? ['sales', 'moderator'] : [r]));
   return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ error: 'Please sign in.' });
+    if (!req.user) return res.status(403).json({ error: 'Please sign in.', signIn: true });
     if (!allowed.includes(req.user.role)) return res.status(403).json({ error: 'Your role does not have access to this.' });
     if (!req.user.totp_enabled) return res.status(403).json({ error: 'Set up two-step login to use the staff area.', needs2fa: 'setup' });
     if (!req.mfa) return res.status(403).json({ error: 'Enter your two-step login code to continue.', needs2fa: 'verify' });

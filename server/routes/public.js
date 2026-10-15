@@ -87,7 +87,7 @@ r.post('/auth/resend', mailLimit, async (req, res) => {
 r.post('/auth/login', authLimit, validate('login'), async (req, res) => {
   const { email, password } = req.valid;
   const user = await one('SELECT * FROM users WHERE email = ?', [email]);
-  const fail = () => res.status(401).json({ error: 'Email or password is incorrect.' });
+  const fail = () => res.status(400).json({ error: 'Email or password is incorrect.' });
   if (!user || user.disabled) { await bcrypt.compare(password, DUMMY_HASH); return fail(); }
   if (user.lock_until && new Date(String(user.lock_until).replace(' ', 'T') + (String(user.lock_until).endsWith('Z') ? '' : 'Z')) > new Date()) {
     return res.status(423).json({ error: 'Account locked after too many attempts. Try again in 15 minutes, or reset your password.' });
