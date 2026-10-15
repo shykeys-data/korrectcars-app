@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, naira, bnpl, useApp, api, firstPhoto, waLink, useLocalList } from '../lib/core.jsx';
+import { useQV } from './QuickView.jsx';
 
 export function CarCard({ car }) {
   const { cfg } = useApp();
@@ -9,10 +10,12 @@ export function CarCard({ car }) {
   const plan = bnpl(Number(car.price), 40, 24, cfg);
   const url = '/cars/' + car.slug;
   const isSaved = saved.has(car.id); const isCmp = cmp.has(car.id);
+  const qv = useQV();
+  const cardRef = React.useRef(null);
   return (
-    <article className="card">
+    <article className="card" ref={cardRef}>
       <Link to={url} className="card-link">
-        <div className="ph">
+        <div className="ph" onMouseEnter={qv ? () => qv.hoverIn(car, cardRef.current) : undefined} onMouseLeave={qv ? qv.hoverOut : undefined}>
           <img src={firstPhoto(car)} alt={car.title} loading="lazy" width="400" height="300" />
           {car.old_price && !sold ? <span className="badge">Price drop</span> : null}
           {sold && <div className="sold-ov">SOLD</div>}
@@ -24,6 +27,10 @@ export function CarCard({ car }) {
           {!sold && <div className="monthly">Pay small small from about <b>{naira(plan.monthly)}/mo</b></div>}
         </div>
       </Link>
+      {qv && <button type="button" className="qv-btn" aria-label={`Quick view ${car.title}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); qv.open(car, cardRef.current, window.matchMedia('(hover: hover) and (pointer: fine)').matches ? 'pop' : 'sheet'); }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+        <span>Quick view</span>
+      </button>}
       <div className="card-actions">
         {!sold && <a className="btn btn-wa btn-sm" href={waLink(cfg, `Hello Korrect Cars, I am interested in the ${car.title} (${naira(car.price)}). ${window.location.origin}${url}`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
         <button type="button" className={'btn btn-sm ' + (isSaved ? 'btn-saved' : 'btn-line')} aria-pressed={isSaved} onClick={() => saved.toggle(car.id)}>{isSaved ? 'Saved ✓' : 'Save'}</button>

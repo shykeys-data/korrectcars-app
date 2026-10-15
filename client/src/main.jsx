@@ -10,6 +10,7 @@ import { SwapHome, SwapListing, SwapNew } from './pages/Swap.jsx';
 import { Account, AuthPage, VerifyEmail, ForgotPassword, ResetPassword } from './pages/Account.jsx';
 import { Blog, Post, Page, Faqs, Contact, NotFound } from './pages/Content.jsx';
 import Admin from './pages/Admin.jsx';
+import { QuickViewProvider } from './components/QuickView.jsx';
 
 // /cars/toyota is a make page; /cars/2018-toyota-camry-se is a single car
 function CarOrMake({ slug }) {
@@ -52,7 +53,7 @@ function App() {
       <AppProvider>
         <a href="#main" className="sr">Skip to content</a>
         <Header />
-        <main id="main"><Routes /></main>
+        <QuickViewProvider><main id="main"><Routes /></main></QuickViewProvider>
         <Footer />
         <WhatsApp />
       </AppProvider>
