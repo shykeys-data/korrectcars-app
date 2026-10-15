@@ -347,3 +347,19 @@ input[type=range]{width:100%;height:32px;accent-color:var(--red);cursor:pointer}
 .qv-pop .qv-specs div:nth-child(odd){border-right:0}
 .qv-pop .qv-specs div:not(:nth-child(3n)){border-right:1px solid var(--line)}
 .qv-pop .qv-specs div{padding:6px 9px}
+
+/* Quick view: compact on shorter laptop screens so the buttons are always visible */
+@media (hover:hover) and (max-height:800px){
+.qv-pop .qv-photos{aspect-ratio:16/7}
+.qv-pop .qv-dots{display:none}
+.qv-pop .qv-body{gap:2px;padding:10px 14px 12px}
+.qv-pop .qv-title{font-size:16px}
+.qv-pop .qv-price{font-size:24px}
+.qv-pop .qv-monthly{font-size:13px}
+.qv-pop .qv-specs{margin:4px 0 0}
+.qv-pop .qv-specs div{padding:4px 8px;font-size:13px}
+.qv-pop .qv-specs dt{font-size:11px}
+.qv-pop .qv-where{display:none}
+.qv-pop .qv-actions{grid-template-columns:repeat(4,auto);gap:6px;margin-top:8px}
+.qv-pop .qv-actions .btn{min-height:38px;font-size:14px;padding:0 10px}
+}
