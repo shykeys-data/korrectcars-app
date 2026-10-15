@@ -1,5 +1,4 @@
 const express = require('express');
-const config = require('../config');
 const { q, one, J } = require('../db');
 const { validate, list } = require('../lib/validate');
 const { requireAuth, limiter, maskContacts } = require('../lib/security');
@@ -90,7 +89,7 @@ r.post('/offers', requireAuth, limiter(60, 10, 'Too many offers. Please wait an 
   if (await one("SELECT id FROM offers WHERE listing_id = ? AND from_listing_id = ? AND status IN ('pending','accepted','inspection')", [target.id, mine.id])) {
     return res.status(409).json({ error: 'You already have an open offer on this car.' });
   }
-  const fee = Math.round(Math.max(Number(target.value) || 0, Number(mine.value) || 0) * config.swapFeePct / 100);
+  const fee = Math.round(Math.max(Number(target.value) || 0, Number(mine.value) || 0) * require('../lib/settings').current().swapFeePct / 100); // % set in admin Settings
   const ins = await q('INSERT INTO offers (listing_id, from_listing_id, from_user, to_user, top_up, top_up_payer, fee) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [target.id, mine.id, req.user.id, target.owner_id, v.topUp, v.topUp ? v.topUpPayer : 'none', fee]);
   if (v.message) { const m = maskContacts(v.message); await q('INSERT INTO messages (offer_id, sender_id, text, masked) VALUES (?, ?, ?, ?)', [ins.insertId, req.user.id, m.text, m.masked]); }
