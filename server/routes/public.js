@@ -11,9 +11,9 @@ const DUMMY_HASH = bcrypt.hashSync('timing-equaliser', 12); // same work for unk
 const PUBLIC_STATUSES = "('available','sold')";
 
 // ---------- Site settings for the client ----------
-r.get('/config', (_req, res) => {
-  res.json({ whatsapp: config.whatsapp, phones: config.phones, email: config.email, bnpl: config.bnpl, swapFeePct: config.swapFeePct });
-});
+const publicConfig = () => ({ whatsapp: config.whatsapp, phones: config.phones, email: config.email, bnpl: config.bnpl, swapFeePct: config.swapFeePct,
+  hours: config.hours, instagram: config.instagram, bankPartner: config.bankPartner });
+r.get('/config', (_req, res) => res.json(publicConfig()));
 r.get('/catalog', (_req, res) => res.json(catalog));
 
 // ---------- Auth ----------
@@ -138,18 +138,20 @@ r.get('/auth/me', (req, res) => res.json({ user: req.user ? publicUser(req.user)
 function publicUser(u) { return { id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, verified: !!u.verified }; }
 
 // ---------- Cars ----------
-r.get('/cars/facets', async (_req, res) => {
+async function facets() {
   const rows = await q(`SELECT DISTINCT make, model, body FROM cars WHERE status IN ${PUBLIC_STATUSES} ORDER BY make, model, body`);
   const makes = {};
   for (const x of rows) { ((makes[x.make] = makes[x.make] || {})[x.model] = makes[x.make][x.model] || []).push(x.body); }
-  const p = await one("SELECT MIN(price) AS min, MAX(price) AS max FROM cars WHERE status = 'available'");
-  res.json({ makes, price: { min: Number(p && p.min) || 0, max: Number(p && p.max) || 0 } });
-});
+  const p = await one(`SELECT MIN(price) AS min, MAX(price) AS max, MIN(year) AS ymin, MAX(year) AS ymax FROM cars WHERE status IN ${PUBLIC_STATUSES}`);
+  return { makes, price: { min: Number(p && p.min) || 0, max: Number(p && p.max) || 0 }, year: { min: Number(p && p.ymin) || 0, max: Number(p && p.ymax) || 0 } };
+}
+r.get('/cars/facets', async (_req, res) => res.json(await facets()));
 
-r.get('/cars', async (req, res) => {
+const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured';
+async function listCars(query = {}) {
   const where = [`status IN ${PUBLIC_STATUSES}`]; const p = [];
   const add = (sql, v) => { where.push(sql); p.push(v); };
-  const { make, model, body, condition, minPrice, maxPrice, sort, featured, search, limit } = req.query;
+  const { make, model, body, condition, minPrice, maxPrice, yearMin, yearMax, sort, featured, search, limit } = query;
   if (make) add('make = ?', String(make));
   if (model) add('model = ?', String(model));
   if (body) add('body = ?', String(body));
@@ -157,21 +159,28 @@ r.get('/cars', async (req, res) => {
   if (featured === '1') where.push("featured = 1 AND status = 'available'");
   if (minPrice) add('price >= ?', Number(minPrice) || 0);
   if (maxPrice) add('price <= ?', Number(maxPrice) || 1e12);
+  if (yearMin) add('year >= ?', Number(yearMin) || 0);
+  if (yearMax) add('year <= ?', Number(yearMax) || 9999);
   if (search) add('title LIKE ?', '%' + String(search).slice(0, 60).replace(/[%_\\]/g, '\\$&') + '%');
-  const sorts = { 'price-asc': 'price ASC', 'price-desc': 'price DESC', 'year-desc': 'year DESC', newest: 'created_at DESC' };
+  const sorts = { 'price-asc': 'price ASC', 'price-desc': 'price DESC', 'year-desc': 'year DESC, price DESC', newest: 'created_at DESC' };
   const lim = Math.min(Math.max(Number(limit) || 60, 1), 100);
-  const cars = await q(`SELECT id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, features, specs, photos, status, featured
-    FROM cars WHERE ${where.join(' AND ')} ORDER BY (status = 'sold') ASC, ${sorts[sort] || 'price DESC'} LIMIT ${lim}`, p);
-  res.json({ cars });
-});
+  return q(`SELECT ${CAR_COLS} FROM cars WHERE ${where.join(' AND ')} ORDER BY (status = 'sold') ASC, ${sorts[sort] || 'price DESC'} LIMIT ${lim}`, p);
+}
+r.get('/cars', async (req, res) => res.json({ cars: await listCars(req.query) }));
 
-r.get('/cars/:slug', async (req, res) => {
-  const car = await one("SELECT * FROM cars WHERE slug = ? AND status <> 'hidden'", [String(req.params.slug)]);
-  if (!car) return res.status(404).json({ error: 'Car not found' });
-  await q('UPDATE cars SET views = views + 1 WHERE id = ?', [car.id]);
+async function carDetail(slug) {
+  const car = await one("SELECT * FROM cars WHERE slug = ? AND status <> 'hidden'", [String(slug)]);
+  if (!car) return null;
   const similar = await q(`SELECT id, slug, title, make, model, body, year, price, old_price, mileage, photos, status FROM cars
     WHERE id <> ? AND status = 'available' AND (body = ? OR make = ?) ORDER BY ABS(price - ?) LIMIT 3`, [car.id, car.body, car.make, car.price]);
-  res.json({ car, similar });
+  delete car.vin; // staff only
+  return { car, similar };
+}
+r.get('/cars/:slug', async (req, res) => {
+  const d = await carDetail(req.params.slug);
+  if (!d) return res.status(404).json({ error: 'Car not found' });
+  await q('UPDATE cars SET views = views + 1 WHERE id = ?', [d.car.id]);
+  res.json(d);
 });
 
 // ---------- Enquiries (viewing, offer, Pay Small Small, contact) ----------
@@ -227,4 +236,4 @@ r.get('/pages/:slug', async (req, res) => {
 });
 
 module.exports = r;
-module.exports.bnplPlan = bnplPlan;
+Object.assign(module.exports, { bnplPlan, publicConfig, facets, listCars, carDetail, publicUser });

@@ -93,7 +93,10 @@ app.get('/sitemap.xml', async (_req, res, next) => {
     const cars = await db.q("SELECT slug, updated_at FROM cars WHERE status IN ('available','sold')");
     const posts = await db.q("SELECT slug, published_at FROM posts WHERE status = 'published'");
     const d = (x) => (x ? new Date(String(x).replace(' ', 'T') + (String(x).includes('Z') ? '' : 'Z')).toISOString().slice(0, 10) : '');
-    const urls = ['/', '/cars', '/swap', '/pay-small-small', '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions']
+    const { slugify } = require('./render');
+    const mm = await db.q("SELECT DISTINCT make, model FROM cars WHERE status IN ('available','sold')");
+    const makePages = [...new Set(mm.map((x) => '/cars/' + slugify(x.make)))].concat(mm.map((x) => `/cars/${slugify(x.make)}/${slugify(x.model)}`));
+    const urls = ['/', '/cars', '/swap', '/pay-small-small', '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)
       .map((u) => `<url><loc>${config.siteUrl}${u}</loc></url>`)
       .concat(cars.map((c) => `<url><loc>${config.siteUrl}/cars/${c.slug}</loc><lastmod>${d(c.updated_at)}</lastmod></url>`))
       .concat(posts.map((p) => `<url><loc>${config.siteUrl}/blog/${p.slug}</loc><lastmod>${d(p.published_at)}</lastmod></url>`));
@@ -122,10 +125,11 @@ app.use(async (req, res, next) => {
 });
 
 // ---------- React app (with server-rendered meta + content for Google) ----------
-app.get('*', async (req, res, next) => {
+app.get('*', loadUser, async (req, res, next) => {
   try {
     const { status, html } = await renderPage(req, res.locals.nonce);
-    res.status(status).set('Cache-Control', 'no-cache').type('html').send(html);
+    // private: the page embeds the signed-in user's name, so shared caches must never store it
+    res.status(status).set('Cache-Control', 'private, no-cache').type('html').send(html);
   } catch (e) { next(e); }
 });
 

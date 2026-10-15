@@ -1,11 +1,23 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
+// ---------- Data embedded in the page by the server ----------
+// Each page arrives with the data it needs, so it shows straight away and still works when
+// extra background requests are slow or blocked.
+let BOOT = {};
+try { const el = document.getElementById('__boot'); if (el) BOOT = JSON.parse(el.textContent || '{}'); } catch (_e) { BOOT = {}; }
+export const booted = (path) => (path && Object.prototype.hasOwnProperty.call(BOOT, path) ? BOOT[path] : undefined);
+export const forgetBoot = (path) => { delete BOOT[path]; };
+
 // ---------- API ----------
 export async function api(path, { method = 'GET', body, form } = {}) {
+  if (method === 'GET' && booted(path) !== undefined) return booted(path);
   const opts = { method, credentials: 'same-origin', headers: { 'X-Requested-With': 'korrect' } };
   if (form) opts.body = form;
   else if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-  const res = await fetch('/api' + path, opts);
+  let res;
+  try { res = await fetch('/api' + path, opts); } catch (_e) {
+    const e = new Error('We could not reach Korrect Cars. Check your connection and refresh the page, or chat with us on WhatsApp.'); e.status = 0; throw e;
+  }
   let data = {};
   try { data = await res.json(); } catch (_e) { /* empty */ }
   if (!res.ok) { const e = new Error(data.error || 'Something went wrong. Please try again.'); e.status = res.status; e.data = data; throw e; }
@@ -13,14 +25,23 @@ export async function api(path, { method = 'GET', body, form } = {}) {
 }
 
 export function useApi(path, deps = []) {
-  const [state, set] = useState({ loading: true, data: null, error: null });
-  const load = useCallback(() => {
+  const first = booted(path);
+  const [state, set] = useState(first !== undefined ? { loading: false, data: first, error: null } : { loading: true, data: null, error: null });
+  const load = useCallback((fresh) => {
     if (!path) return;
+    if (fresh === true) forgetBoot(path);
+    const b = booted(path);
+    if (b !== undefined) { set({ loading: false, data: b, error: null }); return; }
     set((s) => ({ ...s, loading: true }));
-    api(path).then((data) => set({ loading: false, data, error: null })).catch((error) => set({ loading: false, data: null, error }));
+    api(path).then((data) => set({ loading: false, data, error: null })).catch((error) => {
+      // If a background request is blocked, load the page in full once: it arrives with its data built in
+      const k = 'kc-reload:' + window.location.pathname + window.location.search;
+      if (error.status === 0) { try { if (!sessionStorage.getItem(k)) { sessionStorage.setItem(k, '1'); window.location.reload(); return; } } catch (_e) { /* ignore */ } }
+      set({ loading: false, data: null, error });
+    });
   }, [path]);
   useEffect(load, [load, ...deps]);
-  return { ...state, reload: load };
+  return { ...state, reload: () => load(true) };
 }
 
 // ---------- Formatting ----------
@@ -85,11 +106,11 @@ export function match(pattern, path) {
 // ---------- App-wide state: settings, signed-in user, catalog ----------
 const AppCtx = createContext(null);
 export function AppProvider({ children }) {
-  const [cfg, setCfg] = useState(null);
-  const [user, setUser] = useState(undefined);
+  const [cfg, setCfg] = useState(booted('/config') || null);
+  const [user, setUser] = useState(booted('/auth/me') ? booted('/auth/me').user : undefined);
   const [catalog, setCatalog] = useState(null);
   useEffect(() => {
-    api('/config').then(setCfg).catch(() => setCfg({ whatsapp: '2348138588818', phones: ['+234 809 139 7912', '+234 813 858 8818'], email: 'info@korrectcars.com', bnpl: { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 }, swapFeePct: 2 }));
+    api('/config').then(setCfg).catch(() => setCfg({ whatsapp: '2348138588818', phones: ['+234 809 139 7912', '+234 813 858 8818'], email: 'info@korrectcars.com', bnpl: { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 }, swapFeePct: 2, hours: 'Mon–Sat, 8am – 6pm', instagram: 'korrectcarsofficial' }));
     api('/auth/me').then((d) => setUser(d.user)).catch(() => setUser(null));
   }, []);
   const loadCatalog = useCallback(() => { if (!catalog) api('/catalog').then(setCatalog).catch(() => {}); }, [catalog]);
@@ -105,3 +126,19 @@ export function useTitle(title, desc) {
 }
 
 export const waLink = (cfg, text) => `https://wa.me/${(cfg && cfg.whatsapp) || '2348138588818'}?text=${encodeURIComponent(text || 'Hello Korrect Cars')}`;
+
+export const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+// Saved cars and compare list live in this browser until accounts take them over
+export function useLocalList(key, max = 50) {
+  const read = () => { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (_e) { return []; } };
+  const [list, setList] = useState(read);
+  useEffect(() => {
+    const on = (e) => { if (!e.key || e.key === key) setList(read()); };
+    window.addEventListener('storage', on); window.addEventListener('kc-local', on);
+    return () => { window.removeEventListener('storage', on); window.removeEventListener('kc-local', on); };
+  }, [key]); // eslint-disable-line
+  const save = (next) => { setList(next); try { localStorage.setItem(key, JSON.stringify(next)); } catch (_e) { /* private mode */ } window.dispatchEvent(new Event('kc-local')); };
+  const toggle = (id) => save(list.includes(id) ? list.filter((x) => x !== id) : list.length >= max ? list : [...list, id]);
+  return { list, has: (id) => list.includes(id), toggle, clear: () => save([]), full: list.length >= max };
+}

@@ -4,18 +4,29 @@ import './styles.css';
 import { Router, AppProvider, useRouter, match } from './lib/core.jsx';
 import { Header, Footer, WhatsApp } from './components/Layout.jsx';
 import Home from './pages/Home.jsx';
-import { Inventory, CarDetail, PaySmallSmall } from './pages/Cars.jsx';
+import { Inventory, CarDetail, PaySmallSmall, Compare } from './pages/Cars.jsx';
+import { useApi, slugify } from './lib/core.jsx';
 import { SwapHome, SwapListing, SwapNew } from './pages/Swap.jsx';
 import { Account, AuthPage, VerifyEmail, ForgotPassword, ResetPassword } from './pages/Account.jsx';
 import { Blog, Post, Page, Faqs, Contact, NotFound } from './pages/Content.jsx';
 import Admin from './pages/Admin.jsx';
+
+// /cars/toyota is a make page; /cars/2018-toyota-camry-se is a single car
+function CarOrMake({ slug }) {
+  const list = useApi('/cars?limit=100');
+  const cars = (list.data && list.data.cars) || [];
+  if (list.loading && !cars.length) return <div className="loading">Loading…</div>;
+  return cars.some((c) => slugify(c.make) === slug) ? <Inventory makeSlug={slug} /> : <CarDetail slug={slug} />;
+}
 
 function Routes() {
   const { path } = useRouter();
   let m;
   if (path === '/') return <Home />;
   if (path === '/cars') return <Inventory />;
-  if ((m = match('/cars/:slug', path))) return <CarDetail slug={m.slug} />;
+  if ((m = match('/cars/:make/:model', path))) return <Inventory makeSlug={m.make} modelSlug={m.model} />;
+  if ((m = match('/cars/:slug', path))) return <CarOrMake slug={m.slug} />;
+  if (path === '/compare') return <Compare />;
   if (path === '/pay-small-small') return <PaySmallSmall />;
   if (path === '/swap') return <SwapHome />;
   if (path === '/swap/new') return <SwapNew />;

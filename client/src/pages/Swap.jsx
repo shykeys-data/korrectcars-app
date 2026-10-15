@@ -39,7 +39,7 @@ export function SwapHome() {
           <li><b>List your car</b><div style={{ color: '#a1a1aa' }}>Photos, papers and what you want</div></li>
           <li><b>We verify</b><div style={{ color: '#a1a1aa' }}>Owner ID and car papers checked</div></li>
           <li><b>Make or get offers</b><div style={{ color: '#a1a1aa' }}>Agree a cash top-up if values differ</div></li>
-          <li><b>Inspect and swap</b><div style={{ color: '#a1a1aa' }}>At our inspection point; small success fee</div></li>
+          <li><b>Inspect and swap</b><div style={{ color: '#a1a1aa' }}>At a partner car lot; small success fee</div></li>
         </ol>
       </div></section>
       <section className="sec-sm"><div className="wrap">
@@ -58,7 +58,7 @@ export function SwapHome() {
         <div className="ways">
           <div className="box"><h3>Verified people</h3><p className="small muted">Phone and ID checked. Car papers checked against the VIN before a listing goes live.</p></div>
           <div className="box"><h3>Private until you agree</h3><p className="small muted">Phone numbers are hidden in chat until both owners accept an offer.</p></div>
-          <div className="box"><h3>Inspection first</h3><p className="small muted">Both cars are inspected at a Korrect Cars point before keys, papers or any cash change hands.</p></div>
+          <div className="box"><h3>Inspection first</h3><p className="small muted">Both cars are inspected at a partner car lot in Lagos before keys, papers or any cash change hands.</p></div>
         </div>
       </div></section>
     </>
@@ -122,7 +122,7 @@ export function SwapListing({ id }) {
                   <p className="small muted" style={{ marginTop: 8 }}>A success fee of {(cfg && cfg.swapFeePct) || 2}% of the higher car value is due only if the swap completes.</p>
                 </form>}
           </div>
-          <div className="notice">Never hand over a car, papers or money before the inspection at a Korrect Cars point.</div>
+          <div className="notice">Never hand over a car, papers or money before the inspection at a partner car lot in Lagos.</div>
         </aside>
       </div>
     </div>

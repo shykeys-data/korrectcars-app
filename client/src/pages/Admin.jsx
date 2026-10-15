@@ -237,7 +237,7 @@ function Swaps() {
           <td>{naira(o.fee)}<div><T c={stTag[o.fee_status]}>{o.fee_status}</T></div></td>
           <td><T c={stTag[o.status] || 'tag-warn'}>{o.status}</T></td>
           <td style={{ whiteSpace: 'nowrap' }}>
-            {['accepted', 'inspection'].includes(o.status) && <button className="btn btn-dark btn-sm" onClick={() => setInsp({ o, place: o.inspection_place || 'Korrect Cars inspection point, Lagos', time: o.inspection_time || '' })}>{o.status === 'inspection' ? 'Reschedule' : 'Book inspection'}</button>}
+            {['accepted', 'inspection'].includes(o.status) && <button className="btn btn-dark btn-sm" onClick={() => setInsp({ o, place: o.inspection_place || 'Partner car lot, Lagos', time: o.inspection_time || '' })}>{o.status === 'inspection' ? 'Reschedule' : 'Book inspection'}</button>}
             {o.status === 'inspection' && <> <button className="btn btn-ok btn-sm" onClick={() => act(o, 'complete')}>Mark completed</button></>}
             {o.fee_status === 'due' && <button className="btn btn-red btn-sm" onClick={() => act(o, 'feePaid')}>Fee paid</button>}
           </td>

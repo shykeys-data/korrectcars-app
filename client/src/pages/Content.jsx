@@ -77,8 +77,8 @@ export function Faqs() {
   let items = [];
   try { items = data ? JSON.parse(data.page.content) : []; } catch (_e) { items = []; }
   const extra = [
-    { q: 'How does Pay Small Small work?', a: 'Pay at least 40% of the car price upfront. A flat 20% charge is added to the balance, and the total is spread evenly over 6 to 48 months. For example, on a ₦10m car with ₦4m down you repay ₦7.2m: ₦1.2m a month over 6 months or ₦600,000 a month over 12 months.' },
-    { q: 'How does Korrect Swap work?', a: 'List your car with photos and papers. Our team verifies the owner and papers before it goes live. Owners make offers, agree any cash top-up, and both cars are inspected at a Korrect Cars point before anything changes hands. A success fee is due only when a swap completes.' }
+    { q: 'How does Pay Small Small work?', a: 'Pick a car and get an estimate of your deposit and monthly payment on our Pay Small Small page. Apply in minutes, and with your consent we pass your details to our credit bank partner. The bank checks if you qualify and sets the final terms. Once the bank approves you, we sell you the car.' },
+    { q: 'How does Korrect Swap work?', a: 'List your car with photos and papers. Our team verifies the owner and papers before it goes live. Owners make offers, agree any cash top-up, and both cars are inspected at a partner car lot in Lagos before anything changes hands. A success fee is due only when a swap completes.' }
   ];
   if (loading) return <Loading />;
   return (

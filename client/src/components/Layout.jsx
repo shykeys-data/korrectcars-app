@@ -1,77 +1,71 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useRouter, useApp, waLink, api } from '../lib/core.jsx';
 
-const NAV = [['/', 'Home'], ['/cars', 'Cars for sale'], ['/swap', 'Swap your car'], ['/pay-small-small', 'Pay Small Small'], ['/blog', 'Guides'], ['/contact', 'Contact']];
+const NAV = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/swap', 'Swap your car'], ['/blog', 'Guides'], ['/contact', 'Contact']];
 
 export function Header() {
-  const { path } = useRouter();
+  const { path, go } = useRouter();
   const { cfg, user, setUser } = useApp();
-  const { go } = useRouter();
   const [open, setOpen] = useState(false);
   const signOut = async (e) => { e.preventDefault(); try { await api('/auth/logout', { method: 'POST' }); } catch (_e) { /* ignore */ } setUser(null); go('/'); };
   useEffect(() => setOpen(false), [path]);
-  const phones = (cfg && cfg.phones) || [];
+  const phone = ((cfg && cfg.phones) || ['+234 809 139 7912'])[0];
   return (
-    <>
-      <div className="topbar">
-        <div className="wrap">
-          <div className="contacts">
-            {phones.map((p) => <a key={p} href={'tel:' + p.replace(/\s/g, '')}>{p}</a>)}
-            <a className="hide-sm" href={'mailto:' + ((cfg && cfg.email) || 'info@korrectcars.com')}>{(cfg && cfg.email) || 'info@korrectcars.com'}</a>
-          </div>
-          {user
-            ? <span style={{ display: 'flex', gap: 14 }}><Link to="/account">My account</Link><a href="/" onClick={signOut}>Sign out</a></span>
-            : <span style={{ display: 'flex', gap: 14 }}><Link to="/login">Sign in</Link><Link to="/register" className="hide-sm">Register</Link></span>}
+    <header className="hdr">
+      <div className="wrap">
+        <Link to="/" className="logo" aria-label="Korrect Cars home"><img src="/img/logo.svg" alt="Korrect Cars" width="200" height="50" /></Link>
+        <nav className={'nav' + (open ? ' open' : '')} aria-label="Main">
+          {NAV.map(([to, label]) => <Link key={to} to={to} className={path.startsWith(to) ? 'on' : ''}>{label}</Link>)}
+          <Link to="/swap/new" className="m-only">List my car</Link>
+          {user ? <><Link to="/account" className="m-only">My account</Link><a href="/" className="m-only" onClick={signOut}>Sign out</a></> : <Link to="/login" className="m-only">Sign in</Link>}
+          <a className="m-only" href={'tel:' + phone.replace(/\s/g, '')}>Call {phone}</a>
+        </nav>
+        <div className="right">
+          <a className="tel" href={'tel:' + phone.replace(/\s/g, '')}>{phone}</a>
+          {user ? <Link to="/account" className="acct">My account</Link> : <Link to="/login" className="acct">Sign in</Link>}
+          <a className="btn btn-wa btn-sm" href={waLink(cfg, 'Hello Korrect Cars, I am looking for a car.')} target="_blank" rel="noopener noreferrer">WhatsApp us</a>
+          <button className="menu-btn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen(!open)}><span /><span /><span /></button>
         </div>
       </div>
-      <header className="hdr">
-        <div className="wrap">
-          <Link to="/" className="logo" aria-label="Korrect Cars home"><img src="/img/logo-c.png" alt="Korrect Cars" width="166" height="40" /></Link>
-          <button className="menu-btn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen(!open)}><span /><span /><span /></button>
-          <nav className={'nav' + (open ? ' open' : '')} aria-label="Main">
-            {NAV.map(([to, label]) => <Link key={to} to={to} className={(to === '/' ? path === '/' : path.startsWith(to)) ? 'on' : ''}>{label}</Link>)}
-            <Link to="/swap/new" className="btn btn-red btn-sm" style={{ color: '#fff', marginLeft: 6 }}>List my car</Link>
-          </nav>
-        </div>
-      </header>
-    </>
+    </header>
   );
 }
 
 export function Footer() {
   const { cfg } = useApp();
   const phones = (cfg && cfg.phones) || [];
+  const email = (cfg && cfg.email) || 'info@korrectcars.com';
+  const ig = (cfg && cfg.instagram) || 'korrectcarsofficial';
   return (
-    <footer className="foot">
-      <div className="bg" style={{ backgroundImage: 'url(/img/footer-bg.jpg)' }} />
+    <footer className="foot" id="footer">
       <div className="wrap">
         <div className="cols">
           <div>
-            <img src="/img/logo.png" alt="Korrect Cars" width="166" height="40" style={{ height: 40, width: 'auto', marginBottom: 14 }} />
-            <p>Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright, Pay Small Small, or swap your car with a verified owner.</p>
-            <a className="btn btn-wa btn-sm" href={waLink(cfg, 'Hello Korrect Cars, I have a question.')} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
+            <img src="/img/logo-white.svg" alt="Korrect Cars" width="200" height="50" style={{ height: 46, width: 'auto', marginBottom: 14 }} loading="lazy" />
+            <p>Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright, pay small small through our bank partners, or swap your car with a verified owner.</p>
           </div>
           <div>
             <h4>Buy</h4>
-            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/blog">Buying guides</Link></li><li><Link to="/faqs">FAQs</Link></li></ul>
+            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></ul>
           </div>
           <div>
-            <h4>Korrect Swap</h4>
-            <ul><li><Link to="/swap">Browse swaps</Link></li><li><Link to="/swap/new">List my car</Link></li><li><Link to="/account">My swaps</Link></li><li><Link to="/about-us">About us</Link></li></ul>
+            <h4>Company</h4>
+            <ul><li><Link to="/about-us">About us</Link></li><li><Link to="/blog">Guides</Link></li><li><Link to="/faqs">FAQs</Link></li><li><Link to="/privacy-policy">Privacy policy</Link></li><li><Link to="/terms-and-conditions">Terms and conditions</Link></li></ul>
           </div>
           <div>
-            <h4>Talk to us</h4>
+            <h4>Visit or call</h4>
             <ul>
+              <li>Online car dealer · Lagos</li>
+              <li>{(cfg && cfg.hours) || 'Mon–Sat, 8am – 6pm'}</li>
               {phones.map((p) => <li key={p}><a href={'tel:' + p.replace(/\s/g, '')}>{p}</a></li>)}
-              <li><a href={'mailto:' + ((cfg && cfg.email) || 'info@korrectcars.com')}>{(cfg && cfg.email) || 'info@korrectcars.com'}</a></li>
-              <li>Lagos, Nigeria</li>
+              <li><a href={'mailto:' + email}>{email}</a></li>
             </ul>
           </div>
         </div>
-        <p className="small" style={{ marginTop: 28, color: '#a1a1aa' }}>Safety: Korrect Cars will never ask you to pay into a personal account. Inspect every car at a Korrect Cars point before money changes hands.</p>
+        <p className="small" style={{ marginTop: 28, color: '#9AA0AB' }}>Safety: Korrect Cars will never ask you to pay into a personal account. Inspect the car and its papers before any money changes hands.</p>
         <div className="legal">
           <span>© {new Date().getFullYear()} Korrect Cars. All rights reserved.</span>
-          <span><Link to="/privacy-policy">Privacy policy</Link> · <Link to="/terms-and-conditions">Terms and conditions</Link></span>
+          <a href={`https://www.instagram.com/${ig}/`} target="_blank" rel="noopener noreferrer">Instagram @{ig}</a>
         </div>
       </div>
     </footer>
@@ -80,9 +74,9 @@ export function Footer() {
 
 const TOPICS = [
   ['Buy a car', 'Hello Korrect Cars, I want to buy a car. My budget is: '],
-  ['Pay Small Small', 'Hello Korrect Cars, I want to Pay Small Small for a car. My budget is: '],
+  ['Pay Small Small', 'Hello Korrect Cars, I want to pay small small for a car. My budget is: '],
   ['Swap my car', 'Hello Korrect Cars, I want to swap my car. My car is a: '],
-  ['Book inspection', 'Hello Korrect Cars, I want to book an inspection or viewing.'],
+  ['Book a viewing', 'Hello Korrect Cars, I want to book a viewing at the car lot.'],
   ['Something else', 'Hello Korrect Cars, ']
 ];
 
@@ -99,7 +93,7 @@ export function WhatsApp() {
       {open && (
         <div className="wa-pop" role="dialog" aria-label="Chat with Korrect Cars on WhatsApp">
           <div className="hd">
-            <div><div className="disp" style={{ fontSize: 22 }}>Chat with us</div><div className="small" style={{ color: '#bbf7d0' }}>We usually reply within minutes, 8am–8pm</div></div>
+            <div><div className="disp" style={{ fontSize: 22 }}>Chat with us</div><div className="small" style={{ color: '#bbf7d0' }}>We usually reply within minutes, Mon–Sat 8am–6pm</div></div>
             <button className="x" aria-label="Close" onClick={() => setOpen(false)}>×</button>
           </div>
           <div className="bd">

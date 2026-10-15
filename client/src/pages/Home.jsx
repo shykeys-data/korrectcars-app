@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, date, waLink } from '../lib/core.jsx';
-import Cascade from '../components/Cascade.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, date, waLink, slugify } from '../lib/core.jsx';
 import { CarCard, BnplCalc } from '../components/Bits.jsx';
 
 const BUDGETS = [['', 'Any budget'], ['20000000', 'Up to ₦20m'], ['30000000', 'Up to ₦30m'], ['50000000', 'Up to ₦50m'], ['100000000', 'Up to ₦100m']];
@@ -9,20 +8,26 @@ export default function Home() {
   useTitle('Korrect Cars | Buy Tokunbo & Foreign-Used Cars in Lagos, Nigeria');
   const { go } = useRouter();
   const { cfg } = useApp();
-  const facets = useApi('/cars/facets');
-  const featured = useApi('/cars?featured=1&limit=6');
+  const stock = useApi('/cars?limit=100');
   const posts = useApi('/posts?limit=3');
-  const [s, setS] = useState({ make: '', model: '', body: '' });
+  const [s, setS] = useState({ make: '', model: '', yearMin: '', body: '' });
   const [budget, setBudget] = useState('');
-  const cars = (featured.data && featured.data.cars) || [];
+  const all = ((stock.data && stock.data.cars) || []).filter((c) => c.status === 'available');
+  const feat = all.filter((c) => Number(c.featured));
+  const cars = (feat.length >= 3 ? feat : all).slice(0, 6);
+  const makes = [...new Set(all.map((c) => c.make))].sort();
+  const models = [...new Set(all.filter((c) => !s.make || c.make === s.make).map((c) => c.model))].sort();
+  const years = [...new Set(all.map((c) => Number(c.year)).filter(Boolean))].sort((a, b) => b - a);
+  const bodies = [...new Set(all.map((c) => c.body).filter(Boolean))].sort();
   const [calcIdx, setCalcIdx] = useState(0);
   const [customPrice, setCustomPrice] = useState(10000000);
   const calcPrice = calcIdx === -1 ? customPrice : (cars[calcIdx] ? Number(cars[calcIdx].price) : customPrice);
 
   const search = (e) => {
     e.preventDefault();
-    const qs = new URLSearchParams(Object.entries({ ...s, maxPrice: budget }).filter(([, v]) => v));
-    go('/cars' + (qs.toString() ? '?' + qs : ''));
+    const base = s.make ? `/cars/${slugify(s.make)}${s.model ? '/' + slugify(s.model) : ''}` : '/cars';
+    const qs = new URLSearchParams(Object.entries({ yearMin: s.yearMin, body: s.body, maxPrice: budget }).filter(([, v]) => v));
+    go(base + (qs.toString() ? '?' + qs : ''));
   };
 
   return (
@@ -33,7 +38,7 @@ export default function Home() {
         <div className="wrap">
           <div className="eyebrow" style={{ color: '#fca5a5' }}>Lagos · Inspected · VIN-verified</div>
           <h1>Drive the right car. Pay the Korrect way.</h1>
-          <p className="lead">Tokunbo and foreign-used cars we have checked inside and out. Buy outright, Pay Small Small from 40% down, or swap your car with a verified owner.</p>
+          <p className="lead">Tokunbo and foreign-used cars we have checked inside and out. Buy outright, pay small small through our credit bank partners, or swap your car with a verified owner.</p>
           <div className="ctas">
             <Link to="/cars" className="btn btn-red">Browse cars</Link>
             <a className="btn btn-ghost" href={waLink(cfg, 'Hello Korrect Cars, I am looking for a car.')} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
@@ -43,7 +48,10 @@ export default function Home() {
 
       <div className="wrap">
         <form className="search-card" onSubmit={search} aria-label="Find a car">
-          <Cascade tree={facets.data && facets.data.makes} value={s} onChange={setS} idPrefix="home" />
+          <div className="field"><label className="f" htmlFor="home-make">Make</label><select id="home-make" className="input" value={s.make} onChange={(e) => setS({ ...s, make: e.target.value, model: '' })}><option value="">Any make</option>{makes.map((m) => <option key={m}>{m}</option>)}</select></div>
+          <div className="field"><label className="f" htmlFor="home-model">Model</label><select id="home-model" className="input" value={s.model} onChange={(e) => setS({ ...s, model: e.target.value, make: s.make || (all.find((c) => c.model === e.target.value) || {}).make || '' })}><option value="">Any model</option>{models.map((m) => <option key={m}>{m}</option>)}</select></div>
+          <div className="field"><label className="f" htmlFor="home-year">Year from</label><select id="home-year" className="input" value={s.yearMin} onChange={(e) => setS({ ...s, yearMin: e.target.value })}><option value="">Any year</option>{years.map((y) => <option key={y} value={y}>{y} or newer</option>)}</select></div>
+          <div className="field"><label className="f" htmlFor="home-body">Body type</label><select id="home-body" className="input" value={s.body} onChange={(e) => setS({ ...s, body: e.target.value })}><option value="">Any body type</option>{bodies.map((m) => <option key={m}>{m}</option>)}</select></div>
           <div className="field">
             <label className="f" htmlFor="home-budget">Budget</label>
             <select id="home-budget" className="input" value={budget} onChange={(e) => setBudget(e.target.value)}>{BUDGETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
@@ -53,7 +61,7 @@ export default function Home() {
         <div className="trust">
           <div><b>Inspected</b><span className="muted">Mechanical, electrical and body checks on every car</span></div>
           <div><b>VIN-verified</b><span className="muted">History checked before we list it</span></div>
-          <div><b>40% down</b><span className="muted">Pay Small Small over 6 to 48 months</span></div>
+          <div><b>Pay Small Small</b><span className="muted">Spread the cost through our bank partners</span></div>
           <div><b>Swap safely</b><span className="muted">Verified owners, inspection before handover</span></div>
         </div>
       </div>
@@ -71,15 +79,15 @@ export default function Home() {
           <h2>Your car, your way</h2>
           <div className="ways" style={{ marginTop: 24 }}>
             <div className="box"><h3>Buy outright</h3><p className="muted">Pick an inspected car, see it in person, pay and drive. Papers handed over the same day.</p><Link to="/cars">Browse cars</Link></div>
-            <div className="box"><h3>Pay Small Small</h3><p className="muted">Pay 40% or more today, spread the balance over 6 to 48 months.</p><Link to="/pay-small-small">See your monthly payment</Link></div>
-            <div className="box"><h3>Swap your car</h3><p className="muted">List your car, say what you want, and swap with a verified owner. Add or receive cash to balance it.</p><Link to="/swap">How Korrect Swap works</Link></div>
+            <div className="box"><h3>Pay Small Small</h3><p className="muted">Get an estimate, apply in minutes, and we connect you to our credit bank partners. Once they approve you, we sell you the car.</p><Link to="/pay-small-small">See how it works</Link></div>
+            <div className="box"><h3>Swap your car</h3><p className="muted">List your car, say what you want, and swap with a verified owner. Add or receive cash to balance it. 2% swap fee.</p><Link to="/swap">How Korrect Swap works</Link></div>
           </div>
         </div>
       </section>
 
       <section className="sec" id="bnpl">
         <div className="wrap">
-          <div className="sec-head"><div><div className="eyebrow">Pay Small Small</div><h2>See your monthly payment</h2></div></div>
+          <div className="sec-head"><div><div className="eyebrow">Pay Small Small</div><h2>Estimate your monthly payment</h2></div></div>
           <div className="field" style={{ maxWidth: 520 }}>
             <label className="f" htmlFor="calc-car">Choose a car</label>
             <select id="calc-car" className="input" value={calcIdx} onChange={(e) => setCalcIdx(Number(e.target.value))}>
@@ -87,7 +95,7 @@ export default function Home() {
               <option value={-1}>Enter my own price</option>
             </select>
           </div>
-          <BnplCalc price={calcPrice} onPrice={calcIdx === -1 ? setCustomPrice : null} carTitle={calcIdx >= 0 && cars[calcIdx] ? cars[calcIdx].title : ''} />
+          <BnplCalc price={calcPrice} onPrice={calcIdx === -1 ? setCustomPrice : null} carTitle={calcIdx >= 0 && cars[calcIdx] ? cars[calcIdx].title : ''} carSlug={calcIdx >= 0 && cars[calcIdx] ? cars[calcIdx].slug : ''} />
         </div>
       </section>
 
@@ -96,14 +104,14 @@ export default function Home() {
           <div>
             <div className="eyebrow">Korrect Swap</div>
             <h2>Swap your car with a verified owner</h2>
-            <p style={{ color: '#d4d4d8' }}>Tell us your car and the car you want. We check both owners and both cars' papers, match you, and host the inspection at a Korrect Cars point. No strangers' houses, no money before inspection.</p>
+            <p style={{ color: '#d4d4d8' }}>Tell us your car and the car you want. We check both owners and both cars' papers, match you, and host the inspection at one of our partner car lots in Lagos. No strangers' houses, no money before inspection.</p>
             <div className="ctas" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}><Link to="/swap/new" className="btn btn-red">List my car</Link><Link to="/swap" className="btn btn-ghost">Browse swaps</Link></div>
           </div>
           <ol className="steps" style={{ gridTemplateColumns: '1fr 1fr', padding: 0, margin: 0 }}>
             <li><b>List your car</b><div style={{ color: '#a1a1aa' }}>Photos and papers, checked by our team</div></li>
             <li><b>Get matched</b><div style={{ color: '#a1a1aa' }}>See cars that fit what you want</div></li>
             <li><b>Agree the deal</b><div style={{ color: '#a1a1aa' }}>Chat safely, agree any cash top-up</div></li>
-            <li><b>Inspect and swap</b><div style={{ color: '#a1a1aa' }}>At a Korrect Cars inspection point</div></li>
+            <li><b>Inspect and swap</b><div style={{ color: '#a1a1aa' }}>At a partner car lot in Lagos</div></li>
           </ol>
         </div>
       </section>
@@ -114,7 +122,7 @@ export default function Home() {
           <h2>Simple, safe, sorted</h2>
           <ol className="steps" style={{ padding: 0, marginTop: 24 }}>
             <li><b>Choose a car</b><div className="muted">Real photos, real prices, full history</div></li>
-            <li><b>See it in Lagos</b><div className="muted">Book a viewing or test drive</div></li>
+            <li><b>See it in Lagos</b><div className="muted">Book a viewing at the partner car lot where it is parked</div></li>
             <li><b>Pay safely</b><div className="muted">Only into the Korrect Cars company account</div></li>
             <li><b>Drive away</b><div className="muted">Papers, plates and handover</div></li>
           </ol>

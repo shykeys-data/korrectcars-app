@@ -35,6 +35,11 @@ module.exports = {
     maxMonths: Number(env.BNPL_MAX_MONTHS) || 48
   },
   swapFeePct: Number(env.SWAP_FEE_PCT) || 2,
+  // Business details shown in the footer and in structured data for Google and AI assistants
+  hours: env.OPENING_HOURS || 'Mon–Sat, 8am – 6pm',
+  hoursSpec: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '08:00', closes: '18:00' },
+  instagram: env.INSTAGRAM || 'korrectcarsofficial',
+  bankPartner: env.BANK_PARTNER_NAME || '',
   uploadsDir: path.join(__dirname, '..', 'uploads'),
   distDir: path.join(__dirname, '..', 'dist')
 };

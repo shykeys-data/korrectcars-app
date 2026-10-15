@@ -1,35 +1,46 @@
 import React, { useState } from 'react';
-import { Link, naira, bnpl, useApp, api, firstPhoto, waLink } from '../lib/core.jsx';
+import { Link, naira, bnpl, useApp, api, firstPhoto, waLink, useLocalList } from '../lib/core.jsx';
 
 export function CarCard({ car }) {
   const { cfg } = useApp();
+  const saved = useLocalList('kc-saved');
+  const cmp = useLocalList('kc-compare', 3);
   const sold = car.status === 'sold';
-  const plan = bnpl(Number(car.price), 40, 12, cfg);
+  const plan = bnpl(Number(car.price), 40, 24, cfg);
+  const url = '/cars/' + car.slug;
+  const isSaved = saved.has(car.id); const isCmp = cmp.has(car.id);
   return (
-    <Link to={'/cars/' + car.slug} className="card">
-      <div className="ph">
-        <img src={firstPhoto(car)} alt={car.title} loading="lazy" width="400" height="300" />
-        {car.old_price && !sold ? <span className="badge">Price drop</span> : null}
-        {sold && <div className="sold-ov">SOLD</div>}
+    <article className="card">
+      <Link to={url} className="card-link">
+        <div className="ph">
+          <img src={firstPhoto(car)} alt={car.title} loading="lazy" width="400" height="300" />
+          {car.old_price && !sold ? <span className="badge">Price drop</span> : null}
+          {sold && <div className="sold-ov">SOLD</div>}
+        </div>
+        <div className="bd">
+          <div className="ttl">{car.title}</div>
+          <div className="meta">{[car.body, car.mileage, car.transmission && car.transmission.replace(/-Speed/i, '-spd'), car.location].filter(Boolean).slice(0, 3).map((m) => <span key={m}>{m}</span>)}</div>
+          <div className="price">{naira(car.price)}{car.old_price && !sold ? <span className="old">{naira(car.old_price)}</span> : null}</div>
+          {!sold && <div className="monthly">Pay small small from about <b>{naira(plan.monthly)}/mo</b></div>}
+        </div>
+      </Link>
+      <div className="card-actions">
+        {!sold && <a className="btn btn-wa btn-sm" href={waLink(cfg, `Hello Korrect Cars, I am interested in the ${car.title} (${naira(car.price)}). ${window.location.origin}${url}`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+        <button type="button" className={'btn btn-sm ' + (isSaved ? 'btn-saved' : 'btn-line')} aria-pressed={isSaved} onClick={() => saved.toggle(car.id)}>{isSaved ? 'Saved ✓' : 'Save'}</button>
+        <button type="button" className={'btn btn-sm ' + (isCmp ? 'btn-dark' : 'btn-line')} aria-pressed={isCmp} disabled={!isCmp && cmp.full} title={!isCmp && cmp.full ? 'You can compare up to 3 cars' : undefined} onClick={() => cmp.toggle(car.id)}>{isCmp ? 'Compare ✓' : 'Compare'}</button>
       </div>
-      <div className="bd">
-        <div className="ttl">{car.title}</div>
-        <div className="price">{naira(car.price)}{car.old_price && !sold ? <span className="old">{naira(car.old_price)}</span> : null}</div>
-        <div className="meta">{[car.body, car.mileage, car.transmission && car.transmission.replace(/-Speed/i, '-spd'), car.location].filter(Boolean).slice(0, 3).map((m) => <span key={m}>{m}</span>)}</div>
-        {!sold && <div className="monthly">Pay Small Small from {naira(plan.monthly)}/month</div>}
-      </div>
-    </Link>
+    </article>
   );
 }
 
-export function BnplCalc({ price, onPrice, carTitle, compact = false }) {
+export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false }) {
   const { cfg } = useApp();
   const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 };
   const [pct, setPct] = useState(b.minDeposit);
   const [months, setMonths] = useState(12);
   const p = bnpl(price || 0, pct, months, cfg);
   const yrs = (m) => (m % 12 === 0 ? `${m / 12} year${m > 12 ? 's' : ''}` : m > 12 ? `${Math.floor(m / 12)} yr ${m % 12} mo` : `${m} months`);
-  const msg = `Hello Korrect Cars, I want to Pay Small Small${carTitle ? ' for the ' + carTitle : ''}. Price ${naira(price)}, deposit ${naira(p.deposit)} (${pct}%), ${p.months} months at ${naira(p.monthly)}/month.`;
+
   return (
     <div className="bnpl" style={compact ? { gridTemplateColumns: '1fr' } : undefined}>
       <div>
@@ -50,18 +61,18 @@ export function BnplCalc({ price, onPrice, carTitle, compact = false }) {
           <input id="bnpl-m" type="range" min={b.minMonths} max={b.maxMonths} step={1} value={months} onChange={(e) => setMonths(Number(e.target.value))} aria-valuetext={`${p.months} months`} />
           <div className="ends"><span>{b.minMonths} months</span><span>{yrs(b.maxMonths)}</span></div>
         </div>
-        {!compact && <p className="small muted">Pay {b.minDeposit}% or more upfront and drive away. A flat {b.markup}% charge is added to the balance, then spread evenly over your months. Subject to approval and documents.</p>}
+        <p className="small muted">Estimate only, based on a {b.minDeposit}% deposit and a {b.markup}% charge on the balance. Our credit bank partner checks if you qualify and sets the final deposit, charge and months.</p>
       </div>
       <div className="summary" aria-live="polite">
-        <div className="small" style={{ color: '#a1a1aa' }}>Monthly payment</div>
+        <div className="small" style={{ color: '#a1a1aa' }}>Estimated monthly payment</div>
         <div className="big">{naira(p.monthly)}</div>
         <div className="small" style={{ color: '#a1a1aa', marginBottom: 6 }}>for {yrs(p.months)}</div>
         <div className="ln"><span>Deposit today</span><span>{naira(p.deposit)}</span></div>
         <div className="ln"><span>Balance</span><span>{naira(p.balance)}</span></div>
-        <div className="ln"><span>{b.markup}% charge</span><span>{naira(p.charge)}</span></div>
+        <div className="ln"><span>Estimated {b.markup}% charge</span><span>{naira(p.charge)}</span></div>
         <div className="ln"><span>Total to repay</span><span>{naira(p.repay)}</span></div>
         <div className="ln" style={{ borderBottom: 0 }}><span>Total cost of car</span><span>{naira(p.deposit + p.repay)}</span></div>
-        <a className="btn btn-wa" href={waLink(cfg, msg)} target="_blank" rel="noopener noreferrer" style={{ marginTop: 8 }}>Apply on WhatsApp</a>
+        <Link className="btn btn-red" to={'/pay-small-small?' + new URLSearchParams(Object.entries({ car: carSlug || '', price: carSlug ? '' : String(price || ''), deposit: String(pct), months: String(p.months) }).filter(([, v]) => v))} style={{ marginTop: 8 }}>Apply through our bank partners</Link>
       </div>
     </div>
   );
@@ -82,7 +93,7 @@ export function EnquiryForm({ type, car, title, cta, extra, onDone }) {
       setDone(true); if (onDone) onDone();
     } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
   };
-  if (done) return <div className="okmsg">Thank you. We have your request and will call you shortly{type === 'viewing' ? ' to confirm the viewing' : ''}.</div>;
+  if (done) return <div className="okmsg">Thank you. We have your request and will contact you shortly{type === 'viewing' ? ' to confirm the time and send the address of the car lot on WhatsApp' : ''}.</div>;
   const id = (k) => `${type}-${k}`;
   return (
     <form onSubmit={submit} noValidate={false}>
