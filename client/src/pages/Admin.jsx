@@ -242,7 +242,7 @@ function CarForm({ car, onClose, onSaved }) {
 }
 
 const TYPE_LABEL = { viewing: 'Viewing', offer: 'Offer', bnpl: 'Pay Small Small', contact: 'Message' };
-const STATUS_LABEL = { new: 'New', contacted: 'Contacted', viewing: 'Viewing booked', sent_to_bank: 'Sent to bank', won: 'Sold', lost: 'Lost', closed: 'Closed' };
+const STATUS_LABEL = { new: 'New', contacted: 'Contacted', viewing: 'Viewing booked', sent_to_bank: 'Sent to credit partner', won: 'Sold', lost: 'Lost', closed: 'Closed' };
 
 function Leads({ onChange }) {
   const [type, setType] = useState(''); const [status, setStatus] = useState('');
@@ -283,7 +283,7 @@ function Leads({ onChange }) {
             <button className="btn btn-dark btn-sm" style={{ marginTop: 8 }} onClick={async () => { await upd(e, { notes }); setOpen(null); }}>Save notes</button></div>}
         </div>
       ))}
-      <p className="small muted" style={{ marginTop: 12 }}>Pay Small Small applications: the customer agreed to share their details with {(cfg && cfg.bankPartner) || 'the credit bank partner'}. Set the status to "Sent to bank" once you have passed them on.</p>
+      <p className="small muted" style={{ marginTop: 12 }}>Pay Small Small applications: the customer agreed to share their details with {(cfg && cfg.bankPartner) || 'our credit partners'}. Set the status to "Sent to credit partner" once you have passed them on.</p>
     </div>
   );
 }
@@ -305,7 +305,7 @@ function Settings() {
             ? <select id={'st-' + k} className="input" value={vals[k] || fd.options[0][0]} onChange={(e) => setF({ ...vals, [k]: e.target.value })}>{fd.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
             : <input id={'st-' + k} className="input" inputMode={fd.type === 'number' ? 'numeric' : undefined} value={vals[k] === undefined || vals[k] === null ? '' : vals[k]} onChange={(e) => setF({ ...vals, [k]: e.target.value })} />}
           {k === 'phones' && <div className="hint">Separate numbers with commas. The first is shown in the header.</div>}
-          {k === 'bankPartner' && <div className="hint">Shown to customers on the Pay Small Small page.</div>}
+          {k === 'bankPartner' && <div className="hint">Optional. Leave empty to say "our credit partners". Add names separated by commas to show them on the Pay Small Small page.</div>}
           {k === 'aiTraining' && <div className="hint">Either way, ChatGPT search, Perplexity, Copilot and Google can still find and quote your cars.</div>}</div>
       ))}</div>
       <button className="btn btn-red" disabled={busy || !f}>{busy ? 'Saving…' : 'Save settings'}</button>

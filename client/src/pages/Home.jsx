@@ -43,7 +43,7 @@ export default function Home() {
         <div className="wrap">
           <div className="eyebrow" style={{ color: '#fca5a5' }}>Lagos · Inspected · VIN-verified</div>
           <h1>Drive the right car. Pay the Korrect way.</h1>
-          <p className="lead">Tokunbo and foreign-used cars we have checked inside and out. {swap ? 'Buy outright, pay small small through our credit bank partners, or swap your car with a verified owner.' : 'Buy outright or pay small small through our credit bank partners.'}</p>
+          <p className="lead">Tokunbo and foreign-used cars we have checked inside and out. {swap ? 'Buy outright, pay small small through our credit partners, or swap your car with a verified owner.' : 'Buy outright or pay small small through our credit partners.'}</p>
           <div className="ctas">
             <Link to="/cars" className="btn btn-red">Browse cars</Link>
             <a className="btn btn-ghost" href={waLink(cfg, 'Hello Korrect Cars, I am looking for a car.')} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
@@ -66,7 +66,7 @@ export default function Home() {
         <div className="trust">
           <div><b>Inspected</b><span className="muted">Mechanical, electrical and body checks on every car</span></div>
           <div><b>VIN-verified</b><span className="muted">History checked before we list it</span></div>
-          <div><b>Pay Small Small</b><span className="muted">Spread the cost through our bank partners</span></div>
+          <div><b>Pay Small Small</b><span className="muted">Spread the cost through our credit partners</span></div>
           {swap ? <div><b>Swap safely</b><span className="muted">Verified owners, inspection before handover</span></div>
             : <div><b>See it first</b><span className="muted">View and test-drive at a partner car lot in Lagos</span></div>}
         </div>
@@ -85,7 +85,7 @@ export default function Home() {
           <h2>Your car, your way</h2>
           <div className="ways" style={{ marginTop: 24 }}>
             <div className="box"><h3>Buy outright</h3><p className="muted">Pick an inspected car, see it in person, pay and drive. Papers handed over the same day.</p><Link to="/cars">Browse cars</Link></div>
-            <div className="box"><h3>Pay Small Small</h3><p className="muted">Get an estimate, apply in minutes, and we connect you to our credit bank partners. Once they approve you, we sell you the car.</p><Link to="/pay-small-small">See how it works</Link></div>
+            <div className="box"><h3>Pay Small Small</h3><p className="muted">Get an estimate, apply in minutes, and we connect you to our credit partners. Once they approve you, we sell you the car.</p><Link to="/pay-small-small">See how it works</Link></div>
             {swap && <div className="box"><h3>Swap your car</h3><p className="muted">List your car, say what you want, and swap with a verified owner. Add or receive cash to balance it. 2% swap fee.</p><Link to="/swap">How Korrect Swap works</Link></div>}
           </div>
         </div>

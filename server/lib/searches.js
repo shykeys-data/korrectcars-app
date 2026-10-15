@@ -65,7 +65,7 @@ async function notifyNewCar(car) {
       const first = String(u.name || '').split(' ')[0] || 'there';
       const names = u.searches.map((s) => s.name).join(', ');
       const subject = `New car for you: ${car.title} – ${naira(car.price)}`;
-      const text = `Hello ${first},\n\nA car matching your saved search (${names}) just arrived at Korrect Cars:\n\n${car.title}\n${naira(car.price)}${car.mileage ? ' · ' + car.mileage : ''}\n${link}\n\nYou can pay outright or pay small small through our credit bank partners.\n\nTo stop these emails, turn off alerts in your account: ${config.siteUrl}/account?tab=searches\n\nKorrect Cars`;
+      const text = `Hello ${first},\n\nA car matching your saved search (${names}) just arrived at Korrect Cars:\n\n${car.title}\n${naira(car.price)}${car.mileage ? ' · ' + car.mileage : ''}\n${link}\n\nYou can pay outright or pay small small through our credit partners.\n\nTo stop these emails, turn off alerts in your account: ${config.siteUrl}/account?tab=searches\n\nKorrect Cars`;
       const html = mail.layout('A car matching your search just arrived', `<p>Hello ${esc(first)},</p><p>A car matching your saved search <b>${esc(names)}</b> just arrived:</p>
 <p style="font-size:18px;margin:16px 0 4px"><b>${esc(car.title)}</b></p><p style="margin:0;font-size:16px;color:#c4161d"><b>${esc(naira(car.price))}</b>${car.mileage ? ' · ' + esc(car.mileage) : ''}</p>${mail.button(link, 'See the car')}
 <p style="font-size:13px;color:#71717a">To stop these emails, <a href="${config.siteUrl}/account?tab=searches" style="color:#c4161d">turn off alerts in your account</a>.</p>`);

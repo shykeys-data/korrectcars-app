@@ -68,7 +68,7 @@ export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false })
           <input id="bnpl-m" type="range" min={b.minMonths} max={b.maxMonths} step={1} value={months} onChange={(e) => setMonths(Number(e.target.value))} aria-valuetext={`${p.months} months`} />
           <div className="ends"><span>{b.minMonths} months</span><span>{yrs(b.maxMonths)}</span></div>
         </div>
-        <p className="small muted">Estimate only, based on a {b.minDeposit}% deposit and a {b.markup}% charge on the balance. Our credit bank partner checks if you qualify and sets the final deposit, charge and months.</p>
+        <p className="small muted">Estimate only, based on a {b.minDeposit}% deposit and a {b.markup}% charge on the balance. Our credit partner checks if you qualify and sets the final deposit, charge and months.</p>
       </div>
       <div className="summary" aria-live="polite">
         <div className="small" style={{ color: '#a1a1aa' }}>Estimated monthly payment</div>
@@ -79,7 +79,7 @@ export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false })
         <div className="ln"><span>Estimated {b.markup}% charge</span><span>{naira(p.charge)}</span></div>
         <div className="ln"><span>Total to repay</span><span>{naira(p.repay)}</span></div>
         <div className="ln" style={{ borderBottom: 0 }}><span>Total cost of car</span><span>{naira(p.deposit + p.repay)}</span></div>
-        <Link className="btn btn-red" to={'/pay-small-small?' + new URLSearchParams(Object.entries({ car: carSlug || '', price: carSlug ? '' : String(price || ''), deposit: String(pct), months: String(p.months) }).filter(([, v]) => v))} style={{ marginTop: 8 }}>Apply through our bank partners</Link>
+        <Link className="btn btn-red" to={'/pay-small-small?' + new URLSearchParams(Object.entries({ car: carSlug || '', price: carSlug ? '' : String(price || ''), deposit: String(pct), months: String(p.months) }).filter(([, v]) => v))} style={{ marginTop: 8 }}>Apply through our credit partners</Link>
       </div>
     </div>
   );

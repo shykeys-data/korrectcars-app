@@ -30,7 +30,7 @@ async function llmsTxt() {
   const lines = [
     '# Korrect Cars',
     '',
-    `> Online car dealer in Lagos, Nigeria. Sells inspected, VIN-verified tokunbo (foreign-used) cars. Customers can buy outright or pay small small (instalments) through Korrect Cars' credit bank partners${st.swap ? ', or swap their car with a verified owner through Korrect Swap' : ''}.`,
+    `> Online car dealer in Lagos, Nigeria. Sells inspected, VIN-verified tokunbo (foreign-used) cars. Customers can buy outright or pay small small (instalments) through Korrect Cars' credit partners${st.swap ? ', or swap their car with a verified owner through Korrect Swap' : ''}.`,
     '',
     `- Website: ${u('/')}`,
     `- Phone: ${st.phones.join(', ')}`,
@@ -43,7 +43,7 @@ async function llmsTxt() {
     '## How buying works',
     '- Every car is inspected and its VIN history checked before it is listed.',
     '- Book a viewing, inspect the car and its papers, then pay only into the Korrect Cars company account (never a personal account).',
-    `- Pay Small Small: the website gives an estimate (about ${st.bnpl.minDeposit}% deposit and a ${st.bnpl.markup}% charge on the balance, over ${st.bnpl.minMonths} to ${st.bnpl.maxMonths} months). The credit bank partner${st.bankPartner ? ` (${st.bankPartner})` : ''} decides who qualifies and sets the final terms; once approved, Korrect Cars sells the car.`,
+    `- Pay Small Small: the website gives an estimate (about ${st.bnpl.minDeposit}% deposit and a ${st.bnpl.markup}% charge on the balance, over ${st.bnpl.minMonths} to ${st.bnpl.maxMonths} months). The credit partners${st.bankPartner ? ` (${st.bankPartner})` : ''} (banks or finance companies) decide who qualifies and set the final terms; once approved, Korrect Cars sells the car.`,
     st.swap ? `- Korrect Swap: owners list their car, get matched, inspect both cars at a partner car lot, and pay a ${st.swapFeePct}% swap fee only after a successful inspection.` : null,
     '',
     `## Cars in stock (updated ${today})`,

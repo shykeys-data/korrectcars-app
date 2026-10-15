@@ -138,10 +138,10 @@ const ST = { pending: ['Pending review', 'tag-info'], live: ['Live', 'tag-ok'], 
 const Tag = ({ s }) => <span className={'tag ' + (ST[s] ? ST[s][1] : 'tag-warn')}>{ST[s] ? ST[s][0] : s === 'pending' ? 'Waiting' : s}</span>;
 
 // What the customer sees for each stage of a request (staff notes stay internal)
-const REQ_ST = { new: ['Received', 'tag-info'], contacted: ['We contacted you', 'tag-warn'], viewing: ['Viewing booked', 'tag-warn'], sent_to_bank: ['With the bank', 'tag-warn'],
+const REQ_ST = { new: ['Received', 'tag-info'], contacted: ['We contacted you', 'tag-warn'], viewing: ['Viewing booked', 'tag-warn'], sent_to_bank: ['With our credit partner', 'tag-warn'],
   won: ['Completed', 'tag-ok'], lost: ['Closed', 'tag-grey'], closed: ['Closed', 'tag-grey'] };
 const REQ_TYPE = { viewing: 'Viewing request', offer: 'Price offer', bnpl: 'Pay Small Small application', contact: 'Message to us' };
-const PSS_STEPS = ['Application received', 'Sent to our bank partner', 'Bank decision', 'Approved: we sell you the car'];
+const PSS_STEPS = ['Application received', 'Sent to our credit partner', 'Partner decision', 'Approved: we sell you the car'];
 const pssStep = (st) => ({ new: 0, contacted: 1, viewing: 1, sent_to_bank: 2, won: 4 }[st] ?? 0);
 
 function SavedCars({ user }) {

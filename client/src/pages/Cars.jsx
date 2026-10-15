@@ -127,7 +127,7 @@ export function Inventory({ makeSlug, modelSlug }) {
             {avail.length > 0 && (
               <section className="box faq-box">
                 <h2 style={{ fontSize: 26 }}>How much {subject ? `is a ${subject}` : 'are the cars at Korrect Cars'} in Nigeria?</h2>
-                <p style={{ marginBottom: 0 }}>The {avail.length} {subject ? subject + ' ' : ''}{avail.length === 1 ? 'car' : 'cars'} in stock {lo === hi ? `costs ${naira(lo)}` : `cost from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, and you can <Link to="/pay-small-small">pay small small through our credit bank partners</Link>.</p>
+                <p style={{ marginBottom: 0 }}>The {avail.length} {subject ? subject + ' ' : ''}{avail.length === 1 ? 'car' : 'cars'} in stock {lo === hi ? `costs ${naira(lo)}` : `cost from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, and you can <Link to="/pay-small-small">pay small small through our credit partners</Link>.</p>
               </section>
             )}
           </div>
@@ -286,11 +286,11 @@ function NotFoundCar() {
 }
 
 const PSS_FAQ = [
-  ['How does Pay Small Small work at Korrect Cars?', 'Pick a car and get an estimate of your deposit and monthly payment. Apply in minutes, and with your consent we pass your details to our credit bank partner. Once the bank approves you, Korrect Cars sells you the car.'],
-  ['Who decides if I qualify?', 'Our credit bank partner. They check if you qualify, tell you which documents they need (usually a government ID and proof of income) and set the final deposit, charge and months.'],
-  ['Is the calculator figure final?', 'No. It is an estimate based on a 40% deposit and a 20% charge on the balance. The bank sets your real terms.'],
-  ['Can I pay off early?', 'Early payoff, rates and months are set by the bank. Ask them when they contact you.'],
-  ['Who sees my details?', 'Korrect Cars staff and our credit bank partner, and only after you agree on the last step.']
+  ['How does Pay Small Small work at Korrect Cars?', 'Pick a car and get an estimate of your deposit and monthly payment. Apply in minutes, and with your consent we pass your details to our credit partners. Once a credit partner approves you, Korrect Cars sells you the car.'],
+  ['Who decides if I qualify?', 'Our credit partners. They check if you qualify, tell you which documents they need (usually a government ID and proof of income) and set the final deposit, charge and months.'],
+  ['Is the calculator figure final?', 'No. It is an estimate based on a 40% deposit and a 20% charge on the balance. The credit partner sets your real terms.'],
+  ['Can I pay off early?', 'Early payoff, rates and months are set by the credit partner. Ask them when they contact you.'],
+  ['Who sees my details?', 'Korrect Cars staff and our credit partners, and only after you agree on the last step.']
 ];
 
 export function PaySmallSmall() {
@@ -298,7 +298,9 @@ export function PaySmallSmall() {
   const { query } = useRouter();
   const { cfg, user } = useApp();
   const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 };
-  const partner = (cfg && cfg.bankPartner) || 'our credit bank partner';
+  // One or more credit partners (banks or finance companies), set in admin Settings
+  const names = String((cfg && cfg.bankPartner) || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const partner = names.length ? `our credit partners (${names.join(', ')})` : 'our credit partners';
   const list = useApi('/cars?limit=100');
   const cars = ((list.data && list.data.cars) || []).filter((c) => c.status === 'available');
   const [slug, setSlug] = useState(query.get('car') || '');
@@ -319,7 +321,7 @@ export function PaySmallSmall() {
     setErr(''); setBusy(true);
     try {
       const message = [`Pay Small Small application (estimate) for ${car ? car.title : 'a car priced ' + naira(price)}.`, `Deposit ${naira(plan.deposit)} (${plan.pct}%), ${plan.months} months, about ${naira(plan.monthly)}/month.`,
-        `Employment: ${d.employment}${d.employer ? ' — ' + d.employer : ''}.`, d.income ? `Monthly income: ₦${d.income}.` : '', 'Customer agreed to share details with the credit bank partner.'].filter(Boolean).join(' ');
+        `Employment: ${d.employment}${d.employer ? ' — ' + d.employer : ''}.`, d.income ? `Monthly income: ₦${d.income}.` : '', 'Customer agreed to share details with the credit partner.'].filter(Boolean).join(' ');
       await api('/enquiries', { method: 'POST', body: { type: 'bnpl', car: car ? String(car.id) : undefined, name: d.name, phone: d.phone, email: d.email, message, deposit: plan.deposit, months: plan.months, consent: true, website: d.website } });
       setStep(4);
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
@@ -330,7 +332,7 @@ export function PaySmallSmall() {
       <section className="sec-dark sec-sm"><div className="wrap">
         <div className="eyebrow">Pay Small Small</div>
         <h1>Drive now. Pay small small.</h1>
-        <p style={{ color: '#D5D8DE', maxWidth: 680, fontSize: 19 }}>Spread the cost of your car through our credit bank partners. Get an estimate here, apply in minutes, and we pass your application to the bank. Once the bank approves you, we sell you the car.</p>
+        <p style={{ color: '#D5D8DE', maxWidth: 680, fontSize: 19 }}>Spread the cost of your car through our credit partners. Get an estimate here, apply in minutes, and we pass your application to our credit partners (banks or finance companies). Once one approves you, we sell you the car.</p>
       </div></section>
       <section className="sec-sm"><div className="wrap pss">
         <div className="pss-side">
@@ -339,7 +341,7 @@ export function PaySmallSmall() {
             <ol className="small" style={{ paddingLeft: 18, margin: 0, display: 'grid', gap: 6 }}>
               <li><b>Estimate:</b> see a rough deposit and monthly cost.</li>
               <li><b>Apply:</b> your details, about 3 minutes.</li>
-              <li><b>Bank decides:</b> {partner} checks if you qualify.</li>
+              <li><b>Partner decides:</b> {partner} check if you qualify.</li>
               <li><b>Drive:</b> approved? We sell you the car.</li>
             </ol>
           </div>
@@ -350,7 +352,7 @@ export function PaySmallSmall() {
         </div>
         <div className="box pss-main">
           {step < 4 && <>
-            <h2 style={{ fontSize: 30 }}>Apply through our bank partners</h2>
+            <h2 style={{ fontSize: 30 }}>Apply through our credit partners</h2>
             <ol className="stepbar" aria-label="Application steps">{labels.map((l, k) => <li key={l} className={k + 1 < step ? 'done' : k + 1 === step ? 'on' : ''} aria-current={k + 1 === step ? 'step' : undefined}><span />{k + 1} {l}</li>)}</ol>
           </>}
           {err && <div className="err" role="alert">{err}</div>}
@@ -366,7 +368,7 @@ export function PaySmallSmall() {
             <div className="field"><div className="f">Deposit you can pay <span className="muted small">(estimate)</span></div><div className="pills">{[40, 50, 60, 70].map((v) => <button key={v} type="button" className={'pill' + (pct === v ? ' on' : '')} onClick={() => setPct(v)}>{v}%</button>)}</div></div>
             <div className="field"><div className="f">Months</div><div className="pills">{[6, 12, 24, 36, 48].filter((m) => m >= b.minMonths && m <= b.maxMonths).map((m) => <button key={m} type="button" className={'pill' + (months === m ? ' on' : '')} onClick={() => setMonths(m)}>{m}</button>)}</div></div>
             <div className="pss-est"><span>Estimate: deposit {naira(plan.deposit)} · then</span><strong>{naira(plan.monthly)} × {plan.months}</strong></div>
-            <p className="small muted">Based on a {b.minDeposit}% minimum deposit and a {b.markup}% charge on the balance. The bank sets your real terms.</p>
+            <p className="small muted">Based on a {b.minDeposit}% minimum deposit and a {b.markup}% charge on the balance. The credit partner sets your real terms.</p>
           </>}
           {step === 2 && <div className="grid2">
             <div className="field"><label className="f" htmlFor="pss-name">Full name</label><input id="pss-name" className="input" value={d.name} onChange={set('name')} autoComplete="name" required /></div>
@@ -384,8 +386,8 @@ export function PaySmallSmall() {
               <div><span>Estimated monthly</span><b>{naira(plan.monthly)} × {plan.months}</b></div>
               <div><span>Your details</span><b>{d.name} · {d.phone}</b></div>
             </div>
-            <div className="note-grey" style={{ marginTop: 14 }}>This is an estimate. {partner.charAt(0).toUpperCase() + partner.slice(1)} checks if you qualify and sets the final deposit, charge and months. Korrect Cars sells you the car once the bank approves you.</div>
-            <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={d.consent} onChange={set('consent')} /> I agree that Korrect Cars can share my details with its credit bank partner so they can check if I qualify, as described in the <Link to="/privacy-policy">privacy policy</Link>.</label>
+            <div className="note-grey" style={{ marginTop: 14 }}>This is an estimate. {partner.charAt(0).toUpperCase() + partner.slice(1)} check if you qualify and set the final deposit, charge and months. Korrect Cars sells you the car once a credit partner approves you.</div>
+            <label className="check" style={{ marginTop: 14 }}><input type="checkbox" checked={d.consent} onChange={set('consent')} /> I agree that Korrect Cars can share my details with its credit partner so they can check if I qualify, as described in the <Link to="/privacy-policy">privacy policy</Link>.</label>
           </>}
           {step < 4 && <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 18 }}>
             <button className="btn btn-line" style={{ visibility: step === 1 ? 'hidden' : 'visible' }} onClick={() => { setErr(''); setStep(step - 1); }}>Back</button>
@@ -394,7 +396,7 @@ export function PaySmallSmall() {
           {step === 4 && <div>
             <div className="okmsg"><div className="disp" style={{ fontSize: 28 }}>Application sent</div>We have passed your details to {partner}. They will contact you directly. We will also follow up on WhatsApp.</div>
             <h3 style={{ marginTop: 18 }}>What happens next</h3>
-            <ol className="track"><li className="done">Application received</li><li className="on">Sent to our bank partner</li><li>Bank checks if you qualify</li><li>Approved: we sell you the car</li></ol>
+            <ol className="track"><li className="done">Application received</li><li className="on">Sent to our credit partner</li><li>Partner checks if you qualify</li><li>Approved: we sell you the car</li></ol>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>{user ? <Link to="/account?tab=requests" className="btn btn-red">Track it in My account</Link> : <Link to="/register?next=/account?tab=requests" className="btn btn-red">Create an account to track it</Link>}<Link to="/cars" className="btn btn-line">Back to cars</Link><a className="btn btn-wa" href={waLink(cfg, 'Hello Korrect Cars, I just applied for Pay Small Small.')} target="_blank" rel="noopener noreferrer">WhatsApp us</a></div>
           </div>}
         </div>

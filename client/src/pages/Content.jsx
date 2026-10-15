@@ -78,7 +78,7 @@ export function Faqs() {
   let items = [];
   try { items = data ? JSON.parse(data.page.content) : []; } catch (_e) { items = []; }
   const extra = [
-    { q: 'How does Pay Small Small work?', a: 'Pick a car and get an estimate of your deposit and monthly payment on our Pay Small Small page. Apply in minutes, and with your consent we pass your details to our credit bank partner. The bank checks if you qualify and sets the final terms. Once the bank approves you, we sell you the car.' },
+    { q: 'How does Pay Small Small work?', a: 'Pick a car and get an estimate of your deposit and monthly payment on our Pay Small Small page. Apply in minutes, and with your consent we pass your details to our credit partners. They check if you qualify and set the final terms. Once a credit partner approves you, we sell you the car.' },
     { q: 'How does Korrect Swap work?', a: 'List your car with photos and papers. Our team verifies the owner and papers before it goes live. Owners make offers, agree any cash top-up, and both cars are inspected at a partner car lot in Lagos before anything changes hands. A success fee is due only when a swap completes.' }
   ];
   if (loading) return <Loading />;

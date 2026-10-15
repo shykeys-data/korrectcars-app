@@ -1,4 +1,4 @@
-// Site settings the owner can change in the admin (phones, hours, bank partner, estimate figures).
+// Site settings the owner can change in the admin (phones, hours, credit partners, estimate figures).
 // Stored in the settings table; anything not set falls back to config / environment values.
 const config = require('../config');
 const db = require('../db');
@@ -9,7 +9,7 @@ const FIELDS = {
   email: { type: 'text', label: 'Contact email' },
   hours: { type: 'text', label: 'Opening hours' },
   instagram: { type: 'text', label: 'Instagram handle' },
-  bankPartner: { type: 'text', label: 'Credit bank partner name' },
+  bankPartner: { type: 'text', label: 'Credit partner names (optional, comma separated; banks or finance companies)' },
   bnplMinDeposit: { type: 'number', label: 'Estimate: minimum deposit %', min: 0, max: 90 },
   bnplMarkup: { type: 'number', label: 'Estimate: charge on balance %', min: 0, max: 100 },
   bnplMaxMonths: { type: 'number', label: 'Estimate: longest plan (months)', min: 6, max: 96 },
