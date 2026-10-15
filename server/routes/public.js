@@ -45,7 +45,7 @@ async function sendVerify(user) {
   await mail.send({ to: user.email, ...t }).catch((e) => console.error('Verify email failed:', e.message));
 }
 async function promoteIfOwner(user) {
-  if (user.role === 'user' && isAdminEmail(user.email) && user.email_verified) {
+  if (user.role === 'user' && isAdminEmail(user.email) && user.email_verified && Number((await one("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND disabled = 0")).n) < 3) {
     await q("UPDATE users SET role = 'admin' WHERE id = ?", [user.id]);
     user.role = 'admin';
   }

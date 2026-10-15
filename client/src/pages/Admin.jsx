@@ -5,11 +5,11 @@ import { Loading, Modal } from '../components/Bits.jsx';
 import Cascade from '../components/Cascade.jsx';
 import { AuthPage } from './Account.jsx';
 
-// Tabs each role can see. admin = owner; moderator is the old name for sales.
+// Tabs each role can see. admin = Administrator; moderator is the old name for sales.
 const ALL_TABS = [['overview', 'Overview', 'admin sales editor'], ['leads', 'Leads', 'admin sales'], ['cars', 'Dealer cars', 'admin sales editor'], ['listings', 'Swap listings', 'admin sales'], ['swaps', 'Swaps & fees', 'admin sales'], ['blog', 'Blog', 'admin editor'], ['users', 'Staff & users', 'admin'], ['settings', 'Settings', 'admin'], ['audit', 'Activity log', 'admin']];
 const roleKey = (r) => (r === 'moderator' ? 'sales' : r);
 const STAFF = ['admin', 'sales', 'editor', 'moderator'];
-const ROLE_LABEL = { admin: 'Owner', sales: 'Sales', moderator: 'Sales', editor: 'Editor', user: 'Customer' };
+const ROLE_LABEL = { admin: 'Administrator', sales: 'Sales', moderator: 'Sales', editor: 'Editor', user: 'Customer' };
 const T = ({ c, children }) => <span className={'tag ' + c}>{children}</span>;
 const stTag = { pending: 'tag-warn', live: 'tag-ok', rejected: 'tag-bad', swapped: 'tag-grey', withdrawn: 'tag-grey', available: 'tag-ok', sold: 'tag-grey', hidden: 'tag-bad', new: 'tag-warn', contacted: 'tag-info', closed: 'tag-grey', accepted: 'tag-ok', inspection: 'tag-warn', completed: 'tag-ok', declined: 'tag-bad', cancelled: 'tag-grey', due: 'tag-bad', paid: 'tag-ok', none: 'tag-grey', published: 'tag-ok', draft: 'tag-grey' };
 
@@ -384,13 +384,13 @@ function Users({ me }) {
           <td><b>{u.name}</b>{u.disabled ? <div><T c="tag-bad">disabled</T></div> : null}{!u.email_verified ? <div><T c="tag-warn">email not confirmed</T></div> : null}</td>
           <td className="small">{u.email}<br />{u.phone}</td><td className="small">{date(u.created_at)}</td>
           <td>{isAdmin ? <button className={'btn btn-sm ' + (u.verified ? 'btn-ok' : 'btn-line')} onClick={() => upd(u, { verified: !u.verified })}>{u.verified ? 'Verified' : 'Verify'}</button> : (u.verified ? 'Yes' : 'No')}</td>
-          <td>{isAdmin && u.id !== me.id ? <select className="input" aria-label="Role" style={{ minHeight: 40, width: 'auto' }} value={u.role === 'moderator' ? 'sales' : u.role} onChange={(e) => { if (e.target.value === 'admin' && !window.confirm(`Make ${u.name} an Owner? Owners can change everything, including staff.`)) return; upd(u, { role: e.target.value }); }}><option value="user">Customer</option><option value="sales">Sales</option><option value="editor">Editor</option><option value="admin">Owner</option></select> : ROLE_LABEL[u.role] || u.role}
+          <td>{isAdmin && u.id !== me.id ? <select className="input" aria-label="Role" style={{ minHeight: 40, width: 'auto' }} value={u.role === 'moderator' ? 'sales' : u.role} onChange={(e) => { if (e.target.value === 'admin' && !window.confirm(`Make ${u.name} an Administrator? Administrators can change everything, including staff. You can have up to 3.`)) return; upd(u, { role: e.target.value }); }}><option value="user">Customer</option><option value="sales">Sales</option><option value="editor">Editor</option><option value="admin">Administrator</option></select> : ROLE_LABEL[u.role] || u.role}
             {STAFF.includes(u.role) && <div className="small">{u.totp_enabled ? <T c="tag-ok">2-step on</T> : <T c="tag-warn">2-step not set up</T>}</div>}</td>
           <td style={{ whiteSpace: 'nowrap' }}>{isAdmin && u.id !== me.id && <><button className="btn btn-line btn-sm" onClick={() => upd(u, { disabled: !u.disabled })}>{u.disabled ? 'Enable' : 'Disable'}</button>
             {STAFF.includes(u.role) && u.totp_enabled ? <> <button className="btn btn-line btn-sm" onClick={() => { if (window.confirm(`Reset two-step login for ${u.name}? Use this if they lost their phone. They will set it up again at next sign-in.`)) upd(u, { reset2fa: true }); }}>Reset 2-step</button></> : null}</>}</td>
         </tr>)}
       </tbody></table></div>}
-      <p className="small muted" style={{ marginTop: 12 }}><b>Roles:</b> Owner can do everything. Sales handles leads, Pay Small Small, swaps and can edit cars. Editor manages cars and blog posts. Every staff account must use two-step login. To add staff, ask them to register on the site, then change their role here. Mark a customer as verified only after checking their ID against their phone number.</p>
+      <p className="small muted" style={{ marginTop: 12 }}><b>Roles:</b> Administrators (up to 3) can do everything. Sales handles leads, Pay Small Small, swaps and can edit cars. Editor manages cars and blog posts. Every staff account must use two-step login. To add staff, ask them to register on the site, then change their role here. Mark a customer as verified only after checking their ID against their phone number.</p>
     </div>
   );
 }

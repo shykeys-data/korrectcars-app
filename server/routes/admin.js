@@ -9,7 +9,8 @@ const totp = require('../lib/totp');
 const { memory, save, PRIVATE_DIR } = require('../lib/uploads');
 
 const r = express.Router();
-// Who can do what: admin = owner (everything); sales = leads, swaps, edit cars; editor = cars and blog
+const MAX_ADMINS = 3;
+// Who can do what: admin = Administrator (everything, up to 3 people); sales = leads, swaps, edit cars; editor = cars and blog
 const adminOnly = requireStaff('admin');
 const salesTeam = requireStaff('admin', 'sales');
 const carTeam = requireStaff('admin', 'sales', 'editor');
@@ -176,11 +177,15 @@ r.get('/reported', salesTeam, async (_req, res) => {
 r.get('/users', adminOnly, async (_req, res) => res.json({ users: await q('SELECT id, name, email, phone, role, verified, email_verified, disabled, totp_enabled, created_at FROM users ORDER BY id DESC LIMIT 500') }));
 r.post('/users/:id', adminOnly, async (req, res) => {
   if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
-  const u = await one('SELECT id, email FROM users WHERE id = ?', [req.params.id]);
+  const u = await one('SELECT id, email, role FROM users WHERE id = ?', [req.params.id]);
   if (!u) return res.status(404).json({ error: 'Not found' });
   const self = u.id === req.user.id;
   const { verified, role, disabled, reset2fa } = req.body;
   if (typeof verified === 'boolean') await q('UPDATE users SET verified = ? WHERE id = ?', [verified, u.id]);
+  if (role === 'admin' && !self && u.role !== 'admin') {
+    const c = await one("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND disabled = 0");
+    if (Number(c.n) >= MAX_ADMINS) return res.status(400).json({ error: `You can have up to ${MAX_ADMINS} administrators. Change another administrator to Sales or Editor first.` });
+  }
   if (['user', 'sales', 'editor', 'admin'].includes(role) && !self) await q('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?', [role, u.id]);
   if (typeof disabled === 'boolean' && !self) await q('UPDATE users SET disabled = ?, token_version = token_version + 1 WHERE id = ?', [disabled, u.id]);
   // For a staff member who lost their phone: they set up two-step login again at next sign-in
