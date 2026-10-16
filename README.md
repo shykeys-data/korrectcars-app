@@ -6,4 +6,3 @@
 - `seed/` — live cars, blog posts and pages imported from the old WordPress site (loaded automatically when the database is empty)
 - `uploads/public` — car, blog and swap photos; `uploads/private` — swap papers (staff only)
 
-Admin: https://www.korrectcars.com/myadm (register first with an ADMIN_EMAILS address to become admin).
