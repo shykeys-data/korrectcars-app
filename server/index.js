@@ -145,10 +145,16 @@ app.use((err, req, res, _next) => {
   // Upload limits get a clear message instead of "Something went wrong"
   const UPLOAD = { LIMIT_FILE_SIZE: 'Each photo or file must be under 8 MB.', LIMIT_FILE_COUNT: 'Too many photos at once. Add up to 20 per save; you can add more by editing the car afterwards.',
     LIMIT_UNEXPECTED_FILE: 'Too many photos at once. Add up to 20 per save; you can add more by editing the car afterwards.', LIMIT_FIELD_COUNT: 'Too many fields in the form.' };
-  const status = err.status || (UPLOAD[err.code] ? 400 : 500);
-  const msg = UPLOAD[err.code] || (status < 500 ? err.message : 'Something went wrong. Please try again.');
-  if (status >= 500) console.error(new Date().toISOString(), req.method, req.originalUrl, err);
-  if (req.originalUrl.startsWith('/api/')) return res.status(status).json({ error: msg });
+  let upload = UPLOAD[err.code] || (err.name === 'MulterError' ? 'The upload could not be read. Try fewer or smaller photos.' : null);
+  if (err.code === 'LIMIT_UNEXPECTED_FILE' && err.field && err.field !== 'photos') upload = `Unexpected file in the form (${String(err.field).slice(0, 40)}). Refresh the page and try again.`;
+  if (/Unexpected end of form|Request aborted/i.test(err.message || '')) upload = 'The upload was cut off before it finished. Check your internet connection and try again.';
+  const status = err.status || (upload ? 400 : 500);
+  // Unexpected errors get a short reference code, shown to the user and written to the log next to the cause
+  const ref = status >= 500 ? 'KC-' + require('crypto').randomBytes(3).toString('hex').toUpperCase() : null;
+  const msg = upload || (status < 500 ? err.message : `Something went wrong (ref ${ref}). Please try again, or send this code to the Korrect Cars team.`);
+  if (status >= 500) console.error(new Date().toISOString(), `[${ref}]`, req.method, req.originalUrl, req.user ? `user ${req.user.id}` : 'signed out', err);
+  else if (upload) console.warn(new Date().toISOString(), '[upload]', req.method, req.originalUrl, err.code || err.message);
+  if (req.originalUrl.startsWith('/api/')) return res.status(status).json(ref ? { error: msg, ref } : { error: msg });
   res.status(status).type('text/plain').send(msg);
 });
 
