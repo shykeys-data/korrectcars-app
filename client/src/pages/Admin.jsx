@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import qrcode from 'qrcode-generator';
-import { Link, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink, rs, srcset } from '../lib/core.jsx';
+import { Link, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink, rs, srcset, shrinkPhoto } from '../lib/core.jsx';
+
+const MAX_PHOTOS = 20; // per save, matches the server limit
 import { Loading, Modal } from '../components/Bits.jsx';
 import Cascade from '../components/Cascade.jsx';
 import { AuthPage } from './Account.jsx';
@@ -191,18 +193,23 @@ function CarForm({ car, onClose, onSaved }) {
   });
   const [keep, setKeep] = useState(car.photos || []);
   const [files, setFiles] = useState([]);
-  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [busyText, setBusyText] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   // Allow models not in the catalogue by merging the current value in
   const tree = { ...(catalog.data || {}) };
   if (f.make) { tree[f.make] = { ...(tree[f.make] || {}) }; if (f.model && !tree[f.make][f.model]) tree[f.make][f.model] = f.body ? [f.body] : ['Sedan', 'SUV', 'SUV Coupe', 'Hatchback', 'Coupe', 'Pickup', 'Minivan']; }
   const save = async (e) => {
-    e.preventDefault(); setErr(''); setBusy(true);
+    e.preventDefault(); setErr('');
+    if (files.length > MAX_PHOTOS) { setErr(`You picked ${files.length} photos. Add up to ${MAX_PHOTOS} per save, then edit the car to add the rest.`); return; }
+    setBusy(true);
     const fd = new FormData();
     Object.entries({ ...f, price: String(f.price).replace(/[^0-9]/g, ''), oldPrice: String(f.oldPrice || '').replace(/[^0-9]/g, '') }).forEach(([k, v]) => { if (v !== '' && v !== null) fd.append(k, String(v)); });
     if (!isNew) { if (!keep.length) fd.append('keepPhotos', ''); keep.forEach((p) => fd.append('keepPhotos', p)); }
-    [...files].forEach((x) => fd.append('photos', x));
-    try { await api('/admin/cars' + (isNew ? '' : '/' + car.id), { method: isNew ? 'POST' : 'PUT', form: fd }); onSaved(); } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+    try {
+      setBusyText(files.length ? 'Preparing photos…' : 'Saving…');
+      for (const x of [...files]) fd.append('photos', await shrinkPhoto(x));
+      setBusyText('Saving…');
+      await api('/admin/cars' + (isNew ? '' : '/' + car.id), { method: isNew ? 'POST' : 'PUT', form: fd }); onSaved(); } catch (e2) { setErr(e2.message); } finally { setBusy(false); setBusyText(''); }
   };
   const move = (i, d) => { const k = [...keep]; const j = i + d; if (j < 0 || j >= k.length) return; [k[i], k[j]] = [k[j], k[i]]; setKeep(k); };
   const inp = (k, label, props = {}) => <div className="field"><label className="f" htmlFor={'cf-' + k}>{label}</label><input id={'cf-' + k} className="input" value={f[k]} onChange={set(k)} {...props} /></div>;
@@ -234,8 +241,9 @@ function CarForm({ car, onClose, onSaved }) {
           <div key={p} style={{ position: 'relative' }}><img src={rs(p, 400)} alt="" className="thumb" style={{ width: 120, height: 90 }} />
             <div style={{ display: 'flex', gap: 4, marginTop: 4 }}><button type="button" className="btn btn-line btn-sm" style={{ minHeight: 30, padding: '0 8px' }} onClick={() => move(i, -1)} aria-label="Move left">‹</button><button type="button" className="btn btn-line btn-sm" style={{ minHeight: 30, padding: '0 8px' }} onClick={() => move(i, 1)} aria-label="Move right">›</button><button type="button" className="btn btn-line btn-sm" style={{ minHeight: 30, padding: '0 8px' }} onClick={() => setKeep(keep.filter((x) => x !== p))}>Remove</button></div></div>
         ))}</div></div>}
-        <div className="field"><label className="f" htmlFor="cf-ph">Add photos (JPG/PNG/WEBP, max 6 MB each)</label><input id="cf-ph" type="file" className="input" style={{ paddingTop: 12 }} multiple accept="image/jpeg,image/png,image/webp" onChange={(e) => setFiles(e.target.files)} /></div>
-        <div style={{ display: 'flex', gap: 10 }}><button className="btn btn-red" disabled={busy}>{busy ? 'Saving…' : 'Save car'}</button><button type="button" className="btn btn-line" onClick={onClose}>Cancel</button></div>
+        <div className="field"><label className="f" htmlFor="cf-ph">Add photos (JPG/PNG/WEBP, up to {MAX_PHOTOS} per save)</label><input id="cf-ph" type="file" className="input" style={{ paddingTop: 12 }} multiple accept="image/jpeg,image/png,image/webp" onChange={(e) => setFiles(e.target.files)} />
+          {files.length > 0 && <div className="hint" style={{ color: files.length > MAX_PHOTOS ? 'var(--bad)' : undefined }}>{files.length} photo{files.length === 1 ? '' : 's'} selected{files.length > MAX_PHOTOS ? ` — too many, pick up to ${MAX_PHOTOS} now and add the rest by editing the car` : '. They are resized before upload, so large phone photos are fine.'}</div>}</div>
+        <div style={{ display: 'flex', gap: 10 }}><button className="btn btn-red" disabled={busy}>{busy ? (busyText || 'Saving…') : 'Save car'}</button><button type="button" className="btn btn-line" onClick={onClose}>Cancel</button></div>
       </form>
     </Modal>
   );

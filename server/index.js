@@ -142,8 +142,11 @@ app.get('*', loadUser, async (req, res, next) => {
 
 // ---------- Errors ----------
 app.use((err, req, res, _next) => {
-  const status = err.status || (err.code === 'LIMIT_FILE_SIZE' ? 400 : 500);
-  const msg = err.code === 'LIMIT_FILE_SIZE' ? 'Each file must be under 6 MB.' : (status < 500 ? err.message : 'Something went wrong. Please try again.');
+  // Upload limits get a clear message instead of "Something went wrong"
+  const UPLOAD = { LIMIT_FILE_SIZE: 'Each photo or file must be under 8 MB.', LIMIT_FILE_COUNT: 'Too many photos at once. Add up to 20 per save; you can add more by editing the car afterwards.',
+    LIMIT_UNEXPECTED_FILE: 'Too many photos at once. Add up to 20 per save; you can add more by editing the car afterwards.', LIMIT_FIELD_COUNT: 'Too many fields in the form.' };
+  const status = err.status || (UPLOAD[err.code] ? 400 : 500);
+  const msg = UPLOAD[err.code] || (status < 500 ? err.message : 'Something went wrong. Please try again.');
   if (status >= 500) console.error(new Date().toISOString(), req.method, req.originalUrl, err);
   if (req.originalUrl.startsWith('/api/')) return res.status(status).json({ error: msg });
   res.status(status).type('text/plain').send(msg);

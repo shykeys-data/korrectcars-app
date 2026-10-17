@@ -11,7 +11,7 @@ for (const d of [PUBLIC_DIR, PRIVATE_DIR, path.join(PUBLIC_DIR, 'cars'), path.jo
 // Files are held in memory, checked by their real bytes (not the name), then written
 const memory = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 6 * 1024 * 1024, files: 12, fields: 40 }
+  limits: { fileSize: 8 * 1024 * 1024, files: 25, fields: 60 } // up to 20 car photos per save; swap: 10 photos + 3 papers
 });
 
 function sniff(buf) {

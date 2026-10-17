@@ -8,6 +8,7 @@ const settings = require('../lib/settings');
 const totp = require('../lib/totp');
 const seo = require('../lib/seo');
 const searches = require('../lib/searches');
+const MAX_PHOTOS = 20; // photos per save (more can be added by editing the car)
 const { memory, save, PRIVATE_DIR } = require('../lib/uploads');
 
 const r = express.Router();
@@ -57,7 +58,7 @@ function carValues(v) {
   };
 }
 
-r.post('/cars', carTeam, memory.array('photos', 15), validate('car'), async (req, res) => {
+r.post('/cars', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'), async (req, res) => {
   const v = carValues(req.valid);
   let slug = slugify(`${req.valid.title}`);
   if (await one('SELECT id FROM cars WHERE slug = ?', [slug])) slug += '-' + Date.now().toString(36);
@@ -71,7 +72,7 @@ r.post('/cars', carTeam, memory.array('photos', 15), validate('car'), async (req
   res.status(201).json({ car: added });
 });
 
-r.put('/cars/:id', carTeam, memory.array('photos', 15), validate('car'), async (req, res) => {
+r.put('/cars/:id', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'), async (req, res) => {
   if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const car = await one('SELECT id, photos, status FROM cars WHERE id = ?', [req.params.id]);
   if (!car) return res.status(404).json({ error: 'Not found' });
