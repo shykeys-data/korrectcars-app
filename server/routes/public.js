@@ -189,7 +189,7 @@ async function facets() {
 }
 r.get('/cars/facets', async (_req, res) => res.json(await facets()));
 
-const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured';
+const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured, created_at';
 async function listCars(query = {}) {
   const where = [`status IN ${PUBLIC_STATUSES}`]; const p = [];
   const add = (sql, v) => { where.push(sql); p.push(v); };
