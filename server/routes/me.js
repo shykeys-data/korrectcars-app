@@ -10,6 +10,7 @@ r.use(requireAuth);
 
 const MAX_SAVED = 50;
 const MAX_SEARCHES = 10;
+const { cleanCar, publicTitle } = require('../lib/titles');
 const CARD_COLS = 'id, slug, title, make, model, body, year, price, old_price, mileage, car_condition, location, photos, status';
 const ids = (list) => [...new Set((Array.isArray(list) ? list : []).map(Number).filter((n) => Number.isInteger(n) && n > 0))];
 
@@ -30,7 +31,7 @@ r.get('/saved', async (req, res) => {
   const list = await savedIds(req.user.id);
   const cars = list.length ? await q(`SELECT ${CARD_COLS} FROM cars WHERE status <> 'hidden' AND id IN (${list.map(() => '?').join(',')})`, list) : [];
   const order = new Map(list.map((id, i) => [id, i]));
-  cars.sort((a, b) => order.get(Number(a.id)) - order.get(Number(b.id)));
+  cars.sort((a, b) => order.get(Number(a.id)) - order.get(Number(b.id))); cars.forEach(cleanCar);
   res.json({ ids: cars.map((c) => Number(c.id)), cars });
 });
 // Merge the cars saved on this device into the account (used right after sign-in)
@@ -96,7 +97,7 @@ r.get('/enquiries', async (req, res) => {
     return { id: e.id, type: e.type, status: e.status, offer_amount: e.offer_amount, preferred_date: e.preferred_date,
       plan: e.type === 'bnpl' && e.bnpl_months ? { deposit: e.bnpl_deposit, months: e.bnpl_months, monthly: e.bnpl_monthly } : null,
       created_at: e.created_at, updated_at: e.updated_at,
-      car: e.car_slug ? { slug: e.car_slug, title: e.car_title, price: e.car_price, photo: (photos || [])[0] || null, status: e.car_status === 'hidden' ? 'sold' : e.car_status } : null };
+      car: e.car_slug ? { slug: e.car_slug, title: publicTitle(e.car_title), price: e.car_price, photo: (photos || [])[0] || null, status: e.car_status === 'hidden' ? 'sold' : e.car_status } : null };
   }) });
 });
 

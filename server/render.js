@@ -148,6 +148,7 @@ async function renderPage(req, nonce) {
   if (rc && rc.kind === 'car') {
     known = true;
     const d = await pub.carDetail(rc.slug);
+    if (d && d.movedTo) return { status: 301, redirect: `/cars/${d.movedTo}` }; // old web address of this car
     if (!d) { status = 404; noindex = true; meta.title = 'Car not found | Korrect Cars'; }
     else {
       const car = d.car;

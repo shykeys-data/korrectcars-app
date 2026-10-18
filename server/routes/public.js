@@ -13,7 +13,9 @@ const DUMMY_HASH = bcrypt.hashSync('timing-equaliser', 12); // same work for unk
 const PUBLIC_STATUSES = "('available','sold')";
 
 // ---------- Site settings for the client ----------
-const publicConfig = () => settings.current();
+// Staff-only settings stay off the public config
+const publicConfig = () => { const { internalCodes, ...pub } = settings.current(); return pub; }; // eslint-disable-line no-unused-vars
+const { cleanCar } = require('../lib/titles');
 r.get('/config', (_req, res) => res.json(publicConfig()));
 r.get('/catalog', (_req, res) => res.json(catalog));
 
@@ -204,17 +206,20 @@ async function listCars(query = {}) {
   if (search) add('title LIKE ?', '%' + String(search).slice(0, 60).replace(/[%_\\]/g, '\\$&') + '%');
   const sorts = { 'price-asc': 'price ASC', 'price-desc': 'price DESC', 'year-desc': 'year DESC, price DESC', newest: 'created_at DESC' };
   const lim = Math.min(Math.max(Number(limit) || 60, 1), 100);
-  return q(`SELECT ${CAR_COLS} FROM cars WHERE ${where.join(' AND ')} ORDER BY (status = 'sold') ASC, ${sorts[sort] || 'price DESC'} LIMIT ${lim}`, p);
+  return (await q(`SELECT ${CAR_COLS} FROM cars WHERE ${where.join(' AND ')} ORDER BY (status = 'sold') ASC, ${sorts[sort] || 'price DESC'} LIMIT ${lim}`, p)).map(cleanCar);
 }
 r.get('/cars', async (req, res) => res.json({ cars: await listCars(req.query) }));
 
 async function carDetail(slug) {
-  const car = await one("SELECT * FROM cars WHERE slug = ? AND status <> 'hidden'", [String(slug)]);
+  let car = await one("SELECT * FROM cars WHERE slug = ? AND status <> 'hidden'", [String(slug)]);
+  let moved = false;
+  if (!car) { car = await one("SELECT * FROM cars WHERE old_slug = ? AND status <> 'hidden'", [String(slug)]); moved = !!car; } // old web address
   if (!car) return null;
   const similar = await q(`SELECT id, slug, title, make, model, body, year, price, old_price, mileage, photos, status FROM cars
     WHERE id <> ? AND status = 'available' AND (body = ? OR make = ?) ORDER BY ABS(price - ?) LIMIT 3`, [car.id, car.body, car.make, car.price]);
-  delete car.vin; // staff only
-  return { car, similar };
+  delete car.vin; delete car.old_slug; // staff only
+  cleanCar(car); similar.forEach(cleanCar);
+  return moved ? { car, similar, movedTo: car.slug } : { car, similar };
 }
 r.get('/cars/:slug', async (req, res) => {
   const d = await carDetail(req.params.slug);

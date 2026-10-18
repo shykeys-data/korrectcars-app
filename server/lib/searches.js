@@ -51,6 +51,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 async function notifyNewCar(car) {
   try {
     if (!car || car.status !== 'available') return { sent: 0 };
+    car = { ...car, title: require('./titles').publicTitle(car.title) };
     const rows = await q(`SELECT s.id, s.user_id, s.name, s.filters, u.name AS user_name, u.email FROM saved_searches s
       JOIN users u ON u.id = s.user_id WHERE s.alerts = 1 AND u.disabled = 0 AND u.email_verified = 1`);
     const byUser = new Map();

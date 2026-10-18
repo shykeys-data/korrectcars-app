@@ -20,7 +20,7 @@ function robotsTxt() {
 
 async function llmsTxt() {
   const st = settings.current();
-  const cars = await db.q("SELECT slug, title, make, model, body, year, price, mileage, transmission, status FROM cars WHERE status IN ('available','sold') ORDER BY (status = 'sold'), price DESC LIMIT 100");
+  const cars = (await db.q("SELECT slug, title, make, model, body, year, price, mileage, transmission, status FROM cars WHERE status IN ('available','sold') ORDER BY (status = 'sold'), price DESC LIMIT 100")).map(require('./titles').cleanCar);
   const posts = await db.q("SELECT slug, title FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 30");
   const avail = cars.filter((c) => c.status === 'available');
   const models = {};

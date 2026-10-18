@@ -133,7 +133,8 @@ app.use(async (req, res, next) => {
 // ---------- React app (with server-rendered meta + content for Google) ----------
 app.get('*', loadUser, async (req, res, next) => {
   try {
-    const { status, html } = await renderPage(req, res.locals.nonce);
+    const { status, html, redirect } = await renderPage(req, res.locals.nonce);
+    if (redirect) return res.redirect(301, redirect);
     // private: the page embeds the signed-in user's name, so shared caches must never store it
     if (req.path.replace(/\/+$/, '') === config.adminPath) res.set('X-Robots-Tag', 'noindex, nofollow');
     res.status(status).set('Cache-Control', 'private, no-cache').type('html').send(html);

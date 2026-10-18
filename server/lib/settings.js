@@ -14,6 +14,7 @@ const FIELDS = {
   bnplMarkup: { type: 'number', label: 'Estimate: charge on balance %', min: 0, max: 100 },
   bnplMaxMonths: { type: 'number', label: 'Estimate: longest plan (months)', min: 6, max: 96 },
   swapFeePct: { type: 'number', label: 'Swap fee %', min: 0, max: 20 },
+  internalCodes: { type: 'list', label: 'Staff-only codes at the end of car titles, hidden from customers (comma separated, e.g. BF)' },
   swap: { type: 'choice', label: 'Swap your car (Korrect Swap)', options: [['off', 'Hidden: not shown anywhere on the site'], ['on', 'Shown: menu, home page, swap pages and account tabs']] },
   aiTraining: { type: 'choice', label: 'AI training bots (GPTBot, ClaudeBot, Google-Extended, CCBot)', options: [['allow', 'Allow: the site can be used to train AI models'], ['block', 'Block: AI search assistants can still read and cite the site']] }
 };
@@ -35,6 +36,7 @@ function current() {
     swapFeePct: num('swapFeePct', config.swapFeePct),
     aiTraining: g('aiTraining', 'allow') === 'block' ? 'block' : 'allow',
     // Swap is being tested on staging first: shown there by default, hidden on the live site until switched on
+    internalCodes: String(g('internalCodes', 'BF')).split(',').map((x) => x.trim()).filter(Boolean),
     swap: g('swap', /staging/.test(config.siteUrl) ? 'on' : 'off') === 'on'
   };
 }

@@ -200,6 +200,8 @@ export function Compare() {
 export function CarDetail({ slug }) {
   const { cfg } = useApp();
   const { data, loading, error } = useApi('/cars/' + slug);
+  const { go } = useRouter();
+  useEffect(() => { if (data && data.movedTo) go('/cars/' + data.movedTo, { replace: true }); }, [data && data.movedTo]); // eslint-disable-line
   const [i, setI] = useState(0);
   const [tab, setTab] = useState('overview');
   const [modal, setModal] = useState(null);
