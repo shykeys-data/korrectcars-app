@@ -62,7 +62,7 @@ r.post('/cars', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'), as
   const v = carValues(req.valid);
   let slug = slugify(`${req.valid.title}`);
   if (await one('SELECT id FROM cars WHERE slug = ?', [slug])) slug += '-' + Date.now().toString(36);
-  const photos = (req.files || []).map((f) => save(f, { folder: 'cars' }));
+  const photos = (req.files || []).map((f, i) => save(f, { folder: 'cars', name: `${slug}-lagos-${i + 1}` })); // e.g. 2016-lexus-es-350-lagos-1-3fa9c1.jpg
   const cols = Object.keys(v);
   const ins = await q(`INSERT INTO cars (slug, photos, ${cols.join(', ')}) VALUES (?, ?, ${cols.map(() => '?').join(', ')})`, [slug, J(photos), ...cols.map((c) => v[c])]);
   await audit(req, 'Added car', v.title);
@@ -79,7 +79,7 @@ r.put('/cars/:id', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'),
   const v = carValues(req.valid);
   const current = car.photos || [];
   const keep = req.valid.keepPhotos !== undefined ? list(req.valid.keepPhotos).filter((p) => current.includes(p)) : current;
-  const added = (req.files || []).map((f) => save(f, { folder: 'cars' }));
+  const added = (req.files || []).map((f, i) => save(f, { folder: 'cars', name: `${slugify(req.valid.title)}-lagos-${keep.length + i + 1}` }));
   const cols = Object.keys(v);
   await q(`UPDATE cars SET ${cols.map((c) => `${c} = ?`).join(', ')}, photos = ? WHERE id = ?`, [...cols.map((c) => v[c]), J([...keep, ...added]), car.id]);
   await audit(req, 'Edited car', v.title);

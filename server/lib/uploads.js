@@ -41,13 +41,15 @@ function stripJpegMeta(buf) {
   } catch (_e) { return buf; }
 }
 
-function save(file, { folder, privateFile = false, allowPdf = false }) {
+// name: optional readable start of the file name, e.g. '2016-lexus-es-350-1' (good for Google Images)
+function save(file, { folder, privateFile = false, allowPdf = false, name: base }) {
   const kind = sniff(file.buffer);
   if (!kind || (kind === 'pdf' && !allowPdf)) {
     const err = new Error(allowPdf ? 'Only JPG, PNG, WEBP or PDF files are allowed.' : 'Only JPG, PNG or WEBP images are allowed.');
     err.status = 400; throw err;
   }
-  const name = crypto.randomBytes(16).toString('hex') + '.' + kind;
+  const clean = String(base || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
+  const name = (clean && !privateFile ? `${clean}-${crypto.randomBytes(3).toString('hex')}` : crypto.randomBytes(16).toString('hex')) + '.' + kind;
   const buf = kind === 'jpg' ? stripJpegMeta(file.buffer) : file.buffer;
   if (privateFile) {
     fs.writeFileSync(path.join(PRIVATE_DIR, name), buf, { mode: 0o600 });

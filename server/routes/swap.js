@@ -34,7 +34,7 @@ r.post('/listings', requireAuth, limiter(60, 5, 'You have submitted several cars
     if (photos.length < 3) return res.status(400).json({ error: 'Please add at least 3 clear photos of the car.' });
     if (!papers.length) return res.status(400).json({ error: 'Please upload the car papers (customs, receipt or proof of ownership).' });
     const v = req.valid;
-    const photoUrls = photos.map((f) => save(f, { folder: 'swap' }));
+    const photoUrls = photos.map((f, i) => save(f, { folder: 'swap', name: `${v.year}-${v.make}-${v.model}-swap-${i + 1}` }));
     const paperFiles = papers.map((f) => save(f, { privateFile: true, allowPdf: true }));
     const ins = await q(`INSERT INTO swap_listings (owner_id, make, model, body, year, mileage, value, location, car_condition, color, transmission, description,
       photos, papers, wants_makes, wants_bodies, max_top_up, wants_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
