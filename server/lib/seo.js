@@ -20,7 +20,7 @@ function robotsTxt() {
 
 async function llmsTxt() {
   const st = settings.current();
-  const cars = (await db.q("SELECT slug, title, make, model, body, year, price, mileage, transmission, status FROM cars WHERE status IN ('available','sold') ORDER BY (status = 'sold'), price DESC LIMIT 100")).map(require('./titles').cleanCar);
+  const cars = (await db.q("SELECT slug, title, make, model, body, year, price, mileage, transmission, fuel, engine, featured, created_at, status FROM cars WHERE status IN ('available','sold') ORDER BY (status = 'sold'), price DESC LIMIT 100")).map(require('./titles').cleanCar);
   const posts = await db.q("SELECT slug, title FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 30");
   const avail = cars.filter((c) => c.status === 'available');
   const models = {};
@@ -56,6 +56,12 @@ async function llmsTxt() {
       return `- [${make} ${model}](${u(`/cars/${slugify(make)}/${slugify(model)}`)}): ${lo === hi ? naira(lo) : `${naira(lo)} to ${naira(hi)}`} (${prices.length} in stock)`;
     }),
     '',
+    '## Browse by category',
+    ...require('./categories').pages().map((c) => [c, avail.filter(c.test)]).filter(([, l]) => l.length).map(([c, l]) => {
+      const pr = l.map((x) => Number(x.price)); const lo = Math.min(...pr); const hi = Math.max(...pr);
+      return `- [${c.h1}](${u('/cars/' + c.slug)}): ${l.length} in stock, ${lo === hi ? naira(lo) : `${naira(lo)} to ${naira(hi)}`}`;
+    }),
+    '',
     '## Key pages',
     `- [Cars for sale](${u('/cars')})`,
     `- [Pay Small Small](${u('/pay-small-small')})`,
@@ -87,7 +93,8 @@ async function notify(paths) {
   } catch (e) { console.warn('IndexNow failed:', e.message); return { error: e.message }; }
 }
 // Pages that change when a car changes
-const carPaths = (car) => (car ? ['/cars/' + car.slug, '/cars', '/', `/cars/${slugify(car.make)}`, `/cars/${slugify(car.make)}/${slugify(car.model)}`] : ['/cars', '/']);
+const carPaths = (car) => (car ? ['/cars/' + car.slug, '/cars', '/', `/cars/${slugify(car.make)}`, `/cars/${slugify(car.make)}/${slugify(car.model)}`,
+  ...require('./categories').pages().filter((c) => c.test(car)).map((c) => '/cars/' + c.slug)] : ['/cars', '/']);
 
 function routes(app) {
   app.get('/robots.txt', (_req, res) => res.type('text/plain').send(robotsTxt()));
