@@ -6,6 +6,7 @@ import { Header, Footer, WhatsApp } from './components/Layout.jsx';
 import Home from './pages/Home.jsx';
 import { Inventory, CarDetail, PaySmallSmall, Compare } from './pages/Cars.jsx';
 import { useApi, slugify, booted } from './lib/core.jsx';
+import { bySlug } from '../../server/lib/categories.js';
 // The staff address is only known when the page was opened at it (it is not in the site's code)
 const ADMIN_PATH = (booted('/config') || {}).adminPath || null;
 import { SwapHome, SwapListing, SwapNew } from './pages/Swap.jsx';
@@ -29,6 +30,7 @@ function Routes() {
   if (path === '/') return <Home />;
   if (path === '/cars') return <Inventory />;
   if ((m = match('/cars/:make/:model', path))) return <Inventory makeSlug={m.make} modelSlug={m.model} />;
+  if ((m = match('/cars/:slug', path)) && bySlug(m.slug)) return <Inventory key={m.slug} category={bySlug(m.slug)} />; // /cars/suv, /cars/under-20-million…
   if ((m = match('/cars/:slug', path))) return <CarOrMake slug={m.slug} />;
   if (path === '/compare') return <Compare />;
   if (path === '/pay-small-small') return <PaySmallSmall />;
