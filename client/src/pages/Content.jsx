@@ -48,9 +48,10 @@ export function Post({ slug }) {
     <article className="wrap sec-sm">
       <nav className="small muted" style={{ marginBottom: 12 }}><Link to="/blog">Guides</Link></nav>
       <h1 style={{ maxWidth: 900 }}>{p.title}</h1>
-      <div className="muted" style={{ marginBottom: 20 }}>{date(p.published_at)} · Korrect Cars</div>
+      <div className="muted" style={{ marginBottom: 20 }}>By <b style={{ color: 'var(--ink)' }}>{p.author || 'The Korrect Cars team'}</b> · {date(p.published_at)}{p.updated_at ? <> · Updated {date(p.updated_at)}</> : null}</div>
       {p.image && <img src={rs(p.image, 1200)} srcSet={srcset(p.image, [800, 1200, 1600])} sizes="(max-width: 900px) 100vw, 860px" alt="" style={{ borderRadius: 18, marginBottom: 28, maxHeight: 460, width: '100%', objectFit: 'cover' }} />}
       <div className="prose" dangerouslySetInnerHTML={{ __html: clean(p.content) }} />
+      {p.author_bio && <div className="box" style={{ marginTop: 28, maxWidth: 760 }}><div className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em' }}>About the author</div><p style={{ margin: '6px 0 0' }}><b>{p.author || 'The Korrect Cars team'}</b>: {p.author_bio}</p></div>}
       <div className="box" style={{ marginTop: 32, maxWidth: 760, display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <div><b>Looking for a car?</b><div className="muted small">See inspected cars in Lagos or ask us on WhatsApp.</div></div>
         <div style={{ display: 'flex', gap: 10 }}><Link to="/cars" className="btn btn-red btn-sm">Browse cars</Link><a className="btn btn-wa btn-sm" href={waLink(cfg, `Hello Korrect Cars, I just read "${p.title}".`)} target="_blank" rel="noopener noreferrer">WhatsApp</a></div>

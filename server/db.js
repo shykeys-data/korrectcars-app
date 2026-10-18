@@ -73,7 +73,10 @@ const MIGRATIONS = [
   ['enquiries', 'assigned_to', 'INT NULL'],
   ['enquiries', 'updated_at', 'DATETIME NULL'],
   ['enquiries', 'user_id', 'INT NULL'],
-  ['cars', 'old_slug', 'VARCHAR(160) NULL']
+  ['cars', 'old_slug', 'VARCHAR(160) NULL'],
+  ['posts', 'author', 'VARCHAR(120) NULL'],
+  ['posts', 'author_bio', 'VARCHAR(400) NULL'],
+  ['posts', 'updated_at', 'DATETIME NULL']
 ];
 
 // Only plain values may reach the driver: an object or array from user input could

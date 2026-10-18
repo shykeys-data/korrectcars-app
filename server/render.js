@@ -203,9 +203,11 @@ async function renderPage(req, nonce) {
       boot['/posts/' + m[1]] = { post, more };
       const desc = post.seo_desc || clip(strip(post.excerpt || post.content), 160);
       meta = { ...meta, title: post.seo_title || `${post.title} | Korrect Cars`, desc, image: post.image || DEFAULT.image, type: 'article' };
-      body = `<article><h1>${esc(post.title)}</h1>${safeHtml(post.content)}</article>`;
+      const by = post.author || 'The Korrect Cars team';
+      body = `<article><h1>${esc(post.title)}</h1><p>By ${esc(by)}${post.updated_at ? ` · Updated ${esc(String(post.updated_at).slice(0, 10))}` : ''}</p>${safeHtml(post.content)}${post.author_bio ? `<p><em>${esc(post.author_bio)}</em></p>` : ''}</article>`;
       ld.push({ '@context': 'https://schema.org', '@type': 'BlogPosting', headline: post.title, datePublished: post.published_at, image: config.siteUrl + (post.image || DEFAULT.image),
-        author: { '@type': 'Organization', name: 'Korrect Cars' }, publisher: { '@type': 'Organization', name: 'Korrect Cars', logo: { '@type': 'ImageObject', url: config.siteUrl + '/img/logo.svg' } }, mainEntityOfPage: meta.url });
+        ...(post.updated_at ? { dateModified: post.updated_at } : {}),
+        author: post.author && !/korrect cars/i.test(post.author) ? { '@type': 'Person', name: post.author, worksFor: { '@id': config.siteUrl + '/#dealer' } } : { '@type': 'Organization', name: 'Korrect Cars', url: config.siteUrl + '/' }, publisher: { '@type': 'Organization', name: 'Korrect Cars', logo: { '@type': 'ImageObject', url: config.siteUrl + '/img/logo.svg' } }, mainEntityOfPage: meta.url });
     }
   }
   if (p === '/blog') boot['/posts'] = { posts: await db.q("SELECT slug, title, excerpt, image, published_at FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 50") };
