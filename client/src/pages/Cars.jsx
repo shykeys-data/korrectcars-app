@@ -391,7 +391,7 @@ export function PaySmallSmall() {
           </>}
           {step < 4 && <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 18 }}>
             <button className="btn btn-line" style={{ visibility: step === 1 ? 'hidden' : 'visible' }} onClick={() => { setErr(''); setStep(step - 1); }}>Back</button>
-            {step < 3 ? <button className="btn btn-red" onClick={next}>Continue</button> : <button className="btn btn-red" onClick={send} disabled={busy || !d.consent}>{busy ? 'Sending…' : 'Send to bank partner'}</button>}
+            {step < 3 ? <button className="btn btn-red" onClick={next}>Continue</button> : <button className="btn btn-red" onClick={send} disabled={busy || !d.consent}>{busy ? 'Sending…' : 'Send to credit partner'}</button>}
           </div>}
           {step === 4 && <div>
             <div className="okmsg"><div className="disp" style={{ fontSize: 28 }}>Application sent</div>We have passed your details to {partner}. They will contact you directly. We will also follow up on WhatsApp.</div>

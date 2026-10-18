@@ -153,11 +153,17 @@ async function renderPage(req, nonce) {
       const car = d.car;
       boot['/cars/' + rc.slug] = d;
       preload = preloadTag((car.photos || [])[0], '(max-width: 980px) 100vw, 62vw');
-      const desc = car.seo_desc || clip(`${car.title} for sale in ${car.location || 'Lagos'} at ${naira(car.price)}. ${strip(car.description)}`, 160);
+      // Pay Small Small estimate (same figures the car card shows: minimum deposit, 24 months)
+      const plan = car.status === 'sold' ? null : pub.bnplPlan(Number(car.price), 0, 24);
+      const pss = plan ? ` or pay small small from about ${naira(plan.monthly)}/month` : '';
+      // Every car's search description leads with its price and Pay Small Small figure; old imported wording ("BNPL") is updated
+      const extra = strip(car.seo_desc || car.description).replace(/\bBNPL\b/g, 'pay small small');
+      const desc = clip(`${car.title} for sale in ${car.location || 'Lagos'} at ${naira(car.price)}${pss}. ${extra}`, 160);
       meta = { ...meta, title: car.seo_title || `${car.title} for Sale in Lagos — ${naira(car.price)} | Korrect Cars`, desc, image: (car.photos || [])[0] || DEFAULT.image };
       body = `<h1>${esc(car.title)}</h1><p><strong>${esc(naira(car.price))}</strong>${car.status === 'sold' ? ' — SOLD' : ''}</p>`
         + String(car.description || '').split(/\n\n+/).map((x) => `<p>${esc(x)}</p>`).join('')
-        + (car.features && car.features.length ? '<ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '');
+        + (car.features && car.features.length ? '<ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
+        + (plan ? `<h2>Pay small small for this ${esc(car.make)} ${esc(car.model)}</h2><p>Estimate: about ${esc(naira(plan.deposit))} deposit, then about ${esc(naira(plan.monthly))} a month for ${plan.months} months, through our credit partners. They confirm the final terms; once you are approved, Korrect Cars sells you the car. <a href="/pay-small-small?car=${esc(car.slug)}">Get your estimate and apply</a>.</p>` : '');
       ld.push({ '@context': 'https://schema.org', '@type': 'Car', name: car.title, brand: { '@type': 'Brand', name: car.make }, model: car.model,
         vehicleModelDate: String(car.year || ''), bodyType: car.body, color: car.color || undefined, vehicleTransmission: car.transmission || undefined,
         fuelType: car.fuel || undefined, mileageFromOdometer: car.mileage || undefined,

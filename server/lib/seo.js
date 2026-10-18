@@ -47,7 +47,8 @@ async function llmsTxt() {
     st.swap ? `- Korrect Swap: owners list their car, get matched, inspect both cars at a partner car lot, and pay a ${st.swapFeePct}% swap fee only after a successful inspection.` : null,
     '',
     `## Cars in stock (updated ${today})`,
-    ...avail.map((c) => `- [${c.title}](${u('/cars/' + c.slug)}): ${naira(c.price)}${c.year ? `, ${c.year}` : ''}${c.body ? `, ${c.body}` : ''}${c.mileage ? `, ${c.mileage}` : ''}${c.transmission ? `, ${c.transmission}` : ''}`),
+    ...avail.map((c) => { const pl = require('../routes/public').bnplPlan(Number(c.price), 0, 24);
+      return `- [${c.title}](${u('/cars/' + c.slug)}): ${naira(c.price)}${c.year ? `, ${c.year}` : ''}${c.body ? `, ${c.body}` : ''}${c.mileage ? `, ${c.mileage}` : ''}${c.transmission ? `, ${c.transmission}` : ''}; Pay Small Small from about ${naira(pl.monthly)}/month (${naira(pl.deposit)} deposit, ${pl.months} months, estimate)`; }),
     avail.length ? '' : '- No cars listed right now. Contact us on WhatsApp.',
     '## Prices by model',
     ...Object.entries(models).map(([k, prices]) => {
