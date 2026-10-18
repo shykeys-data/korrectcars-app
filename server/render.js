@@ -7,6 +7,7 @@ const path = require('path');
 const config = require('./config');
 const db = require('./db');
 const pub = require('./routes/public');
+const cats = require('./lib/categories');
 
 // Light photo URLs (same rule as the browser's rs()) and a preload tag for the page's main photo
 const RS = /^\/(?:uploads\/(cars|blog|swap|site)|(img))\/([A-Za-z0-9._-]+)\.(?:jpe?g|png|webp)$/i;
@@ -83,6 +84,8 @@ function priceAnswer(subject, cars) {
 async function resolveCars(p) {
   const m = p.match(/^\/cars\/([a-z0-9-]+)(?:\/([a-z0-9-]+))?$/);
   if (!m) return null;
+  const cat = !m[2] && cats.bySlug(m[1]);
+  if (cat) return { kind: 'category', cat }; // /cars/suv, /cars/under-20-million… (checked before makes and cars)
   const fac = await pub.facets();
   const make = Object.keys(fac.makes).find((k) => slugify(k) === m[1]);
   if (make && !m[2]) return { kind: 'make', make, fac };
@@ -124,6 +127,8 @@ async function renderPage(req, nonce) {
   if (p === '/' || p === '/cars') {
     const avail = allCars.filter((c) => c.status === 'available');
     body += '<ul>' + avail.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(naira(c.price))}</li>`).join('') + '</ul>';
+    const catLinks = cats.pages().map((c) => [c, avail.filter(c.test).length]).filter(([, n]) => n > 0);
+    if (catLinks.length) body += '<h2>Browse by category</h2><ul>' + catLinks.map(([c, n]) => `<li><a href="/cars/${c.slug}">${esc(c.name)}</a> (${n} in stock)</li>`).join('') + '</ul>';
     if (p === '/cars') { ld.push(listLd(allCars)); body += `<h2>How much are the cars at Korrect Cars?</h2><p>${esc(priceAnswer('', allCars))}</p>`; }
   }
   if (p === '/pay-small-small') {
@@ -144,6 +149,20 @@ async function renderPage(req, nonce) {
     const crumbs = [['Cars for sale', '/cars'], [rc.make, `/cars/${slugify(rc.make)}`]];
     if (rc.kind === 'model') crumbs.push([rc.model, `/cars/${slugify(rc.make)}/${slugify(rc.model)}`]);
     ld.push(crumbsLd(crumbs), listLd(cars), faqLd([[q, a]]));
+  }
+  if (rc && rc.kind === 'category') {
+    known = true;
+    const cat = rc.cat;
+    const cars = allCars.filter(cat.test);
+    const avail = cars.filter((c) => c.status === 'available');
+    const prices = avail.map((c) => Number(c.price)); const lo = Math.min(...prices); const hi = Math.max(...prices);
+    const a = avail.length ? `Korrect Cars has ${avail.length} ${avail.length === 1 ? 'car' : 'cars'} in "${cat.name}" in Lagos right now, ${lo === hi ? `at ${naira(lo)}` : `from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, and you can pay small small through our credit partners.`
+      : `We have no cars in "${cat.name}" in stock right now. Chat with us on WhatsApp and we will find one for you.`;
+    meta = { ...meta, title: `${cat.h1} — Prices & Pay Small Small | Korrect Cars`, desc: clip(`${cat.intro} ${a}`, 160) };
+    // A category with nothing in stock (e.g. no electric cars yet) stays out of search results
+    if (!avail.length) noindex = true;
+    body = `<h1>${esc(cat.h1)}</h1><p>${esc(cat.intro)}</p><ul>` + cars.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(naira(c.price))}${c.status === 'sold' ? ' (sold)' : ''}</li>`).join('') + `</ul><h2>${esc(cat.faq)}</h2><p>${esc(a)}</p>`;
+    ld.push(crumbsLd([['Cars for sale', '/cars'], [cat.name, `/cars/${cat.slug}`]]), listLd(cars), faqLd([[cat.faq, a]]));
   }
   if (rc && rc.kind === 'car') {
     known = true;
