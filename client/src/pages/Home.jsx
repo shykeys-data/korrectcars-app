@@ -1,8 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, date, waLink, slugify, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc } from '../components/Bits.jsx';
+import { CATEGORIES, MIN_HOME } from '../../../server/lib/categories.js';
+import { recommended, newestFirst } from '../lib/rank.js';
 
 const BUDGETS = [['', 'Any budget'], ['20000000', 'Up to ₦20m'], ['30000000', 'Up to ₦30m'], ['50000000', 'Up to ₦50m'], ['100000000', 'Up to ₦100m']];
+const ROW_MAX = 8; // cars per homepage row
+const MAX_REPEAT = 2; // one car appears in at most this many rows (unless a row would be too short without it)
+
+// Homepage rows: one per category with enough cars, then "Recently sold".
+// Each row has its own visitor-specific mix, so the homepage is not the same few cars for everyone.
+function buildRows(all) {
+  const avail = all.filter((c) => c.status === 'available');
+  const used = new Map();
+  const take = (list) => {
+    const fresh = list.filter((c) => (used.get(c.id) || 0) < MAX_REPEAT);
+    const pick = (fresh.length >= MIN_HOME ? fresh : list).slice(0, ROW_MAX);
+    pick.forEach((c) => used.set(c.id, (used.get(c.id) || 0) + 1));
+    return pick;
+  };
+  const rows = [];
+  for (const cat of CATEGORIES) {
+    const inCat = avail.filter(cat.test);
+    if (inCat.length < MIN_HOME) continue; // e.g. no electric cars in stock: no empty row
+    const ordered = cat.sort === 'newest' ? newestFirst(inCat) : cat.sort === 'price-desc' ? inCat.slice().sort((a, b) => b.price - a.price) : recommended(inCat, cat.slug);
+    rows.push({ key: cat.slug, name: cat.name, total: inCat.length, link: cat.page === false ? '/cars' : '/cars/' + cat.slug, cars: take(ordered) });
+  }
+  const sold = newestFirst(all.filter((c) => c.status === 'sold')).slice(0, 4);
+  if (sold.length >= 2) rows.push({ key: 'sold', name: 'Recently sold', cars: sold, note: 'Proof our cars move fast. Ask us to find you one like it.' });
+  return rows;
+}
 
 export default function Home() {
   useTitle('Korrect Cars | Buy Tokunbo & Foreign-Used Cars in Lagos, Nigeria');
@@ -13,9 +40,11 @@ export default function Home() {
   const posts = useApi('/posts?limit=3');
   const [s, setS] = useState({ make: '', model: '', yearMin: '', body: '' });
   const [budget, setBudget] = useState('');
-  const all = ((stock.data && stock.data.cars) || []).filter((c) => c.status === 'available');
-  const feat = all.filter((c) => Number(c.featured));
-  const cars = (feat.length >= 3 ? feat : all).slice(0, 6);
+  const everything = (stock.data && stock.data.cars) || [];
+  const all = everything.filter((c) => c.status === 'available');
+  const rows = useMemo(() => buildRows(everything), [everything]);
+  // Calculator: every car in stock, cheapest first
+  const cars = useMemo(() => all.slice().sort((a, b) => a.price - b.price), [everything]); // eslint-disable-line react-hooks/exhaustive-deps
   const makes = [...new Set(all.map((c) => c.make))].sort();
   const models = [...new Set(all.filter((c) => !s.make || c.make === s.make).map((c) => c.model))].sort();
   const years = [...new Set(all.map((c) => Number(c.year)).filter(Boolean))].sort((a, b) => b - a);
@@ -74,8 +103,19 @@ export default function Home() {
 
       <section className="sec">
         <div className="wrap">
-          <div className="sec-head"><div><div className="eyebrow">In stock now</div><h2>Featured cars</h2></div><Link to="/cars" className="btn btn-line">See all cars</Link></div>
-          <div className="cards">{cars.map((c) => <CarCard key={c.id} car={c} />)}</div>
+          <div className="sec-head"><div><div className="eyebrow">In stock now · {all.length} cars</div><h2>Find your next car</h2></div><Link to="/cars" className="btn btn-line">See all cars</Link></div>
+          <nav className="cat-links" aria-label="Browse by category">
+            {rows.filter((r) => r.key !== 'sold' && r.key !== 'featured').map((r) => <Link key={r.key} to={r.link} className="pill">{r.name}<span className="n">{r.total}</span></Link>)}
+          </nav>
+          {rows.map((r) => (
+            <div className="home-row" key={r.key}>
+              <div className="row-head">
+                <div><h3>{r.name}</h3>{r.note && <div className="small muted">{r.note}</div>}</div>
+                {r.total > r.cars.length && <Link to={r.link} className="row-more">See all {r.total} →</Link>}
+              </div>
+              <div className="rail" role="list">{r.cars.map((c) => <div role="listitem" key={c.id}><CarCard car={c} /></div>)}</div>
+            </div>
+          ))}
         </div>
       </section>
 

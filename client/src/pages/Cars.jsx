@@ -1,22 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, slugify, useLocalList, bnpl, firstPhoto, api, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal } from '../components/Bits.jsx';
 
+import { pages as categoryPages } from '../../../server/lib/categories.js';
+import { recommended } from '../lib/rank.js';
+
 const BUDGETS = [['', 'Any budget'], ['20000000', 'Under ₦20m'], ['30000000', 'Under ₦30m'], ['50000000', 'Under ₦50m'], ['100000000', 'Under ₦100m']];
-const SORTS = [['price-desc', 'Price: high to low'], ['price-asc', 'Price: low to high'], ['year-desc', 'Newest year first'], ['newest', 'Recently added']];
+const SORTS = [['recommended', 'Recommended'], ['price-desc', 'Price: high to low'], ['price-asc', 'Price: low to high'], ['year-desc', 'Newest year first'], ['newest', 'Recently added']];
 const YEAR_QUICK = [['2018', '', '2018 and newer'], ['2015', '2017', '2015–2017'], ['', '2014', '2014 and older']];
 
-// Filtering happens in the browser over the whole stock (it arrives with the page)
-function applyFilters(all, f) {
-  let cars = all.filter((c) => (!f.make || c.make === f.make) && (!f.model || c.model === f.model) && (!f.body || c.body === f.body)
+// Filtering happens in the browser over the whole stock (it arrives with the page).
+// "Recommended" (the default) is a per-visitor daily shuffle, see lib/rank.js. Sold cars always go last.
+function applyFilters(all, f, cat) {
+  let cars = all.filter((c) => (!cat || cat.test(c)) && (!f.make || c.make === f.make) && (!f.model || c.model === f.model) && (!f.body || c.body === f.body)
     && (!f.condition || c.car_condition === f.condition) && (!f.maxPrice || Number(c.price) <= Number(f.maxPrice))
     && (!f.yearMin || Number(c.year) >= Number(f.yearMin)) && (!f.yearMax || Number(c.year) <= Number(f.yearMax)));
-  const by = { 'price-asc': (a, b) => a.price - b.price, 'price-desc': (a, b) => b.price - a.price, 'year-desc': (a, b) => (b.year - a.year) || (b.price - a.price), newest: (a, b) => b.id - a.id };
-  cars = cars.slice().sort((a, b) => ((a.status === 'sold') - (b.status === 'sold')) || (by[f.sort] || by['price-desc'])(a, b));
-  return cars;
+  const newest = (a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || b.id - a.id;
+  const by = { 'price-asc': (a, b) => a.price - b.price, 'price-desc': (a, b) => b.price - a.price, 'year-desc': (a, b) => (b.year - a.year) || (b.price - a.price), newest };
+  if (by[f.sort]) cars = cars.slice().sort(by[f.sort]);
+  else cars = recommended(cars, 'inventory');
+  return cars.filter((c) => c.status !== 'sold').concat(cars.filter((c) => c.status === 'sold'));
 }
 
-export function Inventory({ makeSlug, modelSlug }) {
+export function Inventory({ makeSlug, modelSlug, category }) {
   const { query, go } = useRouter();
   const { cfg } = useApp();
   const list = useApi('/cars?limit=100');
@@ -29,20 +35,27 @@ export function Inventory({ makeSlug, modelSlug }) {
   const f = {
     make: makeFromSlug || query.get('make') || '', model: modelFromSlug || query.get('model') || '',
     body: query.get('body') || '', condition: query.get('condition') || '', maxPrice: query.get('maxPrice') || '',
-    yearMin: query.get('yearMin') || '', yearMax: query.get('yearMax') || '', sort: query.get('sort') || 'price-desc'
+    yearMin: query.get('yearMin') || '', yearMax: query.get('yearMax') || '', sort: query.get('sort') || (category && category.sort) || 'recommended'
   };
+  const defaultSort = (category && category.sort) || 'recommended';
   const setF = (patch) => {
     const n = { ...f, ...patch };
     if ('make' in patch && patch.make !== f.make) n.model = patch.model || '';
     // Body type follows make/model: drop a body type the chosen make/model doesn't come in
     if (('make' in patch || 'model' in patch) && n.body && !all.some((c) => c.body === n.body && (!n.make || c.make === n.make) && (!n.model || c.model === n.model))) n.body = '';
-    const rest = Object.entries({ body: n.body, condition: n.condition, maxPrice: n.maxPrice, yearMin: n.yearMin, yearMax: n.yearMax, sort: n.sort === 'price-desc' ? '' : n.sort }).filter(([, v]) => v);
-    const base = n.make ? `/cars/${slugify(n.make)}${n.model ? '/' + slugify(n.model) : ''}` : '/cars';
+    // On a category page (/cars/suv) make and model go in the query, so the visitor stays in the category
+    const rest = Object.entries({ ...(category ? { make: n.make, model: n.model } : {}), body: n.body, condition: n.condition, maxPrice: n.maxPrice, yearMin: n.yearMin, yearMax: n.yearMax, sort: n.sort === defaultSort ? '' : n.sort }).filter(([, v]) => v);
+    const base = category ? `/cars/${category.slug}` : n.make ? `/cars/${slugify(n.make)}${n.model ? '/' + slugify(n.model) : ''}` : '/cars';
     go(base + (rest.length ? '?' + new URLSearchParams(rest) : ''), { replace: true, keepScroll: true });
   };
-  const cars = applyFilters(all, f);
+  // Re-shuffle only when the stock or the filters change, not on every redraw
+  const fKey = JSON.stringify(f);
+  const cars = useMemo(() => applyFilters(all, f, category), [all, fKey, category]); // eslint-disable-line react-hooks/exhaustive-deps
   const subject = f.model ? `${f.make} ${f.model}` : f.make;
-  useTitle(subject ? `${subject} for Sale in Lagos — Prices & Pay Small Small | Korrect Cars` : 'Cars for Sale in Lagos — Tokunbo & Foreign Used | Korrect Cars');
+  const heading = category ? (subject ? `${subject}: ${category.h1.replace(/ in Lagos$/, '')}` : category.h1) : subject ? `${subject} for sale in Lagos` : 'Cars for sale in Lagos';
+  useTitle(category ? `${category.h1} — Prices & Pay Small Small | Korrect Cars` : subject ? `${subject} for Sale in Lagos — Prices & Pay Small Small | Korrect Cars` : 'Cars for Sale in Lagos — Tokunbo & Foreign Used | Korrect Cars');
+  // Category links with live counts (only categories that have cars)
+  const catLinks = categoryPages().map((c) => [c, all.filter((x) => x.status === 'available' && c.test(x)).length]).filter(([, n]) => n > 0);
 
   // Option lists with counts, from the cars in stock
   const count = (pred) => all.filter(pred).length;
@@ -63,7 +76,7 @@ export function Inventory({ makeSlug, modelSlug }) {
   if (f.body) chips.push([f.body, { body: '' }]);
   if (f.maxPrice) chips.push([BUDGETS.find(([v]) => v === f.maxPrice)?.[1] || 'Budget', { maxPrice: '' }]);
   if (f.condition) chips.push([f.condition, { condition: '' }]);
-  const reset = () => go('/cars', { replace: true, keepScroll: true });
+  const reset = () => go(category ? '/cars/' + category.slug : '/cars', { replace: true, keepScroll: true });
 
   const avail = cars.filter((c) => c.status === 'available');
   const lo = avail.length ? Math.min(...avail.map((c) => Number(c.price))) : 0;
@@ -74,9 +87,13 @@ export function Inventory({ makeSlug, modelSlug }) {
   return (
     <>
       <div className="wrap sec-sm">
-        <nav className="small muted" aria-label="Breadcrumb" style={{ marginBottom: 8 }}><Link to="/">Home</Link> / <Link to="/cars">Cars for sale</Link>{f.make && <> / <Link to={'/cars/' + slugify(f.make)}>{f.make}</Link></>}{f.model && <> / {f.model}</>}</nav>
-        <h1>{subject ? `${subject} for sale in Lagos` : 'Cars for sale in Lagos'}</h1>
-        <p className="muted" style={{ marginTop: -4 }}>Every car inspected and VIN-verified · parked at partner car lots in Lagos</p>
+        <nav className="small muted" aria-label="Breadcrumb" style={{ marginBottom: 8 }}><Link to="/">Home</Link> / <Link to="/cars">Cars for sale</Link>{category && <> / <Link to={'/cars/' + category.slug}>{category.name}</Link></>}{!category && f.make && <> / <Link to={'/cars/' + slugify(f.make)}>{f.make}</Link></>}{!category && f.model && <> / {f.model}</>}</nav>
+        <h1>{heading}</h1>
+        <p className="muted" style={{ marginTop: -4 }}>{category ? category.intro : 'Every car inspected and VIN-verified · parked at partner car lots in Lagos'}</p>
+        {catLinks.length > 1 && <nav className="cat-links" aria-label="Browse by category">
+          <Link to="/cars" className={'pill' + (!category ? ' on' : '')}>All cars</Link>
+          {catLinks.map(([c, n]) => <Link key={c.slug} to={'/cars/' + c.slug} className={'pill' + (category && category.slug === c.slug ? ' on' : '')} aria-current={category && category.slug === c.slug ? 'page' : undefined}>{c.name}<span className="n">{n}</span></Link>)}
+        </nav>}
         <div className="inv" style={{ marginTop: 20 }}>
           <aside className={'filters box' + (open ? '' : ' closed')} aria-label="Filters">
             <div className="grp" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h2 style={{ fontSize: 26, margin: 0 }}>Filters</h2><button className="btn btn-sm" style={{ background: 'none', color: 'var(--red)', padding: 0 }} onClick={reset}>Reset</button></div>
@@ -126,8 +143,8 @@ export function Inventory({ makeSlug, modelSlug }) {
               : <div className="cards">{cars.map((c) => <CarCard key={c.id} car={c} />)}</div>}
             {avail.length > 0 && (
               <section className="box faq-box">
-                <h2 style={{ fontSize: 26 }}>How much {subject ? `is a ${subject}` : 'are the cars at Korrect Cars'} in Nigeria?</h2>
-                <p style={{ marginBottom: 0 }}>The {avail.length} {subject ? subject + ' ' : ''}{avail.length === 1 ? 'car' : 'cars'} in stock {lo === hi ? `costs ${naira(lo)}` : `cost from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, and you can <Link to="/pay-small-small">pay small small through our credit partners</Link>.</p>
+                <h2 style={{ fontSize: 26 }}>{subject ? `How much is a ${subject} in Nigeria?` : category ? category.faq : 'How much are the cars at Korrect Cars in Nigeria?'}</h2>
+                <p style={{ marginBottom: 0 }}>The {avail.length} {subject ? subject + ' ' : ''}{avail.length === 1 ? 'car' : 'cars'} {category && !subject ? `in "${category.name}" ` : ''}in stock {lo === hi ? `costs ${naira(lo)}` : `cost from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, and you can <Link to="/pay-small-small">pay small small through our credit partners</Link>.</p>
               </section>
             )}
           </div>
