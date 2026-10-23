@@ -30,7 +30,7 @@ async function llmsTxt() {
   const lines = [
     '# Korrect Cars',
     '',
-    `> Online car dealer in Lagos, Nigeria. Sells inspected, VIN-verified tokunbo (foreign-used) cars. Customers can buy outright or pay small small (instalments) through Korrect Cars' credit partners${st.swap ? ', or swap their car with a verified owner through Korrect Swap' : ''}.`,
+    `> Online car dealer in Lagos, Nigeria. Sells inspected, VIN-verified tokunbo (foreign-used) cars. Customers can buy outright or pay small small (instalments) through Korrect Cars' credit partners${st.swap ? ', or swap their car with a verified owner through Korrect Swap (owner-to-owner; Korrect Cars checks both owners and cars and acts as the trusted middleman)' : ''}. Delivers cars anywhere in Nigeria.`,
     '',
     `- Website: ${u('/')}`,
     `- Phone: ${st.phones.join(', ')}`,
@@ -38,13 +38,15 @@ async function llmsTxt() {
     `- Email: ${st.email}`,
     `- Opening hours: ${st.hours}`,
     '- Location: Lagos, Nigeria (online dealer; cars are viewed at partner car lots in Lagos, address sent on WhatsApp after booking)',
+    '- Delivery: nationwide, to any state in Nigeria (ask on WhatsApp for the cost to your city)',
     st.instagram ? `- Instagram: https://www.instagram.com/${st.instagram}/` : '',
     '',
     '## How buying works',
     '- Every car is inspected and its VIN history checked before it is listed.',
     '- Book a viewing, inspect the car and its papers, then pay only into the Korrect Cars company account (never a personal account).',
+    '- Buyers outside Lagos can have the car delivered anywhere in Nigeria.',
     `- Pay Small Small: the website gives an estimate (about ${st.bnpl.minDeposit}% deposit and a ${st.bnpl.markup}% charge on the balance, over ${st.bnpl.minMonths} to ${st.bnpl.maxMonths} months). The credit partners${st.bankPartner ? ` (${st.bankPartner})` : ''} (banks or finance companies) decide who qualifies and set the final terms; once approved, Korrect Cars sells the car.`,
-    st.swap ? `- Korrect Swap: owners list their car, get matched, inspect both cars at a partner car lot, and pay a ${st.swapFeePct}% swap fee only after a successful inspection.` : null,
+    st.swap ? `- Korrect Swap: owner-to-owner swaps. Owners list their car and say what they want; Korrect Cars checks both owners and their papers, holds the inspection of both cars at a partner car lot, and charges a ${st.swapFeePct}% success fee only when the swap completes.` : null,
     '',
     `## Cars in stock (updated ${today})`,
     ...avail.map((c) => { const pl = require('../routes/public').bnplPlan(Number(c.price), 0, 24);
@@ -59,7 +61,8 @@ async function llmsTxt() {
     '## Browse by category',
     ...require('./categories').pages().map((c) => [c, avail.filter(c.test)]).filter(([, l]) => l.length).map(([c, l]) => {
       const pr = l.map((x) => Number(x.price)); const lo = Math.min(...pr); const hi = Math.max(...pr);
-      return `- [${c.h1}](${u('/cars/' + c.slug)}): ${l.length} in stock, ${lo === hi ? naira(lo) : `${naira(lo)} to ${naira(hi)}`}`;
+      const pl = require('../routes/public').bnplPlan(lo, 0, 24);
+      return `- [${c.h1}](${u('/cars/' + c.slug)}): ${l.length} in stock, ${lo === hi ? naira(lo) : `${naira(lo)} to ${naira(hi)}`}; Pay Small Small from about ${naira(pl.monthly)}/month`;
     }),
     '',
     '## Key pages',
