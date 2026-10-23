@@ -55,7 +55,9 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   const heading = category ? (subject ? `${subject}: ${category.h1.replace(/ in Lagos$/, '')}` : category.h1) : subject ? `${subject} for sale in Lagos` : 'Cars for sale in Lagos';
   useTitle(category ? `${category.h1} — Prices & Pay Small Small | Korrect Cars` : subject ? `${subject} for Sale in Lagos — Prices & Pay Small Small | Korrect Cars` : 'Cars for Sale in Lagos — Tokunbo & Foreign Used | Korrect Cars');
   // Category links with live counts (only categories that have cars)
-  const catLinks = categoryPages().map((c) => [c, all.filter((x) => x.status === 'available' && c.test(x)).length]).filter(([, n]) => n > 0);
+  const catCount = (c) => [c, all.filter((x) => x.status === 'available' && c.test(x)).length];
+  const catLinks = categoryPages().filter((c) => !c.budget).map(catCount).filter(([, n]) => n > 0);
+  const budgetLinks = categoryPages().filter((c) => c.budget).map(catCount).filter(([, n]) => n > 0);
 
   // Option lists with counts, from the cars in stock
   const count = (pred) => all.filter(pred).length;
@@ -94,6 +96,9 @@ export function Inventory({ makeSlug, modelSlug, category }) {
           <Link to="/cars" className={'pill' + (!category ? ' on' : '')}>All cars</Link>
           {catLinks.map(([c, n]) => <Link key={c.slug} to={'/cars/' + c.slug} className={'pill' + (category && category.slug === c.slug ? ' on' : '')} aria-current={category && category.slug === c.slug ? 'page' : undefined}>{c.name}<span className="n">{n}</span></Link>)}
         </nav>}
+        {budgetLinks.length > 0 && <><div className="small muted" style={{ margin: '12px 0 6px', fontWeight: 600 }}>Shop by budget</div><nav className="cat-links" aria-label="Shop by budget">
+                    {budgetLinks.map(([c, n]) => <Link key={c.slug} to={'/cars/' + c.slug} className={'pill' + (category && category.slug === c.slug ? ' on' : '')} aria-current={category && category.slug === c.slug ? 'page' : undefined}>{c.name}<span className="n">{n}</span></Link>)}
+        </nav></>}
         <div className="inv" style={{ marginTop: 20 }}>
           <aside className={'filters box' + (open ? '' : ' closed')} aria-label="Filters">
             <div className="grp" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h2 style={{ fontSize: 26, margin: 0 }}>Filters</h2><button className="btn btn-sm" style={{ background: 'none', color: 'var(--red)', padding: 0 }} onClick={reset}>Reset</button></div>
@@ -236,6 +241,7 @@ export function CarDetail({ slug }) {
   return (
     <div className="wrap sec-sm">
       <nav className="small muted" aria-label="Breadcrumb" style={{ marginBottom: 14 }}><Link to="/">Home</Link> / <Link to="/cars">Cars for sale</Link> / <Link to={'/cars/' + slugify(car.make)}>{car.make}</Link> / <Link to={`/cars/${slugify(car.make)}/${slugify(car.model)}`}>{car.model}</Link></nav>
+      {sold && <div className="notice" role="status" style={{ marginBottom: 16 }}><b>This {car.make} {car.model} has been sold.</b> {data.similar && data.similar.length ? <>See <a href="#similar">similar cars in stock</a>, or </> : ''}<Link to={`/cars/${slugify(car.make)}/${slugify(car.model)}`}>every {car.make} {car.model}</Link> · <Link to="/cars">all cars for sale</Link>. Or ask us on WhatsApp to find you one like it.</div>}
       <div className="detail">
         <div>
           <div className="gallery">
@@ -275,18 +281,18 @@ export function CarDetail({ slug }) {
               {cfg && cfg.phones && <a className="btn btn-dark" href={'tel:' + cfg.phones[0].replace(/\s/g, '')}>Call {cfg.phones[0]}</a>}
               <button className={'btn ' + (saved.has(car.id) ? 'btn-saved' : 'btn-line')} aria-pressed={saved.has(car.id)} onClick={() => saved.toggle(car.id)}>{saved.has(car.id) ? 'Saved ✓' : 'Save this car'}</button>
             </div>
-            {!sold && <p className="small muted" style={{ margin: '14px 0 0' }}>Parked at a partner car lot in Lagos. Book a viewing and we send you the address on WhatsApp. You inspect before you pay.</p>}
+            {!sold && <p className="small muted" style={{ margin: '14px 0 0' }}>Parked at a partner car lot in Lagos. Book a viewing and we send you the address on WhatsApp. You inspect before you pay. We also deliver anywhere in Nigeria.</p>}
           </div>
           {cfg && cfg.swap && <div className="box">
-            <h3 style={{ fontSize: 22 }}>Have a car to swap?</h3>
-            <p className="small muted">Use your current car as part payment. List it on Korrect Swap and we will value it. 2% swap fee, paid only after a successful inspection.</p>
+            <h3 style={{ fontSize: 22 }}>Want to change your car?</h3>
+            <p className="small muted">Swap it with a verified owner on Korrect Swap. We check both owners and their papers, and both cars are inspected at a partner car lot. {(cfg && cfg.swapFeePct) || 2}% fee, paid only after a successful swap.</p>
             <Link to="/swap/new" className="btn btn-line btn-sm">List my car</Link>
           </div>}
           <div className="notice"><b>Stay safe:</b> only pay into the Korrect Cars company account, and only after you have seen the car and its papers.</div>
         </aside>
       </div>
       {data.similar && data.similar.length > 0 && (
-        <section className="sec-sm"><h2>Similar cars</h2><div className="cards">{data.similar.map((c) => <CarCard key={c.id} car={c} />)}</div></section>
+        <section className="sec-sm" id="similar"><h2>{sold ? 'Similar cars in stock' : 'Similar cars'}</h2><div className="cards">{data.similar.map((c) => <CarCard key={c.id} car={c} />)}</div></section>
       )}
       {!sold && <div className="car-bar" role="region" aria-label="Contact about this car">
         {cfg && cfg.phones && <a className="btn btn-line" href={'tel:' + cfg.phones[0].replace(/\s/g, '')}>Call</a>}

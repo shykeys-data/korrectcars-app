@@ -104,7 +104,8 @@ app.get('/sitemap.xml', async (_req, res, next) => {
     const makePages = [...new Set(mm.map((x) => '/cars/' + slugify(x.make)))].concat(mm.map((x) => `/cars/${slugify(x.make)}/${slugify(x.model)}`));
     // Category pages (/cars/suv…) that have at least one car in stock
     const stock = await require('./routes/public').listCars({ limit: 100 });
-    const catPages = require('./lib/categories').pages().filter((c) => stock.some((x) => x.status === 'available' && c.test(x))).map((c) => '/cars/' + c.slug);
+    const catLib = require('./lib/categories');
+    const catPages = catLib.pages().filter((c) => stock.filter((x) => x.status === 'available' && c.test(x)).length >= catLib.MIN_INDEX).map((c) => '/cars/' + c.slug);
     const urls = ['/', '/cars', ...catPages, ...(settings.current().swap ? ['/swap'] : []), '/pay-small-small', '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)
       .map((u) => `<url><loc>${config.siteUrl}${u}</loc></url>`)
       .concat(cars.map((c) => `<url><loc>${config.siteUrl}/cars/${c.slug}</loc><lastmod>${d(c.updated_at)}</lastmod>${(c.photos || []).slice(0, 5).map((ph) => `<image:image><image:loc>${config.siteUrl}${xml(ph)}</image:loc></image:image>`).join('')}</url>`))

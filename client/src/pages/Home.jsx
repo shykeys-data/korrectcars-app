@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, date, waLink, slugify, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc } from '../components/Bits.jsx';
-import { CATEGORIES, MIN_HOME } from '../../../server/lib/categories.js';
+import { CATEGORIES, MIN_HOME, budgets } from '../../../server/lib/categories.js';
 import { recommended, newestFirst } from '../lib/rank.js';
 
 const BUDGETS = [['', 'Any budget'], ['20000000', 'Up to ₦20m'], ['30000000', 'Up to ₦30m'], ['50000000', 'Up to ₦50m'], ['100000000', 'Up to ₦100m']];
@@ -21,6 +21,7 @@ function buildRows(all) {
   };
   const rows = [];
   for (const cat of CATEGORIES) {
+    if (cat.home === false) continue; // budget pages: linked under "Shop by budget", not a row
     const inCat = avail.filter(cat.test);
     if (inCat.length < MIN_HOME) continue; // e.g. no electric cars in stock: no empty row
     const ordered = cat.sort === 'newest' ? newestFirst(inCat) : cat.sort === 'price-desc' ? inCat.slice().sort((a, b) => b.price - a.price) : recommended(inCat, cat.slug);
@@ -43,6 +44,7 @@ export default function Home() {
   const everything = (stock.data && stock.data.cars) || [];
   const all = everything.filter((c) => c.status === 'available');
   const rows = useMemo(() => buildRows(everything), [everything]);
+  const budgetLinks = budgets().map((c) => [c, all.filter(c.test).length]).filter(([, n]) => n > 0);
   // Calculator: every car in stock, cheapest first
   const cars = useMemo(() => all.slice().sort((a, b) => a.price - b.price), [everything]); // eslint-disable-line react-hooks/exhaustive-deps
   const makes = [...new Set(all.map((c) => c.make))].sort();
@@ -107,6 +109,9 @@ export default function Home() {
           <nav className="cat-links" aria-label="Browse by category">
             {rows.filter((r) => r.key !== 'sold' && r.key !== 'featured').map((r) => <Link key={r.key} to={r.link} className="pill">{r.name}<span className="n">{r.total}</span></Link>)}
           </nav>
+          {budgetLinks.length > 0 && <><div className="small muted" style={{ margin: '12px 0 6px', fontWeight: 600 }}>Shop by budget</div><nav className="cat-links" aria-label="Shop by budget">
+                        {budgetLinks.map(([c, n]) => <Link key={c.slug} to={'/cars/' + c.slug} className="pill">{c.name}<span className="n">{n}</span></Link>)}
+          </nav></>}
           {rows.map((r) => (
             <div className="home-row" key={r.key}>
               <div className="row-head">

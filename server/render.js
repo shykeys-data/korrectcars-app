@@ -34,7 +34,7 @@ function shell() {
 
 const DEFAULT = {
   title: 'Korrect Cars | Buy Tokunbo & Foreign-Used Cars in Lagos, Nigeria',
-  desc: 'Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright or pay small small through our credit partners. Chat with us on WhatsApp.',
+  desc: 'Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright or pay small small through our credit partners. Delivery anywhere in Nigeria.',
   image: '/img/hero.jpg'
 };
 
@@ -52,7 +52,8 @@ const NOINDEX = /^\/(account|login|register|swap\/new|verify-email|forgot-passwo
 const PSS_FAQ = [
   ['How does Pay Small Small work at Korrect Cars?', 'Pick a car and get an estimate of your deposit and monthly payment. Apply in minutes, and with your consent we pass your details to our credit partners. Once a credit partner approves you, Korrect Cars sells you the car.'],
   ['Who decides if I qualify?', 'Our credit partner checks if you qualify and sets the final deposit, charge and number of months.'],
-  ['Is the calculator figure final?', 'No. It is an estimate based on a 40% deposit and a 20% charge on the balance. The credit partner sets your real terms.']
+  ['Is the calculator figure final?', 'No. It is an estimate based on a 40% deposit and a 20% charge on the balance. The credit partner sets your real terms.'],
+  ['Can I get a car on Pay Small Small outside Lagos?', 'Yes. Korrect Cars delivers anywhere in Nigeria. Apply online, and once a credit partner approves you we arrange delivery to your city.']
 ];
 
 function orgLd() {
@@ -60,8 +61,8 @@ function orgLd() {
   return {
     '@context': 'https://schema.org', '@type': 'AutoDealer', '@id': config.siteUrl + '/#dealer', name: 'Korrect Cars', url: config.siteUrl + '/',
     logo: config.siteUrl + '/img/logo.svg', image: config.siteUrl + DEFAULT.image, email: st.email, telephone: st.phones,
-    description: 'Online car dealer in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through credit partners.',
-    areaServed: { '@type': 'City', name: 'Lagos' }, address: { '@type': 'PostalAddress', addressLocality: 'Lagos', addressCountry: 'NG' },
+    description: 'Online car dealer in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through credit partners and delivery anywhere in Nigeria.',
+    areaServed: [{ '@type': 'City', name: 'Lagos' }, { '@type': 'Country', name: 'Nigeria' }], address: { '@type': 'PostalAddress', addressLocality: 'Lagos', addressCountry: 'NG' },
     openingHoursSpecification: [{ '@type': 'OpeningHoursSpecification', dayOfWeek: config.hoursSpec.days, opens: config.hoursSpec.opens, closes: config.hoursSpec.closes }],
     sameAs: st.instagram ? [`https://www.instagram.com/${st.instagram}/`] : []
   };
@@ -69,6 +70,15 @@ function orgLd() {
 const faqLd = (pairs) => ({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: pairs.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) });
 const crumbsLd = (items) => ({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: items.map(([name, url], i) => ({ '@type': 'ListItem', position: i + 1, name, item: config.siteUrl + url })) });
 const listLd = (cars) => ({ '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: cars.filter((c) => c.status === 'available').slice(0, 30).map((c, i) => ({ '@type': 'ListItem', position: i + 1, url: `${config.siteUrl}/cars/${c.slug}`, name: c.title })) });
+
+// Lowest Pay Small Small estimate (minimum deposit, 24 months) among cars in stock
+const monthlyFrom = (cars) => { const a = cars.filter((c) => c.status === 'available'); return a.length ? pub.bnplPlan(Math.min(...a.map((c) => Number(c.price))), 0, 24).monthly : 0; };
+// "Shop by budget" links with live counts, for search engines and AI assistants
+function budgetLinksHtml(allCars, skip) {
+  const avail = allCars.filter((c) => c.status === 'available');
+  const l = cats.budgets().filter((c) => c.slug !== skip).map((c) => [c, avail.filter(c.test)]).filter(([, x]) => x.length);
+  return l.length ? '<h2>Shop by budget</h2><ul>' + l.map(([c, x]) => { const pr = x.map((y) => Number(y.price)); const lo = Math.min(...pr); const hi = Math.max(...pr); return `<li><a href="/cars/${c.slug}">${esc(c.h1)}</a>: ${x.length} in stock, ${esc(lo === hi ? naira(lo) : `${naira(lo)} to ${naira(hi)}`)}</li>`; }).join('') + '</ul>' : '';
+}
 
 // "How much is a Toyota Camry in Nigeria?" answer from the cars actually in stock
 function priceAnswer(subject, cars) {
@@ -128,12 +138,17 @@ async function renderPage(req, nonce) {
     const avail = allCars.filter((c) => c.status === 'available');
     body += '<ul>' + avail.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(naira(c.price))}</li>`).join('') + '</ul>';
     const catLinks = cats.pages().map((c) => [c, avail.filter(c.test).length]).filter(([, n]) => n > 0);
-    if (catLinks.length) body += '<h2>Browse by category</h2><ul>' + catLinks.map(([c, n]) => `<li><a href="/cars/${c.slug}">${esc(c.name)}</a> (${n} in stock)</li>`).join('') + '</ul>';
+    if (catLinks.length) body += '<h2>Browse by category</h2><ul>' + catLinks.filter(([c]) => !c.budget).map(([c, n]) => `<li><a href="/cars/${c.slug}">${esc(c.name)}</a> (${n} in stock)</li>`).join('') + '</ul>';
+    body += budgetLinksHtml(allCars);
     if (p === '/cars') { ld.push(listLd(allCars)); body += `<h2>How much are the cars at Korrect Cars?</h2><p>${esc(priceAnswer('', allCars))}</p>`; }
   }
   if (p === '/pay-small-small') {
-    ld.push(faqLd(PSS_FAQ));
-    body += PSS_FAQ.map(([q, a]) => `<h2>${esc(q)}</h2><p>${esc(a)}</p>`).join('');
+    const avail = allCars.filter((c) => c.status === 'available').sort((a, b) => a.price - b.price);
+    const q = 'Which cars can I buy on Pay Small Small in Lagos?';
+    const a = avail.length ? `Every one of the ${avail.length} cars in stock at Korrect Cars can be bought on Pay Small Small, from about ${naira(monthlyFrom(avail))} a month (estimate: ${pub.bnplPlan(Number(avail[0].price), 0, 24).months} months, minimum deposit). Credit partners confirm the final terms, and we deliver anywhere in Nigeria.` : 'Chat with us on WhatsApp and we will find a car for your budget.';
+    ld.push(faqLd([[q, a], ...PSS_FAQ]), listLd(avail));
+    body += `<h2>${esc(q)}</h2><p>${esc(a)}</p><ul>` + avail.map((c) => { const pl = pub.bnplPlan(Number(c.price), 0, 24); return `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a>: ${esc(naira(c.price))}, about ${esc(naira(pl.deposit))} deposit then ${esc(naira(pl.monthly))}/month for ${pl.months} months</li>`; }).join('') + '</ul>'
+      + budgetLinksHtml(allCars) + PSS_FAQ.map(([q2, a2]) => `<h2>${esc(q2)}</h2><p>${esc(a2)}</p>`).join('');
   }
 
   const rc = await resolveCars(p);
@@ -156,12 +171,12 @@ async function renderPage(req, nonce) {
     const cars = allCars.filter(cat.test);
     const avail = cars.filter((c) => c.status === 'available');
     const prices = avail.map((c) => Number(c.price)); const lo = Math.min(...prices); const hi = Math.max(...prices);
-    const a = avail.length ? `Korrect Cars has ${avail.length} ${avail.length === 1 ? 'car' : 'cars'} in "${cat.name}" in Lagos right now, ${lo === hi ? `at ${naira(lo)}` : `from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, and you can pay small small through our credit partners.`
+    const a = avail.length ? `Korrect Cars has ${avail.length} ${avail.length === 1 ? 'car' : 'cars'} in "${cat.name}" in Lagos right now, ${lo === hi ? `at ${naira(lo)}` : `from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, you can pay small small from about ${naira(monthlyFrom(avail))} a month through our credit partners, and we deliver anywhere in Nigeria.`
       : `We have no cars in "${cat.name}" in stock right now. Chat with us on WhatsApp and we will find one for you.`;
     meta = { ...meta, title: `${cat.h1} — Prices & Pay Small Small | Korrect Cars`, desc: clip(`${cat.intro} ${a}`, 160) };
-    // A category with nothing in stock (e.g. no electric cars yet) stays out of search results
-    if (!avail.length) noindex = true;
-    body = `<h1>${esc(cat.h1)}</h1><p>${esc(cat.intro)}</p><ul>` + cars.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(naira(c.price))}${c.status === 'sold' ? ' (sold)' : ''}</li>`).join('') + `</ul><h2>${esc(cat.faq)}</h2><p>${esc(a)}</p>`;
+    // A category with too few cars in stock (e.g. no electric cars yet) stays out of search results until it fills up
+    if (avail.length < cats.MIN_INDEX) noindex = true;
+    body = `<h1>${esc(cat.h1)}</h1><p>${esc(cat.intro)}</p><ul>` + cars.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(naira(c.price))}${c.status === 'sold' ? ' (sold)' : ''}</li>`).join('') + `</ul><h2>${esc(cat.faq)}</h2><p>${esc(a)}</p>` + budgetLinksHtml(allCars, cat.slug);
     ld.push(crumbsLd([['Cars for sale', '/cars'], [cat.name, `/cars/${cat.slug}`]]), listLd(cars), faqLd([[cat.faq, a]]));
   }
   if (rc && rc.kind === 'car') {
@@ -178,12 +193,19 @@ async function renderPage(req, nonce) {
       const pss = plan ? ` or pay small small from about ${naira(plan.monthly)}/month` : '';
       // Every car's search description leads with its price and Pay Small Small figure; old imported wording ("BNPL") is updated
       const extra = strip(car.seo_desc || car.description).replace(/\bBNPL\b/g, 'pay small small');
-      const desc = clip(`${car.title} for sale in ${car.location || 'Lagos'} at ${naira(car.price)}${pss}. ${extra}`, 160);
-      meta = { ...meta, title: car.seo_title || `${car.title} for Sale in Lagos — ${naira(car.price)} | Korrect Cars`, desc, image: (car.photos || [])[0] || DEFAULT.image };
-      body = `<h1>${esc(car.title)}</h1><p><strong>${esc(naira(car.price))}</strong>${car.status === 'sold' ? ' — SOLD' : ''}</p>`
+      const sold = car.status === 'sold';
+      // A sold car keeps its page (it still gets found on Google), but sends the visitor on to similar cars in stock
+      const desc = sold
+        ? clip(`Sold: this ${car.title} has been sold. See similar ${car.make} ${car.model} and ${car.body || 'other'} cars in stock in Lagos, with pay small small and delivery anywhere in Nigeria.`, 160)
+        : clip(`${car.title} for sale in ${car.location || 'Lagos'} at ${naira(car.price)}${pss}. ${extra}`, 160);
+      meta = { ...meta, title: sold ? `Sold: ${car.title} — See Similar Cars in Lagos | Korrect Cars` : (car.seo_title || `${car.title} for Sale in Lagos — ${naira(car.price)} | Korrect Cars`), desc, image: (car.photos || [])[0] || DEFAULT.image };
+      const similarHtml = (d.similar || []).length ? `<h2>${sold ? 'Similar cars in stock' : 'Similar cars'}</h2><ul>` + d.similar.map((x) => `<li><a href="/cars/${esc(x.slug)}">${esc(x.title)}</a> — ${esc(naira(x.price))}</li>`).join('') + '</ul>' : '';
+      body = `<h1>${esc(car.title)}</h1><p><strong>${esc(naira(car.price))}</strong>${sold ? ' — SOLD' : ''}</p>`
+        + (sold ? `<p>This car has been sold. See <a href="/cars/${slugify(car.make)}/${slugify(car.model)}">every ${esc(car.make)} ${esc(car.model)} for sale</a> or <a href="/cars">all cars in stock</a>.</p>` + similarHtml : '')
         + String(car.description || '').split(/\n\n+/).map((x) => `<p>${esc(x)}</p>`).join('')
         + (car.features && car.features.length ? '<ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
-        + (plan ? `<h2>Pay small small for this ${esc(car.make)} ${esc(car.model)}</h2><p>Estimate: about ${esc(naira(plan.deposit))} deposit, then about ${esc(naira(plan.monthly))} a month for ${plan.months} months, through our credit partners. They confirm the final terms; once you are approved, Korrect Cars sells you the car. <a href="/pay-small-small?car=${esc(car.slug)}">Get your estimate and apply</a>.</p>` : '');
+        + (plan ? `<h2>Pay small small for this ${esc(car.make)} ${esc(car.model)}</h2><p>Estimate: about ${esc(naira(plan.deposit))} deposit, then about ${esc(naira(plan.monthly))} a month for ${plan.months} months, through our credit partners. They confirm the final terms; once you are approved, Korrect Cars sells you the car. <a href="/pay-small-small?car=${esc(car.slug)}">Get your estimate and apply</a>.</p>` : '')
+        + (sold ? '' : `<p>View it at a partner car lot in Lagos, or have it delivered anywhere in Nigeria.</p>${similarHtml}`);
       ld.push({ '@context': 'https://schema.org', '@type': 'Car', name: car.title, brand: { '@type': 'Brand', name: car.make }, model: car.model,
         vehicleModelDate: String(car.year || ''), bodyType: car.body, color: car.color || undefined, vehicleTransmission: car.transmission || undefined,
         fuelType: car.fuel || undefined, mileageFromOdometer: car.mileage || undefined,
@@ -231,6 +253,8 @@ async function renderPage(req, nonce) {
 
   const img = /^https?:/.test(meta.image) ? meta.image : config.siteUrl + meta.image;
   const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
+  // Staff visits (the staff area, or anyone signed in with a staff role) are left out of Google Analytics
+  const staff = isAdmin || !!(req.user && req.user.role && req.user.role !== 'user');
   const head = [
     `<title>${esc(meta.title)}</title>`,
     preload,
@@ -242,7 +266,7 @@ async function renderPage(req, nonce) {
     '<meta name="twitter:card" content="summary_large_image">',
     ...ld.map((x) => `<script type="application/ld+json">${json(x)}</script>`),
     config.adsenseClient ? `<meta name="google-adsense-account" content="${esc(config.adsenseClient)}">` : '',
-    config.gaId ? `<script async nonce="${nonce}" src="https://www.googletagmanager.com/gtag/js?id=${esc(config.gaId)}"></script><script nonce="${nonce}">window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(config.gaId)}');</script>` : '',
+    config.gaId && !staff ? `<script async nonce="${nonce}" src="https://www.googletagmanager.com/gtag/js?id=${esc(config.gaId)}"></script><script nonce="${nonce}">window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(config.gaId)}');</script>` : '',
     config.adsenseClient && !noindex ? `<script async nonce="${nonce}" src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${esc(config.adsenseClient)}" crossorigin="anonymous"></script>` : '',
     `<script type="application/json" id="__boot">${json(boot)}</script>`
   ].filter(Boolean).join('\n');
