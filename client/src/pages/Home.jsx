@@ -69,7 +69,10 @@ export default function Home() {
   return (
     <>
       <section className="hero">
-        <div className="wrap">
+        <img className="bg" src={rs('/img/hero.jpg', 1600)} srcSet={srcset('/img/hero.jpg', [800, 1200, 1600])} sizes="100vw" alt="" fetchpriority="high" decoding="async" />
+        <div className="shade" />
+        <div className="wrap hero-grid">
+          <div className="hero-copy">
           <div className="eyebrow" style={{ color: '#fca5a5' }}>Lagos · Inspected · VIN-verified</div>
           <h1>Drive the right car. Pay the Korrect way.</h1>
           <p className="lead">Tokunbo and foreign-used cars we have checked inside and out. {swap ? 'Buy outright, pay small small through our credit partners, or swap your car with a verified owner.' : 'Buy outright or pay small small through our credit partners.'}</p>
@@ -77,21 +80,22 @@ export default function Home() {
             <Link to="/cars" className="btn btn-red">Browse cars</Link>
             <a className="btn btn-ghost" href={waLink(cfg, 'Hello Korrect Cars, I am looking for a car.')} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
           </div>
+          </div>
+            <form className="search-card" onSubmit={search} aria-label="Find a car">
+              <div className="field"><label className="f" htmlFor="home-make">Make</label><select id="home-make" className="input" value={s.make} onChange={(e) => setS({ ...s, make: e.target.value, model: '', body: pick(e.target.value, '') })}><option value="">Any make</option>{makes.map((m) => <option key={m}>{m}</option>)}</select></div>
+              <div className="field"><label className="f" htmlFor="home-model">Model</label><select id="home-model" className="input" value={s.model} onChange={(e) => { const mk = s.make || (all.find((c) => c.model === e.target.value) || {}).make || ''; setS({ ...s, model: e.target.value, make: mk, body: pick(mk, e.target.value) }); }}><option value="">Any model</option>{models.map((m) => <option key={m}>{m}</option>)}</select></div>
+              <div className="field"><label className="f" htmlFor="home-year">Year from</label><select id="home-year" className="input" value={s.yearMin} onChange={(e) => setS({ ...s, yearMin: e.target.value })}><option value="">Any year</option>{years.map((y) => <option key={y} value={y}>{y} or newer</option>)}</select></div>
+              <div className="field"><label className="f" htmlFor="home-body">Body type{autoBody && <span className="muted small" style={{ fontWeight: 400 }}> · auto-selected</span>}</label><select id="home-body" className="input" value={autoBody || s.body} disabled={!!autoBody} onChange={(e) => setS({ ...s, body: e.target.value })}><option value="">Any body type</option>{bodies.map((m) => <option key={m}>{m}</option>)}</select></div>
+              <div className="field">
+                <label className="f" htmlFor="home-budget">Budget</label>
+                <select id="home-budget" className="input" value={budget} onChange={(e) => setBudget(e.target.value)}>{BUDGETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+              </div>
+              <button className="btn btn-red" style={{ marginBottom: 14 }}>Search cars</button>
+            </form>
         </div>
       </section>
 
       <div className="wrap">
-        <form className="search-card" onSubmit={search} aria-label="Find a car">
-          <div className="field"><label className="f" htmlFor="home-make">Make</label><select id="home-make" className="input" value={s.make} onChange={(e) => setS({ ...s, make: e.target.value, model: '', body: pick(e.target.value, '') })}><option value="">Any make</option>{makes.map((m) => <option key={m}>{m}</option>)}</select></div>
-          <div className="field"><label className="f" htmlFor="home-model">Model</label><select id="home-model" className="input" value={s.model} onChange={(e) => { const mk = s.make || (all.find((c) => c.model === e.target.value) || {}).make || ''; setS({ ...s, model: e.target.value, make: mk, body: pick(mk, e.target.value) }); }}><option value="">Any model</option>{models.map((m) => <option key={m}>{m}</option>)}</select></div>
-          <div className="field"><label className="f" htmlFor="home-year">Year from</label><select id="home-year" className="input" value={s.yearMin} onChange={(e) => setS({ ...s, yearMin: e.target.value })}><option value="">Any year</option>{years.map((y) => <option key={y} value={y}>{y} or newer</option>)}</select></div>
-          <div className="field"><label className="f" htmlFor="home-body">Body type{autoBody && <span className="muted small" style={{ fontWeight: 400 }}> · auto-selected</span>}</label><select id="home-body" className="input" value={autoBody || s.body} disabled={!!autoBody} onChange={(e) => setS({ ...s, body: e.target.value })}><option value="">Any body type</option>{bodies.map((m) => <option key={m}>{m}</option>)}</select></div>
-          <div className="field">
-            <label className="f" htmlFor="home-budget">Budget</label>
-            <select id="home-budget" className="input" value={budget} onChange={(e) => setBudget(e.target.value)}>{BUDGETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-          </div>
-          <button className="btn btn-red" style={{ marginBottom: 14 }}>Search cars</button>
-        </form>
         <div className="trust">
           <div><b>Inspected</b><span className="muted">Mechanical, electrical and body checks on every car</span></div>
           <div><b>VIN-verified</b><span className="muted">History checked before we list it</span></div>

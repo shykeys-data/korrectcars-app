@@ -79,8 +79,16 @@ select.input:disabled,.input:disabled{background:var(--grey);color:#71717a}
 @media(max-width:420px){.hdr .right .btn-wa{padding:0 12px}.hdr .logo img{height:34px}}
 
 /* Hero */
-.hero{position:relative;color:#fff;background:var(--ink)}
-.hero .wrap{position:relative;padding-top:96px;padding-bottom:150px}
+.hero{position:relative;color:#fff;background:var(--ink);overflow:hidden}
+.hero .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+/* Dark enough that the banner's own printed text stays in the background and the headline leads */
+.hero .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,11,13,.94) 0%,rgba(11,11,13,.86) 50%,rgba(11,11,13,.72) 100%)}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:48px;align-items:center}
+.hero .search-card{margin-top:0;grid-template-columns:1fr 1fr;color:var(--text)}
+.hero .search-card .btn{grid-column:1/-1}
+@media(max-width:1000px){.hero-grid{grid-template-columns:1fr;gap:28px}}
+@media(max-width:520px){.hero .search-card{grid-template-columns:1fr}}
+.hero .wrap{position:relative;padding-top:80px;padding-bottom:80px}
 .hero h1{max-width:760px}
 .hero p.lead{font-size:20px;max-width:560px;color:#e4e4e7}
 .hero .ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
@@ -253,7 +261,8 @@ input[type=range]{width:100%;height:32px;accent-color:var(--red);cursor:pointer}
 @media(max-width:760px){
   .topbar .contacts a:nth-child(n+2){display:none}
   .topbar .wrap{flex-wrap:nowrap;white-space:nowrap}
-  .hero .wrap{padding-top:56px;padding-bottom:130px}
+  .hero .shade{background:linear-gradient(180deg,rgba(11,11,13,.86) 0%,rgba(11,11,13,.92) 100%)}
+  .hero .wrap{padding-top:48px;padding-bottom:40px}
   .hero p.lead{font-size:17px}
 }
 
