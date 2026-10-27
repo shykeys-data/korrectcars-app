@@ -123,7 +123,14 @@ export function EnquiryForm({ type, car, title, cta, extra, onDone }) {
   );
 }
 
-export function Loading() { return <div className="loading">Loading…</div>; }
+export function Loading() {
+  return (
+    <div className="wrap loading" role="status" aria-label="Loading">
+      <div className="sk sk-title" />
+      <div className="sk-cards">{[0, 1, 2].map((k) => <div key={k} className="sk sk-card" />)}</div>
+    </div>
+  );
+}
 export function ErrorBox({ error }) { return <div className="wrap sec-sm"><div className="err">{(error && error.message) || 'Something went wrong.'}</div></div>; }
 
 export function Modal({ children, onClose, label }) {

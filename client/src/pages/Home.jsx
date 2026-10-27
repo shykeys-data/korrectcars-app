@@ -69,8 +69,6 @@ export default function Home() {
   return (
     <>
       <section className="hero">
-        <img className="bg" src={rs('/img/hero.jpg', 1600)} srcSet={srcset('/img/hero.jpg', [800, 1200, 1600])} sizes="100vw" alt="" fetchpriority="high" decoding="async" />
-        <div className="shade" />
         <div className="wrap">
           <div className="eyebrow" style={{ color: '#fca5a5' }}>Lagos · Inspected · VIN-verified</div>
           <h1>Drive the right car. Pay the Korrect way.</h1>
@@ -107,7 +105,7 @@ export default function Home() {
         <div className="wrap">
           <div className="sec-head"><div><div className="eyebrow">In stock now · {all.length} cars</div><h2>Find your next car</h2></div><Link to="/cars" className="btn btn-line">See all cars</Link></div>
           <nav className="cat-links" aria-label="Browse by category">
-            {rows.filter((r) => r.key !== 'sold' && r.key !== 'featured').map((r) => <Link key={r.key} to={r.link} className="pill">{r.name}<span className="n">{r.total}</span></Link>)}
+            {rows.filter((r) => r.key !== 'sold' && r.key !== 'featured' && !(budgetLinks.length && budgets().some((b) => b.slug === r.key))).map((r) => <Link key={r.key} to={r.link} className="pill">{r.name}<span className="n">{r.total}</span></Link>)}
           </nav>
           {budgetLinks.length > 0 && <><div className="small muted" style={{ margin: '12px 0 6px', fontWeight: 600 }}>Shop by budget</div><nav className="cat-links" aria-label="Shop by budget">
                         {budgetLinks.map(([c, n]) => <Link key={c.slug} to={'/cars/' + c.slug} className="pill">{c.name}<span className="n">{n}</span></Link>)}

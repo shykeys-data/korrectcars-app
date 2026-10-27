@@ -267,7 +267,7 @@ function Leads({ onChange }) {
         <div className="pills">{[['', 'All'], ['bnpl', 'Pay Small Small'], ['viewing', 'Viewings'], ['offer', 'Offers'], ['contact', 'Messages']].map(([k, l]) => <button key={l} className={'pill' + (type === k ? ' on' : '')} onClick={() => setType(k)}>{l}</button>)}</div></div>
       <div className="pills" style={{ marginBottom: 12 }}><span className="small muted" style={{ alignSelf: 'center' }}>Status:</span>{[['', 'Any'], ...statuses.map((x) => [x, STATUS_LABEL[x] || x])].map(([k, l]) => <button key={l} className={'pill' + (status === k ? ' on' : '')} onClick={() => setStatus(k)}>{l}</button>)}</div>
       {!data ? <Loading /> : !data.enquiries.length ? <div className="empty"><p className="muted" style={{ margin: 0 }}>No leads here.</p></div> : data.enquiries.map((e) => (
-        <div className="lead" key={e.id}>
+        <div className="lead-card" key={e.id}>
           <div className="lead-top">
             <div style={{ minWidth: 0 }}><b>{e.name}</b> <T c={e.type === 'bnpl' ? 'tag-info' : 'tag-grey'}>{TYPE_LABEL[e.type] || e.type}</T>
               <div className="small muted">{date(e.created_at)}{e.assigned_name ? ` · handled by ${e.assigned_name}` : ''}</div></div>
