@@ -106,11 +106,27 @@ Tables are created on first start by `db.init()` in `server/db.js` (`CREATE TABL
 ## Security model
 
 - **Sessions**: a signed JWT in an HttpOnly cookie (`kc_session`). Customers stay signed in for 7 days, staff for 12 hours. Changing `users.token_version` ends every session for that user.
-- **Staff area**: `requireStaff()` in `security.js` needs the right role, two-step login set up, and the code entered in this session. Roles: `admin`, `sales` (old name `moderator`) and `editor`. The staff sign-in address comes from `ADMIN_PATH` and is not linked anywhere on the site.
+- **Staff area**: `requireStaff()` in `security.js` needs the right role, two-step login set up, and the code entered in this session. Roles: `admin`, `sales` (old name `moderator`) and `editor`. The staff sign-in address comes from `ADMIN_PATH`, which is set only on the server and is not linked anywhere on the site. Without it (or with fewer than 12 characters) the staff pages stay off. Staff roles are given only by a server command: `node server/tools-make-staff.js <email> <admin|sales|editor|user>`. Nobody becomes staff by signing up.
 - **Input**: every API body is checked by a Zod schema; keys such as `__proto__` are stripped first.
 - **Headers**: Helmet with a strict Content-Security-Policy that uses a per-request nonce. Only Google Analytics, AdSense and Google Fonts are allowed in.
 - **Uploads**: file types are checked by content, photos are re-encoded, and private files get random names and are served only through the staff route.
 - **Secrets** never go in Git. They live in the panel's environment variables or `.htaccess` `SetEnv` lines on the server.
+
+## This repository is public: what must never be in it
+
+Anyone can read this code and its full history, so treat every commit as published for good. Removing something
+later does not remove it from history.
+
+- **Never commit:** passwords, database details, `JWT_SECRET`, API keys, `.env`, `.htaccess`, `.session-secret`,
+  database dumps, customer files (`uploads/`), server logs, private keys.
+- **Never write in code, docs or commit messages:** the staff sign-in address (`ADMIN_PATH`), hosting panel
+  addresses and usernames, server folder paths, the staging address, staff names or emails.
+- **Public by design (fine to keep):** the Google Analytics and AdSense IDs, the business phone numbers and email,
+  and the rules in this guide. They already appear on every page of the site.
+- `.gitignore` already blocks `.env`, `.session-secret`, `uploads/`, `dist/`, logs and zips. Before every commit,
+  run `git diff --cached` and read what is going out.
+- If a secret is ever committed by mistake: change it on the server straight away (new password or key). Deleting
+  the commit is not enough, because copies of the history may already exist.
 
 ## Running it on your computer
 
@@ -126,8 +142,8 @@ SQLite mode needs Node 22 or newer and creates a throwaway database, filled from
 
 1. Make the change and test it locally on phone and desktop widths.
 2. Commit in the owner's name only (`Korrect Cars Dev <info@korrectcars.com>`). Don't add co-author lines.
-3. Apply it on **staging** first (`/home/kcars/staging_app`, staging.korrectcars.com). The server signs the commit with its GPG key, so GitHub shows it as Verified, then pushes it to GitHub.
-4. Before the **live** site (`/home/kcars/korrectcars_app`) is touched, back up the live database (`mysqldump`). If the backup comes out empty, stop.
+3. Apply it on the private **staging** copy first. The server signs the commit with its GPG key, so GitHub shows it as Verified, then pushes it to GitHub.
+4. Before the **live** site is touched, back up the live database (`mysqldump`). If the backup comes out empty, stop.
 5. On live: `git merge --ff-only` from staging, `node client/build.js`, then `touch tmp/restart.txt` to restart.
 6. Check the live site in a browser.
 
@@ -148,7 +164,6 @@ These are tracked in the developer brief:
 
 - Automatic tests
 - `package-lock.json` with `npm ci`
-- A create-admin command instead of promotion by email
 - Encrypted 2FA secrets
 - Size limits on list inputs
 - `/api/health`

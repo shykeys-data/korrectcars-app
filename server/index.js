@@ -121,9 +121,9 @@ app.get('/sitemap.xml', async (_req, res, next) => {
 // ---------- Old WordPress URLs -> new pages (keeps Google rankings) ----------
 const LEGACY = {
   '/about-us/': '/about-us', '/contact-us/': '/contact', '/services/': '/', '/add-car-2/': '/cars', '/cars/': '/cars',
-  '/privacy-policy/': '/privacy-policy', '/terms-and-conditions/': '/terms-and-conditions', '/blog/': '/blog', '/faqs/': '/faqs',
-  [config.adminPath + '/']: config.adminPath
+  '/privacy-policy/': '/privacy-policy', '/terms-and-conditions/': '/terms-and-conditions', '/blog/': '/blog', '/faqs/': '/faqs'
 };
+if (config.adminPath) LEGACY[config.adminPath + '/'] = config.adminPath;
 app.use(async (req, res, next) => {
   if (req.method !== 'GET') return next();
   const p = req.path;
@@ -144,7 +144,7 @@ app.get('*', loadUser, async (req, res, next) => {
     const { status, html, redirect } = await renderPage(req, res.locals.nonce);
     if (redirect) return res.redirect(301, redirect);
     // private: the page embeds the signed-in user's name, so shared caches must never store it
-    if (req.path.replace(/\/+$/, '') === config.adminPath) res.set('X-Robots-Tag', 'noindex, nofollow');
+    if (config.adminPath && req.path.replace(/\/+$/, '') === config.adminPath) res.set('X-Robots-Tag', 'noindex, nofollow');
     res.status(status).set('Cache-Control', 'private, no-cache').type('html').send(html);
   } catch (e) { next(e); }
 });

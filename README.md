@@ -58,5 +58,5 @@ Real credentials live only in `.env` and server environment variables, never in 
 
 ## Deploys and signed commits
 
-- Changes are tested on staging (staging.korrectcars.com) first, then moved to the live site; the live database is backed up before every update.
+- Changes are tested on a private staging copy first, then moved to the live site; the live database is backed up before every update.
 - Commits made on the server are signed with the server's GPG key (Korrect Cars Dev, info@korrectcars.com), so GitHub shows them as Verified.

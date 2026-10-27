@@ -28,7 +28,6 @@ const authLimit = limiter(15, 30, 'Too many attempts. Please wait 15 minutes.');
 const mailLimit = limiter(60, 5, 'Too many emails requested. Please wait an hour.');
 const sqlTime = (ms) => new Date(Date.now() + ms).toISOString().slice(0, 19).replace('T', ' ');
 const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex');
-const isAdminEmail = (email) => config.adminEmails.includes(String(email).toLowerCase());
 
 async function makeToken(userId, purpose, ttlMs) {
   const token = crypto.randomBytes(32).toString('hex');
@@ -47,12 +46,6 @@ async function sendVerify(user) {
   const token = await makeToken(user.id, 'verify', 24 * 3600 * 1000);
   const t = mail.templates.verify(user.name.split(' ')[0], `${config.siteUrl}/verify-email?token=${token}`);
   await mail.send({ to: user.email, ...t }).catch((e) => console.error('Verify email failed:', e.message));
-}
-async function promoteIfOwner(user) {
-  if (user.role === 'user' && isAdminEmail(user.email) && user.email_verified && Number((await one("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND disabled = 0")).n) < 3) {
-    await q("UPDATE users SET role = 'admin' WHERE id = ?", [user.id]);
-    user.role = 'admin';
-  }
 }
 
 // Register: the account stays inactive until the email link is clicked
@@ -75,7 +68,6 @@ r.post('/auth/verify', authLimit, async (req, res) => {
   await q('UPDATE users SET email_verified = 1 WHERE id = ?', [row.user_id]);
   const user = await one('SELECT * FROM users WHERE id = ?', [row.user_id]);
   if (!user || user.disabled) return res.status(400).json({ error: 'This account is not available.' });
-  await promoteIfOwner(user);
   mail.send({ to: user.email, ...mail.templates.verified(user.name.split(' ')[0]) }).catch((e) => console.error('Welcome email failed:', e.message));
   issueSession(res, user);
   res.json({ user: publicUser(user) });
@@ -104,7 +96,6 @@ r.post('/auth/login', authLimit, validate('login'), async (req, res) => {
   }
   await q('UPDATE users SET failed_logins = 0, lock_until = NULL WHERE id = ?', [user.id]);
   if (!user.email_verified) return res.status(403).json({ error: 'Please confirm your email first. Check your inbox (and spam folder) for the link.', unverified: true });
-  await promoteIfOwner(user);
   issueSession(res, user);
   res.json({ user: publicUser(user) });
 });
@@ -127,7 +118,6 @@ r.post('/auth/reset', authLimit, async (req, res) => {
   // Clicking the emailed link also proves the email address
   await q('UPDATE users SET password_hash = ?, token_version = token_version + 1, failed_logins = 0, lock_until = NULL, email_verified = 1 WHERE id = ?', [await bcrypt.hash(pw, 12), row.user_id]);
   const user = await one('SELECT * FROM users WHERE id = ?', [row.user_id]);
-  await promoteIfOwner(user);
   mail.send({ to: user.email, ...mail.templates.passwordChanged(user.name.split(' ')[0]) }).catch(() => {});
   issueSession(res, user);
   res.json({ user: publicUser(user) });

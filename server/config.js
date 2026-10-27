@@ -18,12 +18,18 @@ function sessionSecret() {
   return s;
 }
 
+function staffPath(v) {
+  const p = String(v || '').replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9-_]/g, '');
+  if (p.length >= 12) return '/' + p;
+  console.warn('ADMIN_PATH is missing or shorter than 12 characters: the staff pages are switched off.');
+  return null;
+}
+
 module.exports = {
   isProd,
   port: Number(env.PORT) || 3000,
   jwtSecret: sessionSecret(),
   siteUrl: (env.SITE_URL || 'https://www.korrectcars.com').replace(/\/$/, ''),
-  adminEmails: (env.ADMIN_EMAILS || 'info@korrectcars.com').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   whatsapp: env.WHATSAPP_NUMBER || '2348138588818',
   phones: (env.CONTACT_PHONES || '+234 809 139 7912,+234 813 858 8818').split(','),
   email: env.CONTACT_EMAIL || 'info@korrectcars.com',
@@ -42,8 +48,9 @@ module.exports = {
   hoursSpec: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '08:00', closes: '18:00' },
   instagram: env.INSTAGRAM || 'korrectcarsofficial',
   bankPartner: env.BANK_PARTNER_NAME || '',
-  // Staff sign-in address. Not linked anywhere on the site; staff are given it directly. Change with ADMIN_PATH.
-  adminPath: '/' + String(env.ADMIN_PATH || 'myadm').replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9-_]/g, ''),
+  // Staff sign-in address. It is set only on the server (ADMIN_PATH) and is never written in this public code.
+  // Not linked anywhere on the site; staff are given it directly. Without a long ADMIN_PATH the staff pages stay off.
+  adminPath: staffPath(env.ADMIN_PATH),
   uploadsDir: path.join(__dirname, '..', 'uploads'),
   distDir: path.join(__dirname, '..', 'dist')
 };

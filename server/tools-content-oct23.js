@@ -23,7 +23,7 @@ const GUIDE = ['then book a viewing and inspect the car in person', 'then book a
   await db.init();
   const a = await db.one("SELECT id, slug, content FROM pages WHERE slug = 'about-us'");
   const o = await db.one("SELECT id, slug, content FROM posts WHERE slug LIKE 'why-buying-from-online-car-dealership-nigeria%'");
-  const bk = `/home/kcars/backups/content-before-oct23-${process.env.DB_NAME || 'local'}-${Date.now()}.json`;
+  const bk = `${process.env.BACKUP_DIR || require('path').join(require('os').homedir(), 'backups')}/content-before-oct23-${process.env.DB_NAME || 'local'}-${Date.now()}.json`;
   try { fs.mkdirSync(path.dirname(bk), { recursive: true }); fs.writeFileSync(bk, JSON.stringify({ about: a, guide: o }), { mode: 0o600 }); console.log('backup:', bk); } catch (e) { console.log('backup skipped:', e.code); }
 
   if (a) {

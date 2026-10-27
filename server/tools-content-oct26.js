@@ -10,7 +10,7 @@ const BIO = 'the Lagos team that inspects, lists and sells the cars on this site
   await db.init();
   const pss = fs.readFileSync(path.join(dir, 'pss.html'), 'utf8'); const about = fs.readFileSync(path.join(dir, 'about.html'), 'utf8');
   const posts = await db.q('SELECT * FROM posts'); const pages = await db.q("SELECT * FROM pages WHERE slug = 'about-us'");
-  const bk = `/home/kcars/backups/content-before-oct26-${process.env.DB_NAME || 'local'}-${Date.now()}.json`;
+  const bk = `${process.env.BACKUP_DIR || require('path').join(require('os').homedir(), 'backups')}/content-before-oct26-${process.env.DB_NAME || 'local'}-${Date.now()}.json`;
   try { fs.mkdirSync(path.dirname(bk), { recursive: true }); fs.writeFileSync(bk, JSON.stringify({ posts, pages }), { mode: 0o600 }); console.log('backup:', bk); } catch (e) { console.log('backup skipped:', e.message); }
   const g = await db.one("SELECT id FROM posts WHERE slug = 'how-korrect-cars-buy-now-pay-later-bnpl-works'");
   if (g) {

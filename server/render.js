@@ -109,7 +109,7 @@ async function resolveCars(p) {
 async function renderPage(req, nonce) {
   const p = req.path.replace(/\/+$/, '') || '/';
   let meta = { ...DEFAULT, url: config.siteUrl + (p === '/' ? '/' : p) };
-  const isAdmin = p === config.adminPath;
+  const isAdmin = !!config.adminPath && p === config.adminPath;
   let body = ''; let status = 200; let noindex = NOINDEX.test(p) || isAdmin; let known = isAdmin;
   const ld = [];
   let preload = '';
