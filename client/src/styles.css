@@ -1,3 +1,6 @@
+/* The only stylesheet. Design tokens (colours, easing curves) sit in :root at the top, then one commented block per
+   part of the site (buttons, forms, header, hero, cards, car detail, inventory, admin, quick view...). Later blocks
+   refine earlier ones; the interaction polish and reduced-motion rules come last. */
 :root{
   --ink:#16181D;--ink2:#2A2E36;--text:#16181D;--muted:#5B616E;--line:#E4E6EA;--line2:#C9CDD4;--grey:#F6F7F9;--white:#ffffff;
   --red:#DF0106;--red-h:#B80005;--link:#B80005;--wa:#157A43;--wa-h:#106236;--ok:#105C33;--ok-bg:#E8F3EC;--warn-bg:#FFF4DB;--warn:#6B4600;--bad-bg:#FBE9EB;--bad:#9A0C23;

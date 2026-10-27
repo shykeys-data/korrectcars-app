@@ -1,3 +1,5 @@
+// Customer account: sign in / register, email check, password reset, saved cars, saved searches,
+// their requests and swap chats.
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink, rs, srcset, useLocalList } from '../lib/core.jsx';
 import { Loading, CarCard } from '../components/Bits.jsx';

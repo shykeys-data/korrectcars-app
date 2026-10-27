@@ -1,3 +1,4 @@
+// Site frame: Header (menu, phone, WhatsApp), Footer, and the floating WhatsApp button (phones only).
 import React, { useState, useEffect } from 'react';
 import { Link, useRouter, useApp, waLink, api, booted } from '../lib/core.jsx';
 

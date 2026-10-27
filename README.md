@@ -4,6 +4,8 @@ A full-stack car marketplace for Lagos, Nigeria, live at **[korrectcars.com](htt
 
 Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL application.
 
+**New to the code?** Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the business rules, a map of every folder, how a request flows, where to change common things, and how to find and fix a bug.
+
 ![Korrect Cars home page](docs/screenshots/home.jpg)
 
 ![Pay Small Small instalment calculator](docs/screenshots/pay-small-small.jpg)

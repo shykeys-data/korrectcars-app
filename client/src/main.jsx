@@ -1,3 +1,5 @@
+// Browser entry point: picks the page component for each address (Routes below) and wraps the app
+// in the shared providers. The admin bundle is loaded only when a staff member opens the staff address.
 import React, { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';

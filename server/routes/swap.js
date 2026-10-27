@@ -1,3 +1,6 @@
+// Korrect Swap API (mounted at /api/swap; answers 404 while Swap is switched off in settings).
+// Owners list a car and the car they want; other owners send offers; they chat with contact details masked
+// until an offer is accepted. Korrect Cars staff check owners and papers in the admin before a listing goes live.
 const express = require('express');
 const { q, one, J } = require('../db');
 const { validate, list } = require('../lib/validate');

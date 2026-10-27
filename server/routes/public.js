@@ -1,3 +1,5 @@
+// API for everyone (mounted at /api): site config, car list and detail, search facets, enquiries (leads),
+// Pay Small Small estimate (bnplPlan), blog and pages, and accounts: register, verify email, sign in, reset, two-step codes.
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const config = require('../config');

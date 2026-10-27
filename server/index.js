@@ -1,3 +1,7 @@
+// The Express app. Order matters, top to bottom: security headers -> static files -> /api (rate limit, user, CSRF)
+// -> sitemap -> old WordPress redirects -> every other address is rendered by render.js -> error handler.
+// Start-up at the bottom: connect to the database, load settings, import WordPress data if the database is empty.
+// See docs/ARCHITECTURE.md for the full picture.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

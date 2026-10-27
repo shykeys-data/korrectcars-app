@@ -1,3 +1,5 @@
+// Receives uploaded photos and documents (multer, kept in memory), checks the real file type from its content,
+// re-encodes photos, and saves them: public photos to uploads/public, swap papers and IDs to uploads/private.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

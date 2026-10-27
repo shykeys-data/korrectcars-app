@@ -1,3 +1,5 @@
+// Quick view: opens a car's key details over the list (a popup on desktop, a bottom sheet on phones)
+// without leaving the page. useQV() opens it from any car card.
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, naira, bnpl, useApp, waLink, useLocalList, firstPhoto, rs, srcset } from '../lib/core.jsx';

@@ -1,3 +1,5 @@
+// Buying pages: Inventory (list, filters, sort, saved searches), CarDetail (photos, price, calculator, enquiry,
+// sold banner, similar cars), Compare, and the Pay Small Small page and application.
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, slugify, useLocalList, bnpl, firstPhoto, api, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal } from '../components/Bits.jsx';

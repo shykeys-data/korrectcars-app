@@ -1,6 +1,6 @@
 // Serves the React app shell with page-specific title, description, social tags,
 // structured data and readable HTML content, so Google, AI assistants and AdSense see real content.
-// It also embeds the data each page needs (window.__BOOT), so pages show cars straight away
+// It also embeds the data each page needs (JSON in <script id="__boot">, read by booted() in core.jsx), so pages show cars straight away
 // without waiting on extra API requests.
 const fs = require('fs');
 const path = require('path');

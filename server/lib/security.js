@@ -1,3 +1,5 @@
+// Who is signed in and what they may do: session cookie (JWT), sign-in and role checks, staff two-step check,
+// CSRF guard, rate limits, the staff audit log, and hiding phone numbers and emails in swap chat.
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const config = require('../config');

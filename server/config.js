@@ -1,3 +1,5 @@
+// All settings that come from the environment (DirectAdmin "Setup Node.js App", .htaccess SetEnv lines or a local .env),
+// with safe defaults. Owner-editable values (phones, estimate figures, Swap on/off) live in lib/settings.js instead.
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 

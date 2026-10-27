@@ -1,3 +1,6 @@
+// Shared helpers used by every page: the embedded page data (booted), api() for API calls (adds the CSRF header),
+// useApi(), the small router (Link, useRouter), app-wide state (useApp), naira formatting, photo sizes (rs, srcset)
+// and WhatsApp links.
 import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 
 // ---------- Data embedded in the page by the server ----------

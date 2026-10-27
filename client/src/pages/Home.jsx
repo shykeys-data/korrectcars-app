@@ -1,3 +1,5 @@
+// Home page: the banner with the search box, trust tiles, "Shop by budget" links and the category rows
+// (buildRows uses server/lib/categories.js; a row shows only with MIN_HOME cars and a car appears in at most 2 rows).
 import React, { useState, useMemo } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, date, waLink, slugify, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc } from '../components/Bits.jsx';

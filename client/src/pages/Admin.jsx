@@ -1,3 +1,5 @@
+// Staff area (loaded only for staff): two-step login set-up and check, overview, cars (add / edit with photos),
+// leads, swap review, users, blog, audit log and site settings. Every action is checked again on the server.
 import React, { useState, useMemo } from 'react';
 import qrcode from 'qrcode-generator';
 import { Link, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink, rs, srcset, shrinkPhoto } from '../lib/core.jsx';

@@ -1,3 +1,4 @@
+// Korrect Swap pages: SwapHome (how it works, listings), SwapListing (one owner's car, send an offer), SwapNew (list your car).
 import React, { useState, useEffect } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, api, firstPhoto, rs, srcset } from '../lib/core.jsx';
 import Cascade, { bodiesFor } from '../components/Cascade.jsx';

@@ -1,3 +1,5 @@
+// Small shared pieces: CarCard (car tile in every list), BnplCalc (Pay Small Small estimate), EnquiryForm,
+// Loading (skeleton cards), ErrorBox and Modal.
 import React, { useState } from 'react';
 import { Link, naira, bnpl, useApp, api, firstPhoto, waLink, useLocalList, rs, srcset } from '../lib/core.jsx';
 import { useQV } from './QuickView.jsx';

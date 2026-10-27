@@ -1,3 +1,4 @@
+// Content pages: blog / guides list and posts, About and legal pages, FAQs, Contact and the 404 page.
 import React from 'react';
 import { Link, useApi, useApp, useTitle, date, waLink, rs, srcset } from '../lib/core.jsx';
 import { Loading, ErrorBox, EnquiryForm } from '../components/Bits.jsx';

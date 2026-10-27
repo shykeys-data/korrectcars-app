@@ -1,3 +1,5 @@
+// Zod schemas for every form the API accepts. Routes use validate('<name>'), which puts the cleaned values on req.valid
+// and answers 400 with a plain message when something is wrong. Add a field here first, then in the route and the form.
 const { z } = require('zod');
 
 const phone = z.string().trim().regex(/^\+?[0-9 ()-]{7,20}$/, 'Enter a valid phone number');

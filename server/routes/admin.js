@@ -1,3 +1,7 @@
+// Staff API (mounted at /api/admin). Every route checks the role and the two-step code through requireStaff():
+// carTeam = admin, sales, editor (cars); salesTeam = admin, sales (leads, swaps, private files);
+// contentTeam = admin, editor (blog); adminOnly = users, settings, audit, deleting cars.
+// Staff actions are written to the audit table.
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
