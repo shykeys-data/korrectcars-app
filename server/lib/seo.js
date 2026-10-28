@@ -20,6 +20,7 @@ function robotsTxt() {
 
 async function llmsTxt() {
   const st = settings.current();
+  const marketOn = (await settings.market()).items.length >= settings.MARKET_MIN;
   const cars = (await db.q("SELECT slug, title, make, model, body, year, price, mileage, transmission, fuel, engine, featured, created_at, status FROM cars WHERE status IN ('available','sold') ORDER BY (status = 'sold'), price DESC LIMIT 100")).map(require('./titles').cleanCar);
   const posts = await db.q("SELECT slug, title FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 30");
   const avail = cars.filter((c) => c.status === 'available');
@@ -69,10 +70,12 @@ async function llmsTxt() {
     `- [Cars for sale](${u('/cars')})`,
     `- [Pay Small Small](${u('/pay-small-small')})`,
     `- [Free VIN check](${u('/vin-check')}): decode any 17-character VIN (year, make, model, engine, where it was built). Free, no sign-up.`,
-    st.swap ? `- [Korrect Swap](${u('/swap')})` : null,
+    st.swap ? `- [Korrect Swap](${u('/swap')}): swap your car with a verified owner; Korrect Cars is the trusted middleman and inspects both cars before handover.` : null,
+    marketOn ? `- [Nigeria car market today](${u('/car-market-today')}): fuel prices, the naira rate and import duty that move car prices, each with its source and date.` : null,
+    `- [Car buying guides](${u('/blog')}): reviewed guides for buyers in Nigeria (customs duty, VIN checks, inspections, fuel, Pay Small Small).`,
     `- [Frequently asked questions](${u('/faqs')})`,
     `- [About Korrect Cars](${u('/about-us')})`,
-    `- [Contact](${u('/contact')})`,
+    `- [Contact](${u('/contact')}): WhatsApp, call or email; online dealer in Lagos with viewings at partner car lots and delivery anywhere in Nigeria.`,
     '',
     '## Guides',
     ...posts.map((p) => `- [${p.title}](${u('/blog/' + p.slug)})`),

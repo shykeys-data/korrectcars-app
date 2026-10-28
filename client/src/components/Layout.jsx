@@ -4,7 +4,7 @@ import { Link, useRouter, useApp, waLink, api, booted } from '../lib/core.jsx';
 
 // Swap your car is switched on in admin Settings (on by default only on staging)
 export const swapOn = (cfg) => !!(cfg && cfg.swap);
-const NAV = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/swap', 'Swap your car'], ['/blog', 'Guides'], ['/contact', 'Contact']];
+const NAV = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/vin-check', 'VIN check'], ['/swap', 'Swap your car'], ['/blog', 'Guides'], ['/contact', 'Contact']];
 
 export function Header() {
   const { path, go } = useRouter();

@@ -507,3 +507,15 @@ details.faq p{margin:8px 0 0;color:var(--ink2)}
 /* On wide screens the header already has a WhatsApp button, so the floating one would only cover content */
 @media (min-width:1024px){.wa-fab,.wa-pop{display:none}}
 @media (prefers-reduced-motion:reduce){.card,.btn,.pill,.wa-fab{transition:none}.card:hover,.btn:active,.pill:active,.wa-fab:active{transform:none}}
+
+/* Homepage free VIN check band */
+.trust-link{display:block;border-left:3px solid var(--red);padding-left:14px;color:inherit;text-decoration:none}
+.trust-link:hover u,.trust-link:focus-visible u{color:var(--red)}
+.vin-band{background:var(--grey);margin-top:48px;padding:40px 0}
+.vin-band-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:center}
+.vin-band h2{margin:4px 0 8px}
+.vin-band-row{display:flex;gap:10px}
+.vin-band-row .input{flex:1;min-width:0}
+.vin-band-row .btn{min-height:52px;white-space:nowrap}
+.vin-band-row .btn:active{transform:scale(.97)}
+@media(max-width:800px){.vin-band-grid{grid-template-columns:1fr;gap:16px}.vin-band-row{flex-direction:column}}

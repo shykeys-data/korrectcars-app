@@ -34,6 +34,32 @@ function buildRows(all) {
   return rows;
 }
 
+// Homepage band for the free VIN check: type a VIN here, see the result on /vin-check
+function VinBand() {
+  const { go } = useRouter();
+  const [v, setV] = useState('');
+  const submit = (e) => { e.preventDefault(); go('/vin-check' + (v ? '?vin=' + encodeURIComponent(v) : '')); };
+  return (
+    <section className="vin-band" aria-labelledby="vin-band-h">
+      <div className="wrap vin-band-grid">
+        <div>
+          <div className="eyebrow">Free tool · no sign-up</div>
+          <h2 id="vin-band-h">Check any car's VIN free</h2>
+          <p className="muted">Type the 17-character VIN to see the year, make, model, engine and where the car was built. Use it before you pay for any car, from us or anyone else.</p>
+        </div>
+        <form className="vin-band-form" onSubmit={submit}>
+          <label htmlFor="home-vin" className="f">Vehicle identification number (VIN)</label>
+          <div className="vin-band-row">
+            <input id="home-vin" className="input vin-input" value={v} maxLength={17} autoComplete="off" autoCapitalize="characters" spellCheck="false" placeholder="17 letters and numbers"
+              onChange={(e) => setV(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17))} />
+            <button className="btn btn-red">Check VIN</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   useTitle('Korrect Cars | Buy Tokunbo & Foreign-Used Cars in Lagos, Nigeria');
   const { go } = useRouter();
@@ -100,12 +126,14 @@ export default function Home() {
       <div className="wrap">
         <div className="trust">
           <div><b>Inspected</b><span className="muted">Mechanical, electrical and body checks on every car</span></div>
-          <div><b>VIN-verified</b><span className="muted">History checked before we list it</span></div>
+          <Link to="/vin-check" className="trust-link"><b>VIN-verified</b><span className="muted">History checked before we list it. <u>Check any VIN free</u></span></Link>
           <div><b>Pay Small Small</b><span className="muted">Spread the cost through our credit partners</span></div>
           {swap ? <div><b>Swap safely</b><span className="muted">Verified owners, inspection before handover</span></div>
             : <div><b>See it first</b><span className="muted">View and test-drive at a partner car lot in Lagos</span></div>}
         </div>
       </div>
+
+      <VinBand />
 
       <section className="sec">
         <div className="wrap">

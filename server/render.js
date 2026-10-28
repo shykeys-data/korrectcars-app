@@ -141,6 +141,13 @@ async function renderPage(req, nonce) {
   // Pages with written copy get the same words the React page shows (lib/pagecopy.js), not a one-line summary
   const COPY = { '/contact': copy.CONTACT, '/swap': copy.SWAP, '/vin-check': copy.VIN, '/blog': copy.GUIDES };
   if (known && COPY[p]) { body = copyHtml(COPY[p]); const f = copyFaq(COPY[p]); if (f.length) ld.push(faqLd(f)); }
+  // Breadcrumbs for the buyer pages, and the VIN checker described as a free web tool (helps Google and AI assistants list it)
+  const CRUMB = { '/vin-check': 'Free VIN check', '/contact': 'Contact', '/swap': 'Korrect Swap', '/blog': 'Guides', '/car-market-today': 'Car market today' };
+  if (known && CRUMB[p]) ld.push(crumbsLd([[CRUMB[p], p]]));
+  if (p === '/vin-check') {
+    ld.push({ '@context': 'https://schema.org', '@type': 'WebApplication', name: 'Korrect Cars Free VIN Check', url: meta.url, applicationCategory: 'UtilitiesApplication', operatingSystem: 'Any (web browser)',
+      description: STATIC['/vin-check'].desc, isAccessibleForFree: true, offers: { '@type': 'Offer', price: 0, priceCurrency: 'NGN' }, provider: { '@id': config.siteUrl + '/#dealer' }, areaServed: { '@type': 'Country', name: 'Nigeria' } });
+  }
   if (p === '/contact') {
     const st = require('./lib/settings').current();
     body += `<h2>Contact details</h2><ul><li>WhatsApp: <a href="https://wa.me/${esc(st.whatsapp)}">+${esc(st.whatsapp)}</a></li>${st.phones.map((x) => `<li>Call: <a href="tel:${esc(x.replace(/\s/g, ''))}">${esc(x)}</a></li>`).join('')}<li>Email: <a href="mailto:${esc(st.email)}">${esc(st.email)}</a></li><li>Open: ${esc(st.hours)}. Viewings by appointment.</li></ul>`;
@@ -318,6 +325,9 @@ async function renderPage(req, nonce) {
     `<script type="application/json" id="__boot">${json(boot)}</script>`
   ].filter(Boolean).join('\n');
 
+  // Plain links to the main pages on every public page, so crawlers that do not run scripts (including AI search bots) can find them all
+  if (!noindex) body += '<nav aria-label="Site"><ul>' + [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/vin-check', 'Free VIN check'], ...(swapOn ? [['/swap', 'Korrect Swap']] : []), ['/blog', 'Guides'], ['/about-us', 'About us'], ['/contact', 'Contact'], ['/faqs', 'FAQs']]
+    .filter(([u]) => u !== p).map(([u, t]) => `<li><a href="${u}">${t}</a></li>`).join('') + '</ul></nav>';
   const html = shell().replace('<!--HEAD-->', head).replace('<!--BODY-->', `<div class="ssr">${body}</div>`).replace(/__NONCE__/g, nonce);
   return { status, html };
 }
