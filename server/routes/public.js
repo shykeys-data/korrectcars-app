@@ -258,12 +258,30 @@ r.get('/bnpl/quote', (req, res) => {
 });
 
 // ---------- Blog and pages ----------
+// Public guide fields (staff notes such as own_input stay private)
+const PUBLIC_POST_COLS = 'id, slug, title, excerpt, content, image, category, published_at, updated_at, author, author_bio, seo_title, seo_desc, sources, image_credit, image_source';
+
+// Free VIN checker: factory details from NHTSA, plus our cars of the same make and model
+r.get('/vin/:vin', limiter(10, 30, 'Too many VIN checks. Please wait a few minutes.'), async (req, res) => {
+  const d = await require('../lib/vin').decode(req.params.vin);
+  if (!d.valid || !d.found) return res.json({ ...d, inStock: [] });
+  const inStock = (await listCars({ limit: 100 })).filter((c) => c.status === 'available' && c.make.toLowerCase() === d.make.toLowerCase() && (!d.model || c.model.toLowerCase() === d.model.toLowerCase())).slice(0, 4);
+  res.json({ ...d, inStock });
+});
+
+// Nigeria car market today: only shown once staff have entered enough figures
+r.get('/market', async (_req, res) => {
+  const s = require('../lib/settings'); const m = await s.market();
+  if (m.items.length < s.MARKET_MIN) return res.status(404).json({ error: 'Not found' });
+  res.json(m);
+});
+
 r.get('/posts', async (req, res) => {
   const lim = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
-  res.json({ posts: await q(`SELECT slug, title, excerpt, image, published_at FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT ${lim}`) });
+  res.json({ posts: await q(`SELECT slug, title, excerpt, image, category, published_at, updated_at FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT ${lim}`) });
 });
 r.get('/posts/:slug', async (req, res) => {
-  const post = await one("SELECT * FROM posts WHERE slug = ? AND status = 'published'", [String(req.params.slug)]);
+  const post = await one(`SELECT ${PUBLIC_POST_COLS} FROM posts WHERE slug = ? AND status = 'published'`, [String(req.params.slug)]);
   if (!post) return res.status(404).json({ error: 'Post not found' });
   const more = await q("SELECT slug, title, image, published_at FROM posts WHERE id <> ? AND status = 'published' ORDER BY published_at DESC LIMIT 3", [post.id]);
   res.json({ post, more });
@@ -275,4 +293,4 @@ r.get('/pages/:slug', async (req, res) => {
 });
 
 module.exports = r;
-Object.assign(module.exports, { bnplPlan, publicConfig, facets, listCars, carDetail, publicUser });
+Object.assign(module.exports, { bnplPlan, publicConfig, facets, listCars, carDetail, publicUser, PUBLIC_POST_COLS });

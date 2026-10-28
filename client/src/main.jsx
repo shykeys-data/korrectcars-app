@@ -14,6 +14,7 @@ const ADMIN_PATH = (booted('/config') || {}).adminPath || null;
 import { SwapHome, SwapListing, SwapNew } from './pages/Swap.jsx';
 import { Account, AuthPage, VerifyEmail, ForgotPassword, ResetPassword } from './pages/Account.jsx';
 import { Blog, Post, Page, Faqs, Contact, NotFound } from './pages/Content.jsx';
+import { VinCheck, Market } from './pages/Tools.jsx';
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 import { QuickViewProvider } from './components/QuickView.jsx';
 
@@ -51,6 +52,8 @@ function Routes() {
   if (['/about-us', '/privacy-policy', '/terms-and-conditions'].includes(path)) return <Page slug={path.slice(1)} />;
   if (path === '/faqs') return <Faqs />;
   if (path === '/contact') return <Contact />;
+  if (path === '/vin-check') return <VinCheck />;
+  if (path === '/car-market-today') return <Market />;
   if (ADMIN_PATH && path === ADMIN_PATH) return <Suspense fallback={<div className="loading">Loading…</div>}><Admin /></Suspense>;
   return <NotFound />;
 }

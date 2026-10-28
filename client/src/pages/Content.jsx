@@ -1,7 +1,9 @@
 // Content pages: blog / guides list and posts, About and legal pages, FAQs, Contact and the 404 page.
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useApi, useApp, useTitle, date, waLink, rs, srcset } from '../lib/core.jsx';
 import { Loading, ErrorBox, EnquiryForm } from '../components/Bits.jsx';
+import { CopySections } from '../components/Copy.jsx';
+import { GUIDES, CONTACT } from '../../../server/lib/pagecopy.js';
 
 // Post HTML comes from our own admin/WordPress import; strip anything executable before showing it.
 export function clean(html) {
@@ -21,19 +23,25 @@ export function clean(html) {
 export function Blog() {
   useTitle('Car Buying Guides for Nigeria | Korrect Cars Blog');
   const { data, loading, error } = useApi('/posts');
+  const [topic, setTopic] = useState('All');
   if (loading) return <Loading />;
   if (error) return <ErrorBox error={error} />;
+  const topics = ['All', ...new Set(data.posts.map((p) => p.category || 'Buying guide'))];
+  const shown = topic === 'All' ? data.posts : data.posts.filter((p) => (p.category || 'Buying guide') === topic);
   return (
     <div className="wrap sec-sm">
-      <div className="eyebrow">Guides</div><h1>Buy smarter</h1>
+      <div className="eyebrow">Guides</div><h1>{GUIDES.h1}</h1>
+      <p className="lead-text">{GUIDES.lead}</p>
+      {topics.length > 2 && <div className="pills" role="group" aria-label="Guide topics" style={{ marginTop: 16 }}>{topics.map((t) => <button key={t} type="button" className={'pill' + (t === topic ? ' on' : '')} aria-pressed={t === topic} onClick={() => setTopic(t)}>{t}</button>)}</div>}
       <div className="post-cards" style={{ marginTop: 20 }}>
-        {data.posts.map((p) => (
+        {shown.map((p) => (
           <Link key={p.slug} to={'/blog/' + p.slug} className="card">
-            <div className="ph" style={{ aspectRatio: '16/9' }}>{p.image && <img src={rs(p.image, 800)} srcSet={srcset(p.image)} sizes="(max-width: 640px) 92vw, 400px" alt="" loading="lazy" />}</div>
-            <div className="bd"><div className="small muted">{date(p.published_at)}</div><div className="ttl">{p.title}</div></div>
+            <div className="ph" style={{ aspectRatio: '1200/630' }}>{p.image && <img src={rs(p.image, 800)} srcSet={srcset(p.image)} sizes="(max-width: 640px) 92vw, 400px" alt="" loading="lazy" />}</div>
+            <div className="bd"><div className="small muted">{p.category || 'Buying guide'} · {date(p.updated_at || p.published_at)}</div><h2 className="ttl">{p.title}</h2>{p.excerpt && <p className="small muted" style={{ margin: '6px 0 0' }}>{p.excerpt}</p>}</div>
           </Link>
         ))}
       </div>
+      <div className="box" style={{ marginTop: 28, maxWidth: 760 }}><CopySections page={GUIDES} /></div>
     </div>
   );
 }
@@ -52,6 +60,8 @@ export function Post({ slug }) {
       <div className="muted" style={{ marginBottom: 20 }}>By <b style={{ color: 'var(--ink)' }}>{p.author || 'The Korrect Cars team'}</b> · {date(p.published_at)}{p.updated_at ? <> · Updated {date(p.updated_at)}</> : null}</div>
       {p.image && <img src={rs(p.image, 1200)} srcSet={srcset(p.image, [800, 1200, 1600])} sizes="(max-width: 900px) 100vw, 860px" alt="" style={{ borderRadius: 18, marginBottom: 28, maxHeight: 460, width: '100%', objectFit: 'cover' }} />}
       <div className="prose" dangerouslySetInnerHTML={{ __html: clean(p.content) }} />
+      {(p.sources || []).length > 0 && <section style={{ marginTop: 28, maxWidth: 760 }}><h2 style={{ fontSize: 20 }}>Sources</h2><ul>{p.sources.map((x) => <li key={x.url}><a href={x.url} target="_blank" rel="noopener nofollow noreferrer">{x.title || x.url}</a></li>)}</ul></section>}
+      {p.image_credit && <p className="small muted" style={{ maxWidth: 760 }}>Cover: {p.image_credit}</p>}
       {p.author_bio && <div className="box" style={{ marginTop: 28, maxWidth: 760 }}><div className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em' }}>About the author</div><p style={{ margin: '6px 0 0' }}><b>{p.author || 'The Korrect Cars team'}</b>: {p.author_bio}</p></div>}
       <div className="box" style={{ marginTop: 32, maxWidth: 760, display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <div><b>Looking for a car?</b><div className="muted small">See inspected cars in Lagos or ask us on WhatsApp.</div></div>
@@ -94,13 +104,21 @@ export function Faqs() {
 }
 
 export function Contact() {
-  useTitle('Contact Korrect Cars — Lagos');
+  useTitle('Contact Korrect Cars — WhatsApp, Call, Hours | Lagos');
   const { cfg } = useApp();
+  const email = (cfg && cfg.email) || 'info@korrectcars.com';
   return (
     <div className="wrap sec-sm">
-      <div className="eyebrow">Contact</div><h1>Talk to Korrect Cars</h1>
+      <div className="eyebrow">Contact</div><h1>{CONTACT.h1}</h1>
+      <p className="lead-text">{CONTACT.lead}</p>
       <div className="detail" style={{ marginTop: 20 }}>
-        <div className="box"><EnquiryForm type="contact" title="Send us a message" cta="Send message" /></div>
+        <div>
+          <div className="box"><EnquiryForm type="contact" title="Send us a message" cta="Send message" /></div>
+          <div className="box" style={{ marginTop: 16 }}><CopySections page={CONTACT} only={['Where we are']} />
+            <div className="map"><iframe title="Map of Lagos, Nigeria" src={"https://www.google.com/maps?q=Lagos,Nigeria&z=11&output=embed"} loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div>
+          </div>
+          <div className="box" style={{ marginTop: 16 }}><CopySections page={CONTACT} skip={['Where we are', 'Stay safe']} /></div>
+        </div>
         <aside className="side">
           <div className="box">
             <h3>Fastest: WhatsApp</h3>
@@ -108,9 +126,10 @@ export function Contact() {
             <h3 style={{ marginTop: 20 }}>Call</h3>
             {((cfg && cfg.phones) || []).map((p) => <div key={p}><a href={'tel:' + p.replace(/\s/g, '')}>{p}</a></div>)}
             <h3 style={{ marginTop: 20 }}>Email</h3>
-            <a href={'mailto:' + ((cfg && cfg.email) || 'info@korrectcars.com')}>{(cfg && cfg.email) || 'info@korrectcars.com'}</a>
-            <p className="small muted" style={{ marginTop: 16 }}>Lagos, Nigeria · Viewings by appointment, Monday to Saturday.</p>
+            <a href={'mailto:' + email}>{email}</a>
+            <dl className="facts"><dt>Open</dt><dd>{(cfg && cfg.hours) || 'Mon–Sat, 8am – 6pm'}</dd><dt>Viewings</dt><dd>By appointment</dd><dt>Delivery</dt><dd>Anywhere in Nigeria</dd></dl>
           </div>
+          <div className="note-warn" role="note" style={{ marginTop: 16 }}><b>Stay safe.</b> {CONTACT.sections.find((x) => x.h2 === 'Stay safe').p[0]}</div>
         </aside>
       </div>
     </div>

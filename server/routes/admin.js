@@ -6,7 +6,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { q, one, J } = require('../db');
-const { validate, list } = require('../lib/validate');
+const { validate, list, inspectionSchema } = require('../lib/validate');
 const { requireStaff, audit } = require('../lib/security');
 const settings = require('../lib/settings');
 const totp = require('../lib/totp');
@@ -58,8 +58,18 @@ function carValues(v) {
     car_condition: v.condition || null, location: v.location || 'Lagos', vin: v.vin || null, stock: v.stock || null,
     description: v.description || null, features: J(list(String(v.features || '').includes('\n') ? String(v.features).split('\n') : v.features)),
     specs: J(rowsFromText(v.specsText)), info: J(String(v.infoText || '').split('\n').map((s) => s.trim()).filter(Boolean)),
-    status: v.status || 'available', featured: v.featured === true || v.featured === 'true' ? 1 : 0
+    status: v.status || 'available', featured: v.featured === true || v.featured === 'true' ? 1 : 0,
+    inspection: inspectionJson(v.inspection)
   };
+}
+
+// Inspection notes arrive as JSON from the car form; keep only filled-in areas
+function inspectionJson(raw) {
+  if (raw === undefined || raw === '') return null;
+  let data;
+  try { data = inspectionSchema.parse(JSON.parse(raw)); } catch (_e) { throw Object.assign(new Error('Check the inspection notes and try again.'), { status: 400 }); }
+  data.items = data.items.filter((i) => (i.note && i.note.trim()) || i.status);
+  return data.items.length ? JSON.stringify(data) : null;
 }
 
 r.post('/cars', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'), async (req, res) => {
@@ -210,13 +220,160 @@ r.post('/users/:id', adminOnly, async (req, res) => {
 });
 
 // ---------- Blog ----------
-r.get('/posts', contentTeam, async (_req, res) => res.json({ posts: await q('SELECT id, slug, title, status, published_at FROM posts ORDER BY published_at DESC') }));
+// ---------- Guides (blog posts): drafts, review, publish, covers ----------
+// A draft is invisible to the public. Publishing the first time sets today's date, so new guides show their
+// real dates (AdSense flagged guides that all share one date). Before publishing we require a cover, an
+// excerpt, at least one source and "what only Korrect Cars can add", unless the guide was already live.
+const sanitize = require('../lib/sanitize');
+const covers = require('../lib/covers');
+const drafts = require('../lib/drafts');
+const POST_COLS = 'id, slug, title, excerpt, content, image, status, published_at, created_at, updated_at, author, category, sources, own_input, image_source, image_credit, covers';
+
+r.get('/posts', contentTeam, async (_req, res) => res.json({ posts: await q("SELECT id, slug, title, image, status, published_at, created_at, category, sources, own_input FROM posts ORDER BY CASE WHEN status = 'draft' THEN 0 ELSE 1 END, COALESCE(published_at, created_at) DESC") }));
+r.get('/posts/:id', contentTeam, async (req, res) => {
+  if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  const post = await one(`SELECT ${POST_COLS} FROM posts WHERE id = ?`, [req.params.id]);
+  if (!post) return res.status(404).json({ error: 'Not found' });
+  res.json({ post, weekCount: await publishedThisWeek() });
+});
+
+async function publishedThisWeek() {
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  return Number((await one("SELECT COUNT(*) AS n FROM posts WHERE status = 'published' AND published_at >= ?", [since])).n) || 0;
+}
+
+function postValues(v) {
+  return {
+    title: v.title, category: v.category, excerpt: v.excerpt || null,
+    content: sanitize.sanitize(v.content || ''), author: v.author || null, own_input: v.ownInput || null,
+    sources: J((v.sources || []).map((x) => ({ title: x.title || '', url: x.url }))),
+    image_source: v.imageSource || 'template', image_credit: v.imageCredit || null
+  };
+}
+async function uniqueSlug(base, id) {
+  let slug = slugify(base) || 'guide';
+  while (await one('SELECT id FROM posts WHERE slug = ? AND id <> ?', [slug, id || 0])) slug += '-' + Date.now().toString(36).slice(-4);
+  return slug;
+}
+async function newCover(post) {
+  const c = await covers.make({ slug: post.slug, title: post.title, category: post.category });
+  await q('UPDATE posts SET image = ?, covers = ?, image_source = ? WHERE id = ?', [c.site, JSON.stringify(c), 'template', post.id]);
+  return c;
+}
+
+r.post('/posts', contentTeam, validate('post'), async (req, res) => {
+  const v = postValues(req.valid);
+  const slug = await uniqueSlug(req.valid.slug || req.valid.title);
+  const cols = Object.keys(v);
+  const ins = await q(`INSERT INTO posts (slug, status, published_at, ${cols.join(', ')}) VALUES (?, 'draft', NULL, ${cols.map(() => '?').join(', ')})`, [slug, ...cols.map((c) => v[c])]);
+  const post = await one(`SELECT ${POST_COLS} FROM posts WHERE id = ?`, [ins.insertId]);
+  await newCover(post).catch((e) => console.warn('[covers]', e.message));
+  await audit(req, 'Created guide draft', v.title);
+  res.status(201).json({ post: await one(`SELECT ${POST_COLS} FROM posts WHERE id = ?`, [ins.insertId]) });
+});
+
+r.put('/posts/:id', contentTeam, validate('post'), async (req, res) => {
+  if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  const before = await one('SELECT id, slug, status FROM posts WHERE id = ?', [req.params.id]);
+  if (!before) return res.status(404).json({ error: 'Not found' });
+  const v = postValues(req.valid);
+  // A live guide keeps its web address (links and Google rankings point at it)
+  if (before.status === 'draft' && req.valid.slug && req.valid.slug !== before.slug) v.slug = await uniqueSlug(req.valid.slug, before.id);
+  const cols = Object.keys(v);
+  await q(`UPDATE posts SET ${cols.map((c) => `${c} = ?`).join(', ')}, updated_at = NOW() WHERE id = ?`, [...cols.map((c) => v[c]), before.id]);
+  await audit(req, 'Edited guide', v.title);
+  const post = await one(`SELECT ${POST_COLS} FROM posts WHERE id = ?`, [before.id]);
+  if (post.status === 'published') seo.notify([`/blog/${post.slug}`, '/blog']);
+  res.json({ post });
+});
+
+// What still stops a draft going live (shown as the "Before you publish" list)
+function publishProblems(p) {
+  const out = [];
+  if (!p.image) out.push('Add a cover');
+  if (!p.excerpt || p.excerpt.trim().length < 40) out.push('Write an excerpt of at least 40 characters');
+  if (!(p.sources || []).length) out.push('Add at least one source');
+  if (!p.own_input || p.own_input.trim().length < 10) out.push('Fill in "What only Korrect Cars can add"');
+  if (sanitize.toText(p.content).split(' ').length < 300) out.push('Write at least 300 words');
+  return out;
+}
+
 r.post('/posts/:id/status', contentTeam, async (req, res) => {
   const status = String(req.body.status);
   if (!isId(req.params.id) || !['published', 'draft'].includes(status)) return res.status(400).json({ error: 'Bad request' });
-  await q('UPDATE posts SET status = ? WHERE id = ?', [status, req.params.id]);
-  await audit(req, `Set post to ${status}`, req.params.id);
+  const p = await one(`SELECT ${POST_COLS} FROM posts WHERE id = ?`, [req.params.id]);
+  if (!p) return res.status(404).json({ error: 'Not found' });
+  if (status === 'published' && !p.published_at) {
+    const problems = publishProblems(p);
+    if (problems.length) return res.status(400).json({ error: 'Not ready to publish: ' + problems.join('; ') + '.', problems });
+    await q("UPDATE posts SET status = 'published', published_at = NOW(), updated_at = NOW() WHERE id = ?", [p.id]);
+  } else {
+    await q('UPDATE posts SET status = ? WHERE id = ?', [status, p.id]);
+  }
+  seo.notify([`/blog/${p.slug}`, '/blog']);
+  await audit(req, `Set guide to ${status}`, p.title);
   res.json({ ok: true });
+});
+
+r.delete('/posts/:id', contentTeam, async (req, res) => {
+  if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  const p = await one('SELECT id, title, published_at FROM posts WHERE id = ?', [req.params.id]);
+  if (!p) return res.status(404).json({ error: 'Not found' });
+  if (p.published_at) return res.status(400).json({ error: 'A guide that has been live cannot be deleted. Set it back to draft instead.' });
+  await q('DELETE FROM posts WHERE id = ?', [p.id]);
+  await audit(req, 'Deleted guide draft', p.title);
+  res.json({ ok: true });
+});
+
+// Branded cover from the title and category
+r.post('/posts/:id/cover', contentTeam, async (req, res) => {
+  if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  const p = await one('SELECT id, slug, title, category FROM posts WHERE id = ?', [req.params.id]);
+  if (!p) return res.status(404).json({ error: 'Not found' });
+  const c = await newCover(p);
+  await audit(req, 'Made guide cover', p.title);
+  res.json({ covers: c, image: c.site });
+});
+
+// "Replace image": one of our own photos inside the branded frame. The credit is required.
+r.post('/posts/:id/cover-photo', contentTeam, memory.single('photo'), async (req, res) => {
+  if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  const p = await one('SELECT id, slug, title, category FROM posts WHERE id = ?', [req.params.id]);
+  if (!p) return res.status(404).json({ error: 'Not found' });
+  const source = String(req.body.imageSource || '');
+  const credit = String(req.body.imageCredit || '').trim().slice(0, 200);
+  if (!['own', 'press', 'stock', 'free', 'ai'].includes(source)) return res.status(400).json({ error: 'Choose where the photo comes from.' });
+  if (credit.length < 3) return res.status(400).json({ error: 'Add the photo credit and licence, e.g. "Photo: Korrect Cars, own work".' });
+  if (!req.file) return res.status(400).json({ error: 'Choose a photo.' });
+  const saved = save(req.file, { folder: 'blog', name: `${p.slug}-photo` });
+  const c = await covers.make({ slug: p.slug, title: p.title, category: p.category, photoFile: path.join(require('../config').uploadsDir, 'public', saved.replace(/^\/uploads\//, '')) });
+  c.photo = saved;
+  await q('UPDATE posts SET image = ?, covers = ?, image_source = ?, image_credit = ? WHERE id = ?', [c.site, JSON.stringify(c), source, credit, p.id]);
+  await audit(req, 'Replaced guide cover photo', p.title);
+  res.json({ covers: c, image: c.site });
+});
+
+// Paste in the morning task's draft
+r.post('/posts/import', contentTeam, validate('importDraft'), async (req, res) => {
+  const d = drafts.parse(req.valid.text);
+  if (d.errors.length) return res.status(400).json({ error: d.errors.join(' ') });
+  const v = postValues({ ...d, author: req.user.name, imageSource: 'template' });
+  const slug = await uniqueSlug(d.title);
+  const cols = Object.keys(v);
+  const ins = await q(`INSERT INTO posts (slug, status, published_at, ${cols.join(', ')}) VALUES (?, 'draft', NULL, ${cols.map(() => '?').join(', ')})`, [slug, ...cols.map((c) => v[c])]);
+  const post = await one(`SELECT ${POST_COLS} FROM posts WHERE id = ?`, [ins.insertId]);
+  await newCover(post).catch((e) => console.warn('[covers]', e.message));
+  await audit(req, 'Imported guide draft', d.title);
+  res.status(201).json({ post: await one(`SELECT ${POST_COLS} FROM posts WHERE id = ?`, [ins.insertId]) });
+});
+
+// ---------- Nigeria car market today (figures typed by staff) ----------
+r.get('/market', contentTeam, async (_req, res) => res.json(await settings.market()));
+r.put('/market', contentTeam, validate('market'), async (req, res) => {
+  await settings.saveMarket({ note: req.valid.note || '', items: req.valid.items, updated: new Date().toISOString() });
+  seo.notify(['/car-market-today']);
+  await audit(req, 'Updated market figures', `${req.valid.items.length} figures`);
+  res.json(await settings.market());
 });
 
 r.get('/audit', adminOnly, async (_req, res) => res.json({ audit: await q('SELECT * FROM audit ORDER BY id DESC LIMIT 300') }));

@@ -8,6 +8,8 @@ const config = require('./config');
 const db = require('./db');
 const pub = require('./routes/public');
 const cats = require('./lib/categories');
+const copy = require('./lib/pagecopy');
+const { sanitize } = require('./lib/sanitize');
 
 // Light photo URLs (same rule as the browser's rs()) and a preload tag for the page's main photo
 const RS = /^\/(?:uploads\/(cars|blog|swap|site)|(img))\/([A-Za-z0-9._-]+)\.(?:jpe?g|png|webp)$/i;
@@ -20,9 +22,25 @@ const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
 const strip = (h) => String(h || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s);
 const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-// Allow only simple formatting tags from stored post HTML in the server-rendered copy
-const safeHtml = (h) => String(h || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style|iframe|object|embed|form)[\s\S]*?<\/\1>/gi, '')
-  .replace(/<(\/?)(\w+)([^>]*)>/g, (_m, close, tag) => (/^(p|h2|h3|h4|ul|ol|li|strong|em|b|i|br|blockquote|table|thead|tbody|tr|td|th)$/i.test(tag) ? `<${close}${tag.toLowerCase()}>` : ''));
+// Stored post and page HTML goes through the same allowlist cleaner the staff editor uses (keeps safe links and our images)
+const safeHtml = (h) => sanitize(h);
+
+// Shared page copy (lib/pagecopy.js) as plain HTML: h1, lead, then sections of paragraphs, steps, lists and FAQs
+function copyHtml(c, { h1 = true } = {}) {
+  const sec = (x) => `<h2>${esc(x.h2)}</h2>`
+    + (x.p || []).map((t) => `<p>${esc(t)}</p>`).join('')
+    + (x.steps ? '<ol>' + x.steps.map(([h, t]) => `<li><strong>${esc(h)}.</strong> ${esc(t)}</li>`).join('') + '</ol>' : '')
+    + (x.list ? '<ul>' + x.list.map((t) => `<li>${esc(t)}</li>`).join('') + '</ul>' : '')
+    + (x.faq ? x.faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join('') : '');
+  return (h1 ? `<h1>${esc(c.h1)}</h1>` : '') + (c.lead ? `<p>${esc(c.lead)}</p>` : '') + (c.sections || []).map(sec).join('');
+}
+const copyFaq = (c) => (c.sections || []).flatMap((x) => x.faq || []);
+// Inspection notes on a car page (only the areas staff filled in)
+function inspectionHtml(ins) {
+  if (!ins || !Array.isArray(ins.items) || !ins.items.length) return '';
+  return `<h2>Korrect Cars inspection notes</h2>${ins.by || ins.date ? `<p>Inspected${ins.by ? ` by ${esc(ins.by)}` : ''}${ins.date ? ` on ${esc(ins.date)}` : ''} at a partner car lot in Lagos.</p>` : ''}<ul>`
+    + ins.items.map((i) => `<li><strong>${esc(i.area)}${i.status === 'watch' ? ' (worth a look)' : ''}:</strong> ${esc(i.note || (i.status === 'ok' ? 'checked, no problems found' : ''))}</li>`).join('') + '</ul>';
+}
 
 let template = null;
 function shell() {
@@ -44,8 +62,10 @@ const STATIC = {
   '/swap': { title: 'Korrect Swap — Swap Your Car With Verified Owners | Korrect Cars', desc: 'List your car, tell us what you want, and swap with verified owners in Lagos. Inspection at a partner car lot before any car or money changes hands.', h1: 'Swap your car' },
   '/pay-small-small': { title: 'Pay Small Small — Car Payment Plans in Lagos | Korrect Cars', desc: 'Get an estimate of your monthly payment for any car at Korrect Cars, then apply through our credit partners. Once a credit partner approves you, we sell you the car.', h1: 'Pay Small Small' },
   '/blog': { title: 'Car Buying Guides for Nigeria | Korrect Cars Blog', desc: 'Guides on buying tokunbo cars, customs duty, VIN checks, maintenance and the best cars for Lagos roads.', h1: 'Guides' },
-  '/contact': { title: 'Contact Korrect Cars — Lagos', desc: `Call, WhatsApp or email Korrect Cars. Online car dealer in Lagos, open ${config.hours}.`, h1: 'Contact us' },
-  '/faqs': { title: 'Frequently Asked Questions | Korrect Cars', desc: 'Answers about buying, viewings and inspections, payments and Pay Small Small.', h1: 'Frequently asked questions' }
+  '/contact': { title: 'Contact Korrect Cars — WhatsApp, Call, Hours | Lagos', desc: `Call, WhatsApp or email Korrect Cars. Online car dealer in Lagos, open ${config.hours}.`, h1: 'Contact us' },
+  '/faqs': { title: 'Frequently Asked Questions | Korrect Cars', desc: 'Answers about buying, viewings and inspections, payments and Pay Small Small.', h1: 'Frequently asked questions' },
+  '/vin-check': { title: 'Free VIN Check Nigeria — Decode Any Car VIN | Korrect Cars', desc: 'Free VIN check: type any 17-character VIN to see the car\'s year, make, model, engine and where it was built. No sign-up. Where to find the VIN on a car in Nigeria.', h1: copy.VIN.h1 },
+  '/car-market-today': { title: 'Nigeria Car Market Today — Fuel, Naira, Duty | Korrect Cars', desc: 'The figures that move car prices in Nigeria: fuel prices, the naira exchange rate and import duty, each with its source and the date checked.', h1: copy.MARKET.h1 }
 };
 const NOINDEX = /^\/(account|login|register|swap\/new|verify-email|forgot-password|reset-password|compare)(\/|$)/;
 
@@ -118,6 +138,24 @@ async function renderPage(req, nonce) {
   const swapOn = require('./lib/settings').current().swap;
   const swapPath = /^\/swap(\/|$)/.test(p);
   if (STATIC[p] && !(swapPath && !swapOn)) { known = true; meta = { ...meta, ...STATIC[p] }; body = `<h1>${esc(STATIC[p].h1)}</h1><p>${esc(STATIC[p].desc)}</p>`; }
+  // Pages with written copy get the same words the React page shows (lib/pagecopy.js), not a one-line summary
+  const COPY = { '/contact': copy.CONTACT, '/swap': copy.SWAP, '/vin-check': copy.VIN, '/blog': copy.GUIDES };
+  if (known && COPY[p]) { body = copyHtml(COPY[p]); const f = copyFaq(COPY[p]); if (f.length) ld.push(faqLd(f)); }
+  if (p === '/contact') {
+    const st = require('./lib/settings').current();
+    body += `<h2>Contact details</h2><ul><li>WhatsApp: <a href="https://wa.me/${esc(st.whatsapp)}">+${esc(st.whatsapp)}</a></li>${st.phones.map((x) => `<li>Call: <a href="tel:${esc(x.replace(/\s/g, ''))}">${esc(x)}</a></li>`).join('')}<li>Email: <a href="mailto:${esc(st.email)}">${esc(st.email)}</a></li><li>Open: ${esc(st.hours)}. Viewings by appointment.</li></ul>`;
+    ld.push({ '@context': 'https://schema.org', '@type': 'ContactPage', url: meta.url, about: { '@id': config.siteUrl + '/#dealer' } });
+  }
+  if (p === '/car-market-today') {
+    const m = await require('./lib/settings').market();
+    if (m.items.length < require('./lib/settings').MARKET_MIN) known = false; // stays hidden until staff fill it in
+    else {
+      boot['/market'] = m;
+      body = copyHtml(copy.MARKET) + (m.updated ? `<p>Last updated ${esc(String(m.updated).slice(0, 10))}.</p>` : '') + '<ul>'
+        + m.items.map((i) => `<li><strong>${esc(i.label)}:</strong> ${esc(i.value)}${i.detail ? ` — ${esc(i.detail)}` : ''}. Source: ${i.url ? `<a href="${esc(i.url)}" rel="noopener nofollow">${esc(i.source)}</a>` : esc(i.source)}, checked ${esc(i.date)}.</li>`).join('') + '</ul>'
+        + (m.note ? `<h2>What this means for a car buyer</h2><p>${esc(m.note)}</p>` : '');
+    }
+  }
 
   // Pages that list cars get the whole public stock (small) and filter it in the browser
   const needsCars = p === '/' || p === '/cars' || p === '/pay-small-small' || p === '/compare' || /^\/cars\/[a-z0-9-]+(\/[a-z0-9-]+)?$/.test(p);
@@ -204,6 +242,7 @@ async function renderPage(req, nonce) {
         + (sold ? `<p>This car has been sold. See <a href="/cars/${slugify(car.make)}/${slugify(car.model)}">every ${esc(car.make)} ${esc(car.model)} for sale</a> or <a href="/cars">all cars in stock</a>.</p>` + similarHtml : '')
         + String(car.description || '').split(/\n\n+/).map((x) => `<p>${esc(x)}</p>`).join('')
         + (car.features && car.features.length ? '<ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
+        + inspectionHtml(car.inspection)
         + (plan ? `<h2>Pay small small for this ${esc(car.make)} ${esc(car.model)}</h2><p>Estimate: about ${esc(naira(plan.deposit))} deposit, then about ${esc(naira(plan.monthly))} a month for ${plan.months} months, through our credit partners. They confirm the final terms; once you are approved, Korrect Cars sells you the car. <a href="/pay-small-small?car=${esc(car.slug)}">Get your estimate and apply</a>.</p>` : '')
         + (sold ? '' : `<p>View it at a partner car lot in Lagos, or have it delivered anywhere in Nigeria.</p>${similarHtml}`);
       ld.push({ '@context': 'https://schema.org', '@type': 'Car', name: car.title, brand: { '@type': 'Brand', name: car.make }, model: car.model,
@@ -218,7 +257,7 @@ async function renderPage(req, nonce) {
   let m = p.match(/^\/blog\/([a-z0-9-]+)$/);
   if (m) {
     known = true;
-    const post = await db.one("SELECT * FROM posts WHERE slug = ? AND status = 'published'", [m[1]]);
+    const post = await db.one(`SELECT ${pub.PUBLIC_POST_COLS} FROM posts WHERE slug = ? AND status = 'published'`, [m[1]]);
     if (!post) { status = 404; noindex = true; meta.title = 'Article not found | Korrect Cars'; }
     else {
       const more = await db.q("SELECT slug, title, image, published_at FROM posts WHERE id <> ? AND status = 'published' ORDER BY published_at DESC LIMIT 3", [post.id]);
@@ -226,13 +265,21 @@ async function renderPage(req, nonce) {
       const desc = post.seo_desc || clip(strip(post.excerpt || post.content), 160);
       meta = { ...meta, title: post.seo_title || `${post.title} | Korrect Cars`, desc, image: post.image || DEFAULT.image, type: 'article' };
       const by = post.author || 'The Korrect Cars team';
-      body = `<article><h1>${esc(post.title)}</h1><p>By ${esc(by)}${post.updated_at ? ` · Updated ${esc(String(post.updated_at).slice(0, 10))}` : ''}</p>${safeHtml(post.content)}${post.author_bio ? `<p><em>${esc(post.author_bio)}</em></p>` : ''}</article>`;
+      body = `<article><h1>${esc(post.title)}</h1><p>By ${esc(by)}${post.updated_at ? ` · Updated ${esc(String(post.updated_at).slice(0, 10))}` : ''}</p>${safeHtml(post.content)}${post.author_bio ? `<p><em>${esc(post.author_bio)}</em></p>` : ''}`
+        + ((post.sources || []).length ? '<h2>Sources</h2><ul>' + post.sources.map((x) => `<li><a href="${esc(x.url)}" rel="noopener nofollow">${esc(x.title || x.url)}</a></li>`).join('') + '</ul>' : '')
+        + (post.image_credit ? `<p>Cover: ${esc(post.image_credit)}</p>` : '') + '</article>';
       ld.push({ '@context': 'https://schema.org', '@type': 'BlogPosting', headline: post.title, datePublished: post.published_at, image: config.siteUrl + (post.image || DEFAULT.image),
         ...(post.updated_at ? { dateModified: post.updated_at } : {}),
         author: post.author && !/korrect cars/i.test(post.author) ? { '@type': 'Person', name: post.author, worksFor: { '@id': config.siteUrl + '/#dealer' } } : { '@type': 'Organization', name: 'Korrect Cars', url: config.siteUrl + '/' }, publisher: { '@type': 'Organization', name: 'Korrect Cars', logo: { '@type': 'ImageObject', url: config.siteUrl + '/img/logo.svg' } }, mainEntityOfPage: meta.url });
     }
   }
-  if (p === '/blog') boot['/posts'] = { posts: await db.q("SELECT slug, title, excerpt, image, published_at FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 50") };
+  if (p === '/blog') {
+    const posts = await db.q("SELECT slug, title, excerpt, image, category, published_at, updated_at FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 50");
+    boot['/posts'] = { posts };
+    // Every guide as a real link with its heading and excerpt, so search engines and AdSense see them without scripts
+    body += posts.map((x) => `<a href="/blog/${esc(x.slug)}"><h2>${esc(x.title)}</h2><p>${esc(clip(strip(x.excerpt || ''), 200))}</p></a>`).join('');
+    ld.push({ '@context': 'https://schema.org', '@type': 'Blog', name: 'Korrect Cars guides', url: meta.url, blogPost: posts.slice(0, 20).map((x) => ({ '@type': 'BlogPosting', headline: x.title, url: `${config.siteUrl}/blog/${x.slug}`, datePublished: x.published_at })) });
+  }
 
   m = p.match(/^\/(about-us|privacy-policy|terms-and-conditions|faqs)$/);
   if (m) {

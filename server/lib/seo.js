@@ -68,6 +68,7 @@ async function llmsTxt() {
     '## Key pages',
     `- [Cars for sale](${u('/cars')})`,
     `- [Pay Small Small](${u('/pay-small-small')})`,
+    `- [Free VIN check](${u('/vin-check')}): decode any 17-character VIN (year, make, model, engine, where it was built). Free, no sign-up.`,
     st.swap ? `- [Korrect Swap](${u('/swap')})` : null,
     `- [Frequently asked questions](${u('/faqs')})`,
     `- [About Korrect Cars](${u('/about-us')})`,

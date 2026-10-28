@@ -110,7 +110,7 @@ app.get('/sitemap.xml', async (_req, res, next) => {
     const stock = await require('./routes/public').listCars({ limit: 100 });
     const catLib = require('./lib/categories');
     const catPages = catLib.pages().filter((c) => stock.filter((x) => x.status === 'available' && c.test(x)).length >= catLib.MIN_INDEX).map((c) => '/cars/' + c.slug);
-    const urls = ['/', '/cars', ...catPages, ...(settings.current().swap ? ['/swap'] : []), '/pay-small-small', '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)
+    const urls = ['/', '/cars', ...catPages, ...(settings.current().swap ? ['/swap'] : []), '/pay-small-small', '/vin-check', ...((await settings.market()).items.length >= settings.MARKET_MIN ? ['/car-market-today'] : []), '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)
       .map((u) => `<url><loc>${config.siteUrl}${u}</loc></url>`)
       .concat(cars.map((c) => `<url><loc>${config.siteUrl}/cars/${c.slug}</loc><lastmod>${d(c.updated_at)}</lastmod>${(c.photos || []).slice(0, 5).map((ph) => `<image:image><image:loc>${config.siteUrl}${xml(ph)}</image:loc></image:image>`).join('')}</url>`))
       .concat(posts.map((p) => `<url><loc>${config.siteUrl}/blog/${p.slug}</loc><lastmod>${d(p.published_at)}</lastmod></url>`));
@@ -128,12 +128,14 @@ app.use(async (req, res, next) => {
   if (req.method !== 'GET') return next();
   const p = req.path;
   if (LEGACY[p]) return res.redirect(301, LEGACY[p]);
+  // Old WordPress archive pages (/category/maintenance/, /tag/…, /author/…, /page/2/) now live on the guides page
+  if (/^\/(category|tag|author)\/[^/]+(\/page\/\d+)?\/?$/.test(p) || /^\/(blog\/)?page\/\d+\/?$/.test(p)) return res.redirect(301, '/blog');
   if (/^\/(feed|comments\/feed)\/?$/.test(p) || p.startsWith('/wp-content/') || p.startsWith('/wp-includes/') || p.startsWith('/wp-admin') || p === '/wp-login.php' || p === '/xmlrpc.php') return res.status(410).type('text/plain').send('Gone');
   const m = p.match(/^\/cars\/([a-z0-9-]+)\/$/);
   if (m) return res.redirect(301, `/cars/${m[1]}`);
   const m2 = p.match(/^\/(?:blog\/|\d{4}\/\d{2}\/(?:\d{2}\/)?)?([a-z0-9-]+)\/?$/);
   if (m2 && !p.startsWith('/blog/') && p !== '/') {
-    try { if (await db.one('SELECT id FROM posts WHERE slug = ?', [m2[1]])) return res.redirect(301, `/blog/${m2[1]}`); } catch (_e) { /* fall through */ }
+    try { if (await db.one("SELECT id FROM posts WHERE slug = ? AND status = 'published'", [m2[1]])) return res.redirect(301, `/blog/${m2[1]}`); } catch (_e) { /* fall through */ }
   }
   next();
 });

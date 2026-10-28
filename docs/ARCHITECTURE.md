@@ -43,13 +43,20 @@ server/
     searches.js         saved-search matching and new-car alert emails
     totp.js             6-digit two-step codes (Google Authenticator and similar)
     catalog.js          make -> model -> body type lists for the forms
+    pagecopy.js         written copy for Guides, Contact, Swap, VIN check and market pages (shared by server and React)
+    sanitize.js         allowlist HTML cleaner for guide content: rebuilds every tag, drops scripts and outside images
+    drafts.js           turns a pasted morning draft (Title:/Category:/Sources: then ---) into a guide draft
+    covers.js           branded guide covers (SVG template -> 1200x630 WebP, 1080x1080 and 1080x1920 PNG)
+    vin.js              free VIN checker: VIN rules, check digit, NHTSA vPIC decode, one-day cache
+    inspection-areas.js the five car inspection areas (shared by the car form and the server)
+  assets/fonts/         Barlow Condensed (SIL Open Font License) so covers render the same on every server
 client/
   build.js              bundles client/src into dist/ with esbuild (hashed file names)
   src/main.jsx          the router: which page component each address shows
   src/lib/core.jsx      shared helpers: router, API calls, embedded data, naira format, photo sizes, WhatsApp links
   src/lib/rank.js       the "Recommended" car order (per visitor, changes daily)
-  src/components/       Layout (header, footer, WhatsApp button), Bits (car card, calculator, forms), QuickView, Cascade
-  src/pages/            one file per area: Home, Cars (list, detail, Pay Small Small, compare), Swap, Account, Content, Admin
+  src/components/       Layout (header, footer, WhatsApp button), Bits (car card, calculator, forms), QuickView, Cascade, Copy (page copy)
+  src/pages/            one file per area: Home, Cars (list, detail, Pay Small Small, compare), Swap, Account, Content, Tools (VIN check, market), Admin, AdminGuides (guides, covers, market figures)
   src/styles.css        the only stylesheet; design tokens at the top
 seed/                   the old WordPress export, loaded only into an empty database
 uploads/public          car, blog and swap photos (served at /uploads)
@@ -86,6 +93,10 @@ flowchart LR
 | Change the Pay Small Small estimate | admin Settings (figures), `bnplPlan()` in `routes/public.js` (the sum) |
 | Change a page's look | `client/src/styles.css`; components in `client/src/components/Bits.jsx` |
 | Redirect an old address | `LEGACY` in `server/index.js`, or `old_slug` on a car |
+| Change the words on Guides, Contact, Swap or VIN check | `server/lib/pagecopy.js` (server HTML and React both read it) |
+| Change what HTML a guide may contain | `KEEP` and the attribute rules in `server/lib/sanitize.js`, then run the tests |
+| Change the cover design | `svg()` in `server/lib/covers.js` (sizes in `SIZES`) |
+| Change the publish rules for guides | `publishProblems()` in `server/routes/admin.js` and the matching checklist in `AdminGuides.jsx` |
 
 ## Data
 
@@ -128,6 +139,21 @@ later does not remove it from history.
 - If a secret is ever committed by mistake: change it on the server straight away (new password or key). Deleting
   the commit is not enough, because copies of the history may already exist.
 
+## Guides: how content gets published (AdSense rules)
+
+AdSense rejected the site in October 2026 for thin content. These rules keep it from happening again:
+
+1. A scheduled Claude task researches Nigeria car and EV topics each morning and writes one draft, with sources, in the import format (`server/lib/drafts.js`).
+2. Staff paste it into **Import today's draft** in the staff area. It becomes a **draft**: drafts are never public, never in the sitemap and never in llms.txt.
+3. Staff edit it and add **what only Korrect Cars can add**: our photos, an inspection finding or a real price from stock.
+4. **Publish** is refused until the guide has a cover, an excerpt of 40+ characters, a source, our own input and 300+ words. The first publish sets today's date.
+5. Covers are generated, never copied. "Replace image" frames one of our own photos, and the credit and licence are required.
+6. Keep to 2–3 reviewed guides a week until AdSense approves. The staff area shows the weekly count.
+
+## Tests
+
+`node --test test/*.test.js` runs the automated tests: the sanitizer against 30 script-injection tricks, draft import, VIN rules. Add a test when you fix a bug.
+
 ## Running it on your computer
 
 ```
@@ -162,7 +188,8 @@ Never copy customer data to staging.
 
 These are tracked in the developer brief:
 
-- Automatic tests
+- More automatic tests (routes and pages)
+- Upgrade zod to version 4 (audit warning; request size limits already block it)
 - `package-lock.json` with `npm ci`
 - Encrypted 2FA secrets
 - Size limits on list inputs

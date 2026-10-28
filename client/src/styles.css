@@ -429,6 +429,81 @@ input[type=range]{width:100%;height:32px;accent-color:var(--red);cursor:pointer}
 .pill:active{transform:scale(.97)}
 .wa-fab{transition:background-color .15s ease,transform 160ms var(--ease-out)}
 .wa-fab:active{transform:scale(.95)}
+/* AdSense fix plan (Oct 2026): page copy, guides, VIN check, market figures, inspection notes, staff guide editor */
+.lead-text{font-size:19px;line-height:1.5;color:var(--ink2);max-width:760px;margin:8px 0 0}
+.pills .pill{min-height:44px}
+.copy-sec{margin:0 0 22px}.copy-sec:last-child{margin-bottom:0}
+.copy-sec h2{font-size:24px;margin:0 0 10px}
+.copy-sec p{line-height:1.6;max-width:72ch}
+.copy-steps{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+.copy-steps li{display:grid;grid-template-columns:32px 1fr;gap:12px;align-items:start;line-height:1.5}
+.copy-steps .n{width:32px;height:32px;border-radius:16px;background:var(--ink);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center}
+.copy-steps b{display:block}
+.copy-list{margin:0;padding-left:20px;line-height:1.7}
+.copy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}
+.copy-grid .copy-sec{margin:0}
+details.faq{border-bottom:1px solid var(--line);padding:12px 0}
+details.faq summary{font-weight:600;font-size:17px;cursor:pointer;min-height:28px}
+details.faq p{margin:8px 0 0;color:var(--ink2)}
+.map{margin-top:12px;border-radius:12px;overflow:hidden;background:var(--grey);aspect-ratio:16/10}
+.map iframe{width:100%;height:100%;border:0;display:block}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:18px 0 0;font-size:15px}
+.facts dt{color:var(--muted)}.facts dd{margin:0;font-weight:600}
+.note-warn{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:12px 14px;line-height:1.5}
+.ok-msg{background:var(--ok-bg);color:var(--ok);padding:10px 14px;border-radius:10px;font-weight:600;margin-bottom:12px}
+.err-text{color:var(--bad)}
+/* VIN check */
+.vin-form{display:grid;gap:8px;margin-top:18px;color:var(--text)}
+.vin-form label{font-weight:600}
+.vin-input{font:500 20px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;min-height:52px}
+.vin-input.bad{border-color:var(--bad)}
+.vin-result{outline:none}
+.vin-result:focus-visible{outline:3px solid #2563EB;outline-offset:2px}
+.vin-dl{display:grid;grid-template-columns:minmax(120px,auto) 1fr;margin:12px 0;border-top:1px solid var(--line)}
+.vin-dl dt,.vin-dl dd{margin:0;padding:9px 0;border-bottom:1px solid var(--line)}
+.vin-dl dt{color:var(--muted);padding-right:16px}.vin-dl dd{font-weight:600}
+.mini-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:10px}
+.mini-card{display:grid;gap:4px;text-decoration:none;color:var(--ink)}
+.mini-card .ph{aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:var(--grey)}
+.mini-card img{width:100%;height:100%;object-fit:cover}
+/* Market figures */
+.market-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:20px}
+.market-val{font:700 34px/1.05 var(--disp);margin:4px 0}
+/* Car inspection notes */
+.inspect{margin-top:20px}
+.inspect h2{font-size:22px;margin:0 0 4px}
+.inspect dl{margin:12px 0 0;display:grid;gap:10px}
+.inspect-row{display:grid;grid-template-columns:24px 1fr;gap:10px;line-height:1.45}
+.inspect-row dt{font-weight:700}.inspect-row dd{margin:0;color:var(--ink2)}
+.inspect-ic{width:24px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;background:var(--ok-bg);color:var(--ok)}
+.inspect-row.watch .inspect-ic{background:var(--warn-bg);color:var(--warn)}
+.inspect-edit{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.inspect-line{display:grid;grid-template-columns:160px 150px 1fr;gap:8px;align-items:center;margin-top:8px}
+.inspect-line .f{margin:0}
+@media (max-width:640px){.inspect-line{grid-template-columns:1fr}}
+/* Staff: guides */
+.week-bar{display:flex;gap:16px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.week-bar .bar{margin-left:auto;width:160px;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.week-bar .bar span{display:block;height:8px;background:var(--wa);transition:width 200ms var(--ease-out)}
+.guide-row{display:grid!important;grid-template-columns:104px minmax(0,1fr) auto;gap:14px;align-items:center}
+.guide-thumb{width:104px;aspect-ratio:1200/630;border-radius:6px;overflow:hidden;background:#1C1E23}
+.guide-thumb img{width:100%;height:100%;object-fit:cover}
+.guide-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;margin-top:16px;align-items:start}
+@media (max-width:1100px){.guide-grid{grid-template-columns:1fr}}
+.rte-bar{display:flex;flex-wrap:wrap;gap:4px;border:1px solid var(--line2);border-bottom:0;border-radius:10px 10px 0 0;padding:4px;background:var(--grey)}
+.rte-bar button{min-width:44px;min-height:40px;border:0;border-radius:6px;background:transparent;font:700 14px var(--body);cursor:pointer}
+.rte-bar button:hover{background:#fff}
+.rte{border:1px solid var(--line2);border-radius:0 0 10px 10px;padding:12px 14px;min-height:320px;max-height:70vh;overflow:auto;background:#fff;line-height:1.6}
+.rte:focus{outline:3px solid #2563EB;outline-offset:1px}
+.source-row{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;margin-bottom:8px}
+@media (max-width:640px){.source-row{grid-template-columns:1fr}}
+.cover-prev{display:flex;align-items:center;justify-content:center;background:var(--grey);border-radius:10px;padding:10px;margin:10px 0 6px;min-height:200px}
+.cover-prev img{display:block;max-width:100%;border-radius:4px}
+.cover-prev.site img{width:100%}.cover-prev.square img{width:220px}.cover-prev.story img{width:146px}
+.chk{display:flex;gap:8px;align-items:center;font-size:15px;padding:3px 0}
+.chk span:first-child{width:20px;text-align:center;font-weight:700}
+.chk.ok{color:var(--ok)}.chk.no{color:var(--bad)}
+.market-edit{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px}
 /* On wide screens the header already has a WhatsApp button, so the floating one would only cover content */
 @media (min-width:1024px){.wa-fab,.wa-pop{display:none}}
 @media (prefers-reduced-motion:reduce){.card,.btn,.pill,.wa-fab{transition:none}.card:hover,.btn:active,.pill:active,.wa-fab:active{transform:none}}

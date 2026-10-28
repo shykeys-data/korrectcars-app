@@ -221,6 +221,23 @@ export function Compare() {
   );
 }
 
+// Staff-written inspection notes for this car (shown only when filled in)
+function InspectionNotes({ ins }) {
+  if (!ins || !Array.isArray(ins.items) || !ins.items.length) return null;
+  return (
+    <section className="box inspect" aria-labelledby="inspect-h">
+      <h2 id="inspect-h">Korrect Cars inspection notes</h2>
+      {(ins.by || ins.date) && <div className="small muted">Inspected{ins.by ? ` by ${ins.by}` : ''}{ins.date ? ` on ${ins.date}` : ''} at a partner car lot, Lagos</div>}
+      <dl>{ins.items.map((i) => (
+        <div key={i.area} className={'inspect-row ' + (i.status === 'watch' ? 'watch' : 'ok')}>
+          <span className="inspect-ic" aria-hidden="true">{i.status === 'watch' ? '!' : '✓'}</span>
+          <div><dt>{i.area}{i.status === 'watch' ? <span className="sr"> (worth a look)</span> : null}</dt><dd>{i.note || (i.status === 'ok' ? 'Checked, no problems found' : '')}</dd></div>
+        </div>
+      ))}</dl>
+    </section>
+  );
+}
+
 export function CarDetail({ slug }) {
   const { cfg } = useApp();
   const { data, loading, error } = useApi('/cars/' + slug);
@@ -267,6 +284,7 @@ export function CarDetail({ slug }) {
           {tab === 'specs' && <table className="specs"><tbody>{spec.concat(tech.filter((r) => !spec.some((s) => s[0].toLowerCase() === String(r[0]).toLowerCase()))).map(([k, v]) => <tr key={k}><td>{k}</td><td>{v}</td></tr>)}</tbody></table>}
           {tab === 'features' && (car.features && car.features.length ? <ul className="feat">{car.features.map((x) => <li key={x}>{x}</li>)}</ul> : <p className="muted">Ask us on WhatsApp for the full feature list.</p>)}
           {tab === 'bnpl' && (sold ? <p className="muted">This car is sold. Pick another car to see Pay Small Small options.</p> : <BnplCalc price={Number(car.price)} carTitle={car.title} carSlug={car.slug} />)}
+          <InspectionNotes ins={car.inspection} />
         </div>
         <aside className="side">
           <div className="box">

@@ -66,4 +66,14 @@ async function internal(k, make) {
   await load();
   return cache[k] || v;
 }
-module.exports = { FIELDS, load, current, save, internal };
+// "Nigeria car market today" figures, stored as JSON under one settings key (not in the settings form)
+async function market() {
+  try { const m = JSON.parse(cache.market || '{}'); return { note: m.note || '', items: Array.isArray(m.items) ? m.items : [], updated: m.updated || null }; } catch (_e) { return { note: '', items: [], updated: null }; }
+}
+async function saveMarket(m) {
+  const v = JSON.stringify(m);
+  const ex = await db.one('SELECT k FROM settings WHERE k = ?', ['market']);
+  if (ex) await db.q('UPDATE settings SET v = ? WHERE k = ?', [v, 'market']); else await db.q('INSERT INTO settings (k, v) VALUES (?, ?)', ['market', v]);
+  await load();
+}
+module.exports = { FIELDS, load, current, save, internal, market, saveMarket, MARKET_MIN: 3 };

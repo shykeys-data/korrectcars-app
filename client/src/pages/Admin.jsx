@@ -3,6 +3,8 @@
 import React, { useState, useMemo } from 'react';
 import qrcode from 'qrcode-generator';
 import { Link, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink, rs, srcset, shrinkPhoto } from '../lib/core.jsx';
+import { Guides, MarketFigures } from './AdminGuides.jsx';
+import { INSPECTION_AREAS } from '../../../server/lib/inspection-areas.js';
 
 const MAX_PHOTOS = 20; // per save, matches the server limit
 import { Loading, Modal } from '../components/Bits.jsx';
@@ -10,7 +12,7 @@ import Cascade from '../components/Cascade.jsx';
 import { AuthPage } from './Account.jsx';
 
 // Tabs each role can see. admin = Administrator; moderator is the old name for sales.
-const ALL_TABS = [['overview', 'Overview', 'admin sales editor'], ['leads', 'Leads', 'admin sales'], ['cars', 'Dealer cars', 'admin sales editor'], ['listings', 'Swap listings', 'admin sales'], ['swaps', 'Swaps & fees', 'admin sales'], ['blog', 'Blog', 'admin editor'], ['users', 'Staff & users', 'admin'], ['settings', 'Settings', 'admin'], ['audit', 'Activity log', 'admin']];
+const ALL_TABS = [['overview', 'Overview', 'admin sales editor'], ['leads', 'Leads', 'admin sales'], ['cars', 'Dealer cars', 'admin sales editor'], ['listings', 'Swap listings', 'admin sales'], ['swaps', 'Swaps & fees', 'admin sales'], ['blog', 'Guides', 'admin editor'], ['market', 'Market figures', 'admin editor'], ['users', 'Staff & users', 'admin'], ['settings', 'Settings', 'admin'], ['audit', 'Activity log', 'admin']];
 const roleKey = (r) => (r === 'moderator' ? 'sales' : r);
 const STAFF = ['admin', 'sales', 'editor', 'moderator'];
 const ROLE_LABEL = { admin: 'Administrator', sales: 'Sales', moderator: 'Sales', editor: 'Editor', user: 'Customer' };
@@ -129,7 +131,8 @@ function Console({ user }) {
           {tab === 'listings' && <Listings onChange={stats.reload} />}
           {tab === 'swaps' && <Swaps />}
           {tab === 'users' && <Users me={user} />}
-          {tab === 'blog' && <Blog isAdmin={['admin', 'editor'].includes(user.role)} />}
+          {tab === 'blog' && <Guides />}
+          {tab === 'market' && <MarketFigures />}
           {tab === 'audit' && <Audit />}
         </main>
       </div>
@@ -164,16 +167,24 @@ function Overview({ stats, go }) {
 
 const EMPTY_CAR = { title: '', make: '', model: '', body: '', trim: '', year: '', price: '', oldPrice: '', mileage: '', engine: '', transmission: '', drivetrain: '', fuel: 'Petrol', color: '', interior: '', condition: 'Foreign Used', location: 'Lagos', vin: '', stock: '', description: '', features: '', specsText: '', infoText: '', status: 'available', featured: true };
 
+// Finds cars by title, stock number or VIN (full VIN or any part of it, e.g. the last 6 characters)
+const norm = (x) => String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 function Cars({ isAdmin }) {
   const { data, reload } = useApi('/admin/cars');
   const [edit, setEdit] = useState(null);
+  const [find, setFind] = useState('');
+  const vinCount = useMemo(() => { const m = {}; ((data && data.cars) || []).forEach((c) => { const v = norm(c.vin); if (v.length >= 11) m[v] = (m[v] || 0) + 1; }); return m; }, [data]);
+  const fq = norm(find);
+  const cars = !data ? [] : !fq ? data.cars : data.cars.filter((c) => norm(c.vin).includes(fq) || norm(c.stock).includes(fq) || norm(c.title).includes(fq));
   const del = async (c) => { if (!window.confirm(`Delete ${c.title}? This cannot be undone.`)) return; await api('/admin/cars/' + c.id, { method: 'DELETE' }); reload(); };
   return (
     <div className="box">
       <div className="sec-head" style={{ marginBottom: 12 }}><h2 style={{ margin: 0 }}>Dealer cars</h2><button className="btn btn-red" onClick={() => setEdit({})}>+ Add car</button></div>
+      <div className="field" style={{ maxWidth: 420 }}><label className="f" htmlFor="car-find">Find a car by VIN, stock number or title</label><input id="car-find" className="input" type="search" value={find} onChange={(e) => setFind(e.target.value)} placeholder="e.g. the last 6 characters of the VIN" autoComplete="off" /></div>
+      {data && fq && <div className="small muted" role="status">{cars.length} of {data.cars.length} cars match</div>}
       {!data ? <Loading /> : <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th>Views</th><th>Status</th><th /></tr></thead><tbody>
-        {data.cars.map((c) => <tr key={c.id}>
-          <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">{c.make} · {c.model} · {c.body}{c.featured ? ' · featured' : ''}</div></div></div></td>
+        {cars.map((c) => <tr key={c.id}>
+          <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">{c.make} · {c.model} · {c.body}{c.featured ? ' · featured' : ''}{c.vin ? <> · VIN …{norm(c.vin).slice(-6)}</> : ' · no VIN'}{vinCount[norm(c.vin)] > 1 ? <> · <span className="tag tag-bad">same VIN on {vinCount[norm(c.vin)]} cars</span></> : null}</div></div></div></td>
           <td>{naira(c.price)}{c.old_price ? <div className="small muted"><s>{naira(c.old_price)}</s></div> : null}</td><td>{c.views}</td>
           <td><T c={stTag[c.status]}>{c.status}</T></td>
           <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}><Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link> <button className="btn btn-dark btn-sm" onClick={() => setEdit(c)}>Edit</button> {isAdmin && <button className="btn btn-line btn-sm" onClick={() => del(c)}>Delete</button>}</td>
@@ -194,6 +205,9 @@ function CarForm({ car, onClose, onSaved }) {
     features: (car.features || []).join('\n'), specsText: (car.specs || []).map((r) => `${r[0]}: ${r[1]}`).join('\n'), infoText: (car.info || []).join('\n'), status: car.status, featured: !!car.featured
   });
   const [keep, setKeep] = useState(car.photos || []);
+  const ins0 = car.inspection && Array.isArray(car.inspection.items) ? car.inspection : { by: '', date: '', items: [] };
+  const [ins, setIns] = useState({ by: ins0.by || '', date: ins0.date || '', items: INSPECTION_AREAS.map((a) => ({ area: a, status: '', note: '', ...(ins0.items.find((i) => i.area === a) || {}) })) });
+  const setItem = (k, field) => (e) => setIns({ ...ins, items: ins.items.map((x, j) => (j === k ? { ...x, [field]: e.target.value } : x)) });
   const [files, setFiles] = useState([]);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [busyText, setBusyText] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
@@ -207,6 +221,7 @@ function CarForm({ car, onClose, onSaved }) {
     const fd = new FormData();
     Object.entries({ ...f, price: String(f.price).replace(/[^0-9]/g, ''), oldPrice: String(f.oldPrice || '').replace(/[^0-9]/g, '') }).forEach(([k, v]) => { if (v !== '' && v !== null) fd.append(k, String(v)); });
     if (!isNew) { if (!keep.length) fd.append('keepPhotos', ''); keep.forEach((p) => fd.append('keepPhotos', p)); }
+    fd.append('inspection', JSON.stringify({ by: ins.by.trim(), date: ins.date, items: ins.items.filter((x) => x.status || x.note.trim()) }));
     try {
       setBusyText(files.length ? 'Preparing photos…' : 'Saving…');
       for (const x of [...files]) fd.append('photos', await shrinkPhoto(x));
@@ -238,6 +253,20 @@ function CarForm({ car, onClose, onSaved }) {
           <div className="field"><label className="f" htmlFor="cf-feat">Features (one per line)</label><textarea id="cf-feat" className="input" rows={6} value={f.features} onChange={set('features')} /></div>
           <div className="field"><label className="f" htmlFor="cf-specs">Technical specs (Label: value per line)</label><textarea id="cf-specs" className="input" rows={6} value={f.specsText} onChange={set('specsText')} /></div>
         </div>
+        <fieldset className="field inspect-edit">
+          <legend className="f">Inspection notes <span className="hint">shown on the car page under "Korrect Cars inspection notes". Write only what the inspector actually found.</span></legend>
+          <div className="grid2">
+            <div className="field"><label className="f" htmlFor="ins-by">Inspected by</label><input id="ins-by" className="input" value={ins.by} onChange={(e) => setIns({ ...ins, by: e.target.value })} maxLength={80} /></div>
+            <div className="field"><label className="f" htmlFor="ins-date">Inspection date</label><input id="ins-date" type="date" className="input" value={ins.date} onChange={(e) => setIns({ ...ins, date: e.target.value })} /></div>
+          </div>
+          {ins.items.map((x, k) => (
+            <div key={x.area} className="inspect-line">
+              <label className="f" htmlFor={'ins-s' + k}>{x.area}</label>
+              <select id={'ins-s' + k} className="input" value={x.status} onChange={setItem(k, 'status')} aria-label={x.area + ' result'}><option value="">Not shown</option><option value="ok">OK</option><option value="watch">Worth a look</option></select>
+              <input className="input" value={x.note} onChange={setItem(k, 'note')} maxLength={300} placeholder="What the inspector found" aria-label={x.area + ' note'} />
+            </div>
+          ))}
+        </fieldset>
         <div className="field"><label className="f" htmlFor="cf-info">General information (one per line)</label><textarea id="cf-info" className="input" rows={3} value={f.infoText} onChange={set('infoText')} /></div>
         {!isNew && <div className="field"><div className="f">Photos (first one is the cover)</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>{keep.map((p, i) => (
           <div key={p} style={{ position: 'relative' }}><img src={rs(p, 400)} alt="" className="thumb" style={{ width: 120, height: 90 }} />
@@ -406,17 +435,6 @@ function Users({ me }) {
         </tr>)}
       </tbody></table></div>}
       <p className="small muted" style={{ marginTop: 12 }}><b>Roles:</b> Administrators (up to 3) can do everything. Sales handles leads, Pay Small Small, swaps and can edit cars. Editor manages cars and blog posts. Every staff account must use two-step login. To add staff, ask them to register on the site, then change their role here. Mark a customer as verified only after checking their ID against their phone number.</p>
-    </div>
-  );
-}
-
-function Blog({ isAdmin }) {
-  const { data, reload } = useApi('/admin/posts');
-  const set = async (p, status) => { await api(`/admin/posts/${p.id}/status`, { method: 'POST', body: { status } }); reload(); };
-  return (
-    <div className="box"><h2>Blog posts</h2>
-      {!data ? <Loading /> : data.posts.map((p) => <div className="row" key={p.id}><div><Link to={'/blog/' + p.slug} target="_blank"><b>{p.title}</b></Link><div className="small muted">{date(p.published_at)}</div></div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><T c={stTag[p.status]}>{p.status}</T>{isAdmin && <button className="btn btn-line btn-sm" onClick={() => set(p, p.status === 'published' ? 'draft' : 'published')}>{p.status === 'published' ? 'Unpublish' : 'Publish'}</button>}</div></div>)}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 // For local tests only, DB_DRIVER=sqlite runs the same SQL on Node's built-in SQLite.
 const config = require('./config');
 
-const JSON_COLS = new Set(['features', 'specs', 'info', 'photos', 'papers', 'wants_makes', 'wants_bodies', 'recovery_codes', 'filters']);
+const JSON_COLS = new Set(['features', 'specs', 'info', 'photos', 'papers', 'wants_makes', 'wants_bodies', 'recovery_codes', 'filters', 'sources', 'covers', 'inspection']);
 
 let driver;
 
@@ -76,7 +76,15 @@ const MIGRATIONS = [
   ['cars', 'old_slug', 'VARCHAR(160) NULL'],
   ['posts', 'author', 'VARCHAR(120) NULL'],
   ['posts', 'author_bio', 'VARCHAR(400) NULL'],
-  ['posts', 'updated_at', 'DATETIME NULL']
+  ['posts', 'updated_at', 'DATETIME NULL'],
+  // AdSense fix plan (Oct 2026): guide drafts with sources, cover sizes and image credit; car inspection notes
+  ['posts', 'category', 'VARCHAR(40) NULL'],
+  ['posts', 'sources', 'TEXT NULL'],
+  ['posts', 'own_input', 'TEXT NULL'],
+  ['posts', 'image_source', 'VARCHAR(40) NULL'],
+  ['posts', 'image_credit', 'VARCHAR(200) NULL'],
+  ['posts', 'covers', 'TEXT NULL'],
+  ['cars', 'inspection', 'TEXT NULL']
 ];
 
 // Only plain values may reach the driver: an object or array from user input could

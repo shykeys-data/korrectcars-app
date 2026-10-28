@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, api, firstPhoto, rs, srcset } from '../lib/core.jsx';
 import Cascade, { bodiesFor } from '../components/Cascade.jsx';
 import { Loading, ErrorBox } from '../components/Bits.jsx';
+import { CopySections } from '../components/Copy.jsx';
+import { SWAP } from '../../../server/lib/pagecopy.js';
 
 function ListingCard({ l }) {
   return (
@@ -32,15 +34,12 @@ export function SwapHome() {
       <section className="sec-dark sec-sm"><div className="wrap" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 28, alignItems: 'center' }}>
         <div>
           <div className="eyebrow">Korrect Swap</div>
-          <h1>Swap your car with a verified owner</h1>
-          <p style={{ color: '#d4d4d8', fontSize: 19 }}>List your car and say what you want in return. Every owner and every set of papers is checked by our team before a listing goes live. You only meet at a Korrect Cars inspection point.</p>
+          <h1>{SWAP.h1}</h1>
+          <p style={{ color: '#d4d4d8', fontSize: 19 }}>{SWAP.lead}</p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}><Link to="/swap/new" className="btn btn-red">List my car</Link><Link to="/account" className="btn btn-ghost">My swaps</Link></div>
         </div>
         <ol className="steps" style={{ gridTemplateColumns: '1fr 1fr', padding: 0, margin: 0 }}>
-          <li><b>List your car</b><div style={{ color: '#a1a1aa' }}>Photos, papers and what you want</div></li>
-          <li><b>We verify</b><div style={{ color: '#a1a1aa' }}>Owner ID and car papers checked</div></li>
-          <li><b>Make or get offers</b><div style={{ color: '#a1a1aa' }}>Agree a cash top-up if values differ</div></li>
-          <li><b>Inspect and swap</b><div style={{ color: '#a1a1aa' }}>At a partner car lot; small success fee</div></li>
+          {SWAP.sections[0].steps.map(([h, t]) => <li key={h}><b>{h}</b><div style={{ color: '#a1a1aa' }}>{t}</div></li>)}
         </ol>
       </div></section>
       <section className="sec-sm"><div className="wrap">
@@ -55,12 +54,7 @@ export function SwapHome() {
         </div>
       </div></section>
       <section className="sec-sm sec-grey"><div className="wrap">
-        <h2>Swapping safely</h2>
-        <div className="ways">
-          <div className="box"><h3>Verified people</h3><p className="small muted">Phone and ID checked. Car papers checked against the VIN before a listing goes live.</p></div>
-          <div className="box"><h3>Private until you agree</h3><p className="small muted">Phone numbers are hidden in chat until both owners accept an offer.</p></div>
-          <div className="box"><h3>Inspection first</h3><p className="small muted">Both cars are inspected at a partner car lot in Lagos before keys, papers or any cash change hands.</p></div>
-        </div>
+        <div className="copy-grid"><CopySections page={SWAP} skip={['How Korrect Swap works']} /></div>
       </div></section>
     </>
   );

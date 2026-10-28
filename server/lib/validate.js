@@ -53,9 +53,40 @@ const schemas = {
     specsText: shortText(4000).optional(), infoText: shortText(4000).optional(),
     description: shortText(8000).optional(), features: z.union([z.string(), z.array(z.string())]).optional(),
     status: z.enum(['available', 'sold', 'hidden']).optional(), featured: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
-    keepPhotos: z.union([z.string(), z.array(z.string())]).optional()
+    keepPhotos: z.union([z.string(), z.array(z.string())]).optional(),
+    inspection: shortText(6000).optional() // JSON from the form; checked again by inspectionSchema
+  }),
+  // Guides written or edited in the staff area. Content is HTML and is cleaned by lib/sanitize.js before saving.
+  post: z.object({
+    title: shortText(160).min(8, 'Write a title of at least 8 characters'),
+    slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,120}$/, 'Web address: letters, numbers and dashes only').optional().or(z.literal('')),
+    category: z.enum(['Buying guide', 'Car review', 'Market update', 'News', 'EV', 'Pay Small Small']),
+    excerpt: shortText(300).optional(),
+    content: z.string().max(200000).optional(),
+    author: shortText(120).optional(),
+    ownInput: shortText(2000).optional(),
+    sources: z.array(z.object({ title: shortText(200).optional(), url: z.string().trim().url('Each source needs a full web address').max(500).regex(/^https?:\/\//i, 'Sources must start with http:// or https://') })).max(20).optional(),
+    imageSource: z.enum(['template', 'own', 'press', 'stock', 'free', 'ai']).optional(),
+    imageCredit: shortText(200).optional()
+  }),
+  importDraft: z.object({ text: z.string().trim().min(40, 'Paste the whole draft, starting with the Title: line').max(100000) }),
+  // "Nigeria car market today": typed by staff, each figure with its source and date
+  market: z.object({
+    note: shortText(1500).optional(),
+    items: z.array(z.object({
+      label: shortText(80).min(2), value: shortText(60).min(1), detail: shortText(200).optional(),
+      source: shortText(120).min(2, 'Each figure needs its source'), url: z.string().trim().url().max(500).regex(/^https?:\/\//i).optional().or(z.literal('')),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date as YYYY-MM-DD')
+    })).max(12)
   })
 };
+
+// Car inspection notes (kept as JSON on the car). Every part is optional; empty notes are not shown.
+const { INSPECTION_AREAS } = require('./inspection-areas');
+const inspectionSchema = z.object({
+  by: shortText(80).optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
+  items: z.array(z.object({ area: z.enum(INSPECTION_AREAS), status: z.enum(['ok', 'watch', '']).optional(), note: shortText(300).optional() })).max(INSPECTION_AREAS.length)
+});
 
 function validate(name) {
   return (req, res, next) => {
@@ -71,4 +102,4 @@ function validate(name) {
 
 const list = (v) => (v == null ? [] : (Array.isArray(v) ? v : String(v).split(','))).map((s) => String(s).trim()).filter(Boolean).slice(0, 30);
 
-module.exports = { validate, list };
+module.exports = { validate, list, schemas, inspectionSchema, INSPECTION_AREAS };
