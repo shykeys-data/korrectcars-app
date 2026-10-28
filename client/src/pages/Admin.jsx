@@ -1,6 +1,6 @@
 // Staff area (loaded only for staff): two-step login set-up and check, overview, cars (add / edit with photos),
 // leads, swap review, users, blog, audit log and site settings. Every action is checked again on the server.
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import qrcode from 'qrcode-generator';
 import { Link, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink, rs, srcset, shrinkPhoto } from '../lib/core.jsx';
 import { Guides, MarketFigures } from './AdminGuides.jsx';
@@ -70,7 +70,23 @@ function TwoFASetup({ user }) {
 function TwoFAVerify({ user }) {
   const { setUser } = useApp();
   const [code, setCode] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [backup, setBackup] = useState(false);
-  const submit = async (e) => { e.preventDefault(); setErr(''); setBusy(true); try { const d = await api('/auth/2fa/verify', { method: 'POST', body: { code } }); setUser(d.user); } catch (e2) { setErr(e2.message); setCode(''); } finally { setBusy(false); } };
+  const inFlight = useRef(false);
+  const input = useRef(null);
+  // Sends the code once. App codes go automatically as soon as the 6th digit is typed or pasted; backup codes use Continue.
+  const verify = async (value) => {
+    if (inFlight.current) return;
+    inFlight.current = true; setErr(''); setBusy(true);
+    try { const d = await api('/auth/2fa/verify', { method: 'POST', body: { code: value } }); setUser(d.user); } catch (e2) {
+      setErr(e2.message); setCode(''); setBusy(false); inFlight.current = false;
+      requestAnimationFrame(() => input.current && input.current.focus());
+    }
+  };
+  const submit = (e) => { e.preventDefault(); verify(code); };
+  const onCode = (e) => {
+    const v = backup ? e.target.value : e.target.value.replace(/\D/g, '').slice(0, 6);
+    setCode(v);
+    if (!backup && v.length === 6) verify(v);
+  };
   const signOut = async () => { await api('/auth/logout', { method: 'POST' }); setUser(null); };
   return (
     <div className="wrap sec-sm" style={{ maxWidth: 480 }}>
@@ -79,8 +95,9 @@ function TwoFAVerify({ user }) {
         <p style={{ marginTop: 0 }}>Open your authenticator app and type the 6-digit code for <b>Korrect Cars</b> ({user.email}).</p>
         {err && <div className="err" role="alert">{err}</div>}
         <div className="field"><label className="f" htmlFor="tv-code">{backup ? 'Backup code' : '6-digit code'}</label>
-          <input id="tv-code" className={'input' + (backup ? '' : ' code-input')} inputMode={backup ? 'text' : 'numeric'} autoComplete="one-time-code" autoFocus maxLength={backup ? 11 : 6} required value={code} onChange={(e) => setCode(backup ? e.target.value : e.target.value.replace(/\D/g, ''))} /></div>
-        <button className="btn btn-red btn-block" disabled={busy || (!backup && code.length !== 6)}>{busy ? 'Checking…' : 'Continue'}</button>
+          <input ref={input} id="tv-code" className={'input' + (backup ? '' : ' code-input')} inputMode={backup ? 'text' : 'numeric'} autoComplete="one-time-code" autoFocus maxLength={backup ? 11 : 12} readOnly={busy} aria-describedby="tv-hint" required value={code} onChange={onCode} />
+          <div id="tv-hint" className="hint">{backup ? 'Type a backup code, then press Continue.' : 'You are signed in as soon as you type the 6th digit.'}</div></div>
+        <button className="btn btn-red btn-block" disabled={busy || (!backup && code.length !== 6)}>{busy ? 'Signing you in…' : 'Continue'}</button>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }} className="small">
           <button type="button" className="linkish" onClick={() => { setBackup(!backup); setCode(''); }}>{backup ? 'Use the app code' : 'Lost your phone? Use a backup code'}</button>
           <button type="button" className="linkish" onClick={signOut}>Sign out</button>
