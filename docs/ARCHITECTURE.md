@@ -124,7 +124,7 @@ Tables are created on first start by `db.init()` in `server/db.js` (`CREATE TABL
 - **Input**: every API body is checked by a Zod schema; keys such as `__proto__` are stripped first.
 - **Headers**: Helmet with a strict Content-Security-Policy that uses a per-request nonce. Only Google Analytics, AdSense and Google Fonts are allowed in.
 - **Uploads**: file types are checked by content, photos are re-encoded, and private files get random names, live outside the app folder and are served only through the staff route.
-- **Two-step secrets** are encrypted in the database with AES-256-GCM. The key is `TOTP_KEY` (64 hex characters) if set, otherwise a random key in `.totp-key` next to the app (never in Git, never in the web folder). Losing that file means staff set up two-step login again; it does not expose anything.
+- **Two-step secrets** are encrypted in the database with AES-256-GCM. The key is `TOTP_KEY` (64 hex characters) if set, otherwise a random key in `.totp-key` inside the private folder outside the app (never in Git, never in the web folder; the deploy also copies it into the backups folder). Losing that file means staff set up two-step login again; it does not expose anything.
 - **Packages**: exact versions are pinned in `package-lock.json`. `npm audit --omit=dev` should report 0 vulnerabilities.
 - **Health check**: `GET /api/health` answers 200 when the app and database are up, 503 when the database is down. Point an uptime monitor at it.
 - **Secrets** never go in Git. They live in the panel's environment variables or `.htaccess` `SetEnv` lines on the server.

@@ -40,8 +40,8 @@ const sha = (t) => crypto.createHash('sha256').update(String(t).replace(/[^a-z0-
 function newRecoveryCodes(n = 8) { return Array.from({ length: n }, () => crypto.randomBytes(5).toString('hex').replace(/(.{5})/, '$1-')); }
 
 // The 2FA secret is stored encrypted (AES-256-GCM), so a copy of the database alone cannot make staff codes.
-// Key: TOTP_KEY (64 hex characters) if set, otherwise a random key made once and kept in a private file
-// next to the app, outside the web folder. Stored format: "v1:" + base64(iv | tag | ciphertext).
+// Key: TOTP_KEY (64 hex characters) if set, otherwise a random key made once and kept in the private folder
+// outside the app (config.privateDir), never in Git or the web folder. Stored format: "v1:" + base64(iv | tag | ciphertext).
 // Old plain-text secrets still work and are encrypted at start-up (encryptExisting).
 let KEY = null;
 function key() {
@@ -49,7 +49,9 @@ function key() {
   const env = process.env.TOTP_KEY;
   if (env && /^[0-9a-f]{64}$/i.test(env)) return (KEY = Buffer.from(env, 'hex'));
   const fs = require('fs'); const path = require('path');
-  const file = path.join(__dirname, '..', '..', '.totp-key');
+  const dir = require('../config').privateDir; // outside the app folder, so a redeploy or git clean can never delete it
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, '.totp-key');
   try { const k = fs.readFileSync(file, 'utf8').trim(); if (/^[0-9a-f]{64}$/i.test(k)) return (KEY = Buffer.from(k, 'hex')); } catch (_e) { /* create below */ }
   const k = crypto.randomBytes(32).toString('hex');
   fs.writeFileSync(file, k, { mode: 0o600 });
