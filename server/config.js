@@ -52,5 +52,8 @@ module.exports = {
   // Not linked anywhere on the site; staff are given it directly. Without a long ADMIN_PATH the staff pages stay off.
   adminPath: staffPath(env.ADMIN_PATH),
   uploadsDir: path.join(__dirname, '..', 'uploads'),
+  // Swap papers and ID photos: outside the app folder (next to it, one folder per app, so staging never shares live files).
+  // A redeploy, a git clean or a mistake in .gitignore can then never touch or publish them.
+  privateDir: env.PRIVATE_DIR || path.join(__dirname, '..', '..', path.basename(path.join(__dirname, '..')) + '-private'),
   distDir: path.join(__dirname, '..', 'dist')
 };

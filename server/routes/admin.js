@@ -9,7 +9,6 @@ const { q, one, J } = require('../db');
 const { validate, list, inspectionSchema } = require('../lib/validate');
 const { requireStaff, audit } = require('../lib/security');
 const settings = require('../lib/settings');
-const totp = require('../lib/totp');
 const seo = require('../lib/seo');
 const searches = require('../lib/searches');
 const MAX_PHOTOS = 20; // photos per save (more can be added by editing the car)

@@ -62,11 +62,14 @@ async function init() {
     const [have] = await pool.query(`SHOW COLUMNS FROM ${t} LIKE ?`, [c]);
     if (!have.length) await pool.query(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`);
   }
+  // The encrypted 2FA secret is longer than the old plain one
+  const [ts] = await pool.query("SHOW COLUMNS FROM users LIKE 'totp_secret'");
+  if (ts.length && /varchar\((\d+)\)/i.test(ts[0].Type) && Number(RegExp.$1) < 255) await pool.query('ALTER TABLE users MODIFY COLUMN totp_secret VARCHAR(255) NULL');
 }
 
 // New columns added after launch: [table, column, definition]
 const MIGRATIONS = [
-  ['users', 'totp_secret', 'VARCHAR(64) NULL'],
+  ['users', 'totp_secret', 'VARCHAR(255) NULL'],
   ['users', 'totp_enabled', 'TINYINT NOT NULL DEFAULT 0'],
   ['users', 'recovery_codes', 'TEXT NULL'],
   ['enquiries', 'notes', 'TEXT NULL'],

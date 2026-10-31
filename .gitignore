@@ -1,6 +1,7 @@
 node_modules
 .env
 .session-secret
+.totp-key
 uploads/private/*
 uploads/
 tmp/
@@ -8,4 +9,3 @@ dist/
 *.log
 *.zip
 client/node_modules
-package-lock.json

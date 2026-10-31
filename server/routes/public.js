@@ -136,13 +136,13 @@ const staffOnly = (req, res, next) => (isStaff(req.user) ? next() : res.status(4
 r.post('/auth/2fa/setup', requireAuth, staffOnly, async (req, res) => {
   if (req.user.totp_enabled) return res.status(400).json({ error: 'Two-step login is already on. Ask the owner to reset it if you changed phones.' });
   const secret = totp.newSecret();
-  await q('UPDATE users SET totp_secret = ? WHERE id = ?', [secret, req.user.id]);
+  await q('UPDATE users SET totp_secret = ? WHERE id = ?', [totp.seal(secret), req.user.id]);
   res.json({ secret, url: totp.otpauthUrl(secret, req.user.email) });
 });
 r.post('/auth/2fa/enable', codeLimit, requireAuth, staffOnly, async (req, res) => {
   const u = await one('SELECT id, totp_secret, totp_enabled FROM users WHERE id = ?', [req.user.id]);
   if (u.totp_enabled) return res.status(400).json({ error: 'Two-step login is already on.' });
-  if (!totp.verify(u.totp_secret, req.body && req.body.code)) return res.status(400).json({ error: 'That code is not right. Check the time on your phone and try the newest code.' });
+  if (!totp.verify(totp.open(u.totp_secret), req.body && req.body.code)) return res.status(400).json({ error: 'That code is not right. Check the time on your phone and try the newest code.' });
   const codes = totp.newRecoveryCodes();
   await q('UPDATE users SET totp_enabled = 1, recovery_codes = ? WHERE id = ?', [JSON.stringify(codes.map(totp.hashCode)), u.id]);
   await audit(req, 'Turned on two-step login', req.user.email);
@@ -154,7 +154,7 @@ r.post('/auth/2fa/verify', codeLimit, requireAuth, staffOnly, async (req, res) =
   const u = await one('SELECT * FROM users WHERE id = ?', [req.user.id]);
   if (!u.totp_enabled) return res.status(400).json({ error: 'Set up two-step login first.' });
   const code = String((req.body && req.body.code) || '').trim();
-  let ok = totp.verify(u.totp_secret, code);
+  let ok = totp.verify(totp.open(u.totp_secret), code);
   if (!ok && /^[a-z0-9]{5}-?[a-z0-9]{5}$/i.test(code)) { // a one-time backup code
     const hashes = Array.isArray(u.recovery_codes) ? u.recovery_codes : [];
     const h = totp.hashCode(code);

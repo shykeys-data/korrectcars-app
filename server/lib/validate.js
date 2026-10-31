@@ -22,7 +22,7 @@ const schemas = {
     message: shortText(1500).optional(),
     offerAmount: money.optional(), preferredDate: shortText(40).optional(),
     deposit: money.optional(), months: z.coerce.number().int().min(1).max(60).optional(),
-    consent: z.literal(true, { errorMap: () => ({ message: 'Please agree to be contacted' }) }),
+    consent: z.literal(true, { error: 'Please agree to be contacted' }),
     website: z.string().max(0).optional() // honeypot: bots fill this
   }),
   swapListing: z.object({
@@ -88,12 +88,21 @@ const inspectionSchema = z.object({
   items: z.array(z.object({ area: z.enum(INSPECTION_AREAS), status: z.enum(['ok', 'watch', '']).optional(), note: shortText(300).optional() })).max(INSPECTION_AREAS.length)
 });
 
+// Plain-English messages for the library's built-in errors (our own messages, such as 'Enter a valid email', pass through)
+const label = (p) => String(p[p.length - 1] ?? 'form').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+function friendly(issue) {
+  if (issue.code === 'invalid_type') return issue.input === undefined || issue.input === null ? `Please fill in the ${label(issue.path)}.` : `Please check the ${label(issue.path)}.`;
+  if (issue.code === 'invalid_value' || issue.code === 'invalid_enum_value') return `Please choose a valid ${label(issue.path)}.`;
+  if (/^(Invalid|Too (big|small)|Expected)/.test(issue.message)) return `Please check the ${label(issue.path)}.`;
+  return issue.message;
+}
+
 function validate(name) {
   return (req, res, next) => {
     const r = schemas[name].safeParse(req.body);
     if (!r.success) {
       const first = r.error.issues[0];
-      return res.status(400).json({ error: first.message, field: first.path.join('.') });
+      return res.status(400).json({ error: friendly(first), field: first.path.join('.') });
     }
     req.valid = r.data;
     next();
@@ -102,4 +111,4 @@ function validate(name) {
 
 const list = (v) => (v == null ? [] : (Array.isArray(v) ? v : String(v).split(','))).map((s) => String(s).trim()).filter(Boolean).slice(0, 30);
 
-module.exports = { validate, list, schemas, inspectionSchema, INSPECTION_AREAS };
+module.exports = { friendly, validate, list, schemas, inspectionSchema, INSPECTION_AREAS };

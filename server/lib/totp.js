@@ -39,4 +39,45 @@ const otpauthUrl = (secret, account, issuer = 'Korrect Cars') => `otpauth://totp
 const sha = (t) => crypto.createHash('sha256').update(String(t).replace(/[^a-z0-9]/gi, '').toLowerCase()).digest('hex');
 function newRecoveryCodes(n = 8) { return Array.from({ length: n }, () => crypto.randomBytes(5).toString('hex').replace(/(.{5})/, '$1-')); }
 
-module.exports = { newSecret, verify, otpauthUrl, hotp, newRecoveryCodes, hashCode: sha, base32Decode, base32Encode };
+// The 2FA secret is stored encrypted (AES-256-GCM), so a copy of the database alone cannot make staff codes.
+// Key: TOTP_KEY (64 hex characters) if set, otherwise a random key made once and kept in a private file
+// next to the app, outside the web folder. Stored format: "v1:" + base64(iv | tag | ciphertext).
+// Old plain-text secrets still work and are encrypted at start-up (encryptExisting).
+let KEY = null;
+function key() {
+  if (KEY) return KEY;
+  const env = process.env.TOTP_KEY;
+  if (env && /^[0-9a-f]{64}$/i.test(env)) return (KEY = Buffer.from(env, 'hex'));
+  const fs = require('fs'); const path = require('path');
+  const file = path.join(__dirname, '..', '..', '.totp-key');
+  try { const k = fs.readFileSync(file, 'utf8').trim(); if (/^[0-9a-f]{64}$/i.test(k)) return (KEY = Buffer.from(k, 'hex')); } catch (_e) { /* create below */ }
+  const k = crypto.randomBytes(32).toString('hex');
+  fs.writeFileSync(file, k, { mode: 0o600 });
+  return (KEY = Buffer.from(k, 'hex'));
+}
+function seal(secret) {
+  if (!secret) return null;
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', key(), iv);
+  const ct = Buffer.concat([c.update(String(secret), 'utf8'), c.final()]);
+  return 'v1:' + Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64');
+}
+function open(stored) {
+  if (!stored) return null;
+  if (!String(stored).startsWith('v1:')) return stored; // not yet encrypted
+  try {
+    const b = Buffer.from(String(stored).slice(3), 'base64');
+    const d = crypto.createDecipheriv('aes-256-gcm', key(), b.subarray(0, 12));
+    d.setAuthTag(b.subarray(12, 28));
+    return Buffer.concat([d.update(b.subarray(28)), d.final()]).toString('utf8');
+  } catch (_e) { return null; } // wrong key or tampered: the code simply fails
+}
+const isSealed = (v) => String(v || '').startsWith('v1:');
+async function encryptExisting(db) {
+  const rows = await db.q("SELECT id, totp_secret FROM users WHERE totp_secret IS NOT NULL AND totp_secret <> ''");
+  let n = 0;
+  for (const r of rows) if (!isSealed(r.totp_secret)) { await db.q('UPDATE users SET totp_secret = ? WHERE id = ?', [seal(r.totp_secret), r.id]); n++; }
+  return n;
+}
+
+module.exports = { seal, open, isSealed, encryptExisting, newSecret, verify, otpauthUrl, hotp, newRecoveryCodes, hashCode: sha, base32Decode, base32Encode };

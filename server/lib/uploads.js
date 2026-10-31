@@ -7,8 +7,20 @@ const multer = require('multer');
 const config = require('../config');
 
 const PUBLIC_DIR = path.join(config.uploadsDir, 'public');
-const PRIVATE_DIR = path.join(config.uploadsDir, 'private');
-for (const d of [PUBLIC_DIR, PRIVATE_DIR, path.join(PUBLIC_DIR, 'cars'), path.join(PUBLIC_DIR, 'swap'), path.join(PUBLIC_DIR, 'blog')]) fs.mkdirSync(d, { recursive: true });
+const PRIVATE_DIR = config.privateDir;
+fs.mkdirSync(PRIVATE_DIR, { recursive: true, mode: 0o700 });
+// One-off move: private files saved before Oct 2026 lived in uploads/private inside the app folder
+(function moveOldPrivateFiles() {
+  const old = path.join(config.uploadsDir, 'private');
+  let names = []; try { names = fs.readdirSync(old); } catch (_e) { return; }
+  let moved = 0;
+  for (const n of names) {
+    const from = path.join(old, n); const to = path.join(PRIVATE_DIR, n);
+    try { if (fs.statSync(from).isFile() && !fs.existsSync(to)) { fs.copyFileSync(from, to); fs.chmodSync(to, 0o600); fs.unlinkSync(from); moved++; } } catch (e) { console.warn('Private file not moved:', n, e.message); }
+  }
+  if (moved) console.log(`Moved ${moved} private file(s) out of the app folder`);
+})();
+for (const d of [PUBLIC_DIR, path.join(PUBLIC_DIR, 'cars'), path.join(PUBLIC_DIR, 'swap'), path.join(PUBLIC_DIR, 'blog')]) fs.mkdirSync(d, { recursive: true });
 
 // Files are held in memory, checked by their real bytes (not the name), then written
 const memory = multer({

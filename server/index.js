@@ -15,13 +15,7 @@ const { loadUser, csrfGuard, sanitizeInput, limiter } = require('./lib/security'
 const settings = require('./lib/settings');
 const { renderPage } = require('./render');
 
-// Send errors from async route handlers to the error handler instead of crashing the process
-const Layer = require('express/lib/router/layer');
-Layer.prototype.handle_request = function handle(req, res, next) {
-  const fn = this.handle;
-  if (fn.length > 3) return next();
-  try { const r = fn(req, res, next); if (r && typeof r.catch === 'function') r.catch(next); } catch (e) { next(e); }
-};
+// Express 5 sends errors from async route handlers (rejected promises) to the error handler by itself.
 process.on('unhandledRejection', (e) => console.error('Unhandled rejection:', e));
 
 const app = express();
@@ -58,6 +52,7 @@ app.use(compression());
 app.use(cookieParser());
 app.use(express.json({ limit: '200kb' }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
+app.use((req, _res, next) => { if (req.body === undefined) req.body = {}; next(); }); // Express 5 leaves it undefined when there is no body
 app.use(sanitizeInput);
 
 // One canonical host (keeps the www address Google already knows). HTTPS is forced by the web server (DirectAdmin "Force SSL").
@@ -83,6 +78,12 @@ app.get(/^\/(google[0-9a-f]{8,32})\.html$/, (req, res) => res.type('text/html').
 // robots.txt, llms.txt (summary for AI assistants) and the IndexNow key file
 require('./lib/seo').routes(app);
 app.get('/ads.txt', (_req, res) => res.type('text/plain').send(process.env.ADS_TXT || 'google.com, pub-9741732903227479, DIRECT, f08c47fec0942fa0\n'));
+
+// ---------- Health check (for an uptime monitor): 200 when the app and the database answer, 503 when not ----------
+app.get('/api/health', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { await db.q('SELECT 1 AS ok'); res.json({ ok: true, db: 'ok', uptime: Math.round(process.uptime()) }); } catch (_e) { res.status(503).json({ ok: false, db: 'down' }); }
+});
 
 // ---------- API ----------
 const api = express.Router();
@@ -141,7 +142,7 @@ app.use(async (req, res, next) => {
 });
 
 // ---------- React app (with server-rendered meta + content for Google) ----------
-app.get('*', loadUser, async (req, res, next) => {
+app.get('/{*page}', loadUser, async (req, res, next) => {
   try {
     const { status, html, redirect } = await renderPage(req, res.locals.nonce);
     if (redirect) return res.redirect(301, redirect);
@@ -172,6 +173,7 @@ app.use((err, req, res, _next) => {
 db.init()
   .then(async () => {
     await require('./lib/settings').load();
+    try { const n = await require('./lib/totp').encryptExisting(db); if (n) console.log(`Encrypted ${n} two-step login secret(s)`); } catch (e) { console.warn('2FA secret encryption skipped:', e.message); }
     try { const r = require('./photos').restorePhotos(); if (r.copied || r.missing) console.log('Photos restored from WordPress uploads:', r); } catch (e) { console.warn('Photo restore skipped:', e.message); }
     const c = await db.one('SELECT COUNT(*) AS n FROM cars');
     if (!Number(c.n)) console.log('Seeded live data:', await require('./seed').seed());
