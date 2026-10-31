@@ -17,6 +17,24 @@ const rs = (u, w) => { const m = String(u || '').match(RS); return m ? `/r/${w}/
 const preloadTag = (u, sizes, widths = [800, 1200, 1600]) => (RS.test(String(u || ''))
   ? `<link rel="preload" as="image" href="${rs(u, widths[1])}" imagesrcset="${widths.map((w) => `${rs(u, w)} ${w}w`).join(', ')}" imagesizes="${sizes}" fetchpriority="high">` : '');
 
+// The server page: a simple but complete page (header, content, footer) shown to visitors whose phone does not run
+// the app (scripts off, Opera Mini, a connection that drops before the app downloads). When the app starts it
+// replaces this whole block. index.html hides it while the app is loading and shows it if the app fails to arrive.
+function ssrFrame(body, isAdmin) {
+  if (isAdmin) return `<div class="ssr">${body}</div>`;
+  const st = require('./lib/settings').current();
+  const phone = (st.phones || config.phones)[0] || '';
+  const wa = `https://wa.me/${esc(st.whatsapp || config.whatsapp)}`;
+  const nav = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/vin-check', 'VIN check'], ...(st.swap ? [['/swap', 'Swap your car']] : []), ['/blog', 'Guides'], ['/contact', 'Contact']];
+  return `<div class="ssr"><header class="ssr-hdr"><a href="/" class="ssr-logo"><img src="/img/logo.svg" alt="Korrect Cars" width="160" height="40"></a>`
+    + `<nav aria-label="Main">${nav.map(([u, t]) => `<a href="${u}">${t}</a>`).join('')}</nav>`
+    + `<p class="ssr-cta"><a class="ssr-btn" href="${wa}">WhatsApp us</a> <a href="tel:${esc(phone.replace(/\s/g, ''))}">Call ${esc(phone)}</a></p></header>`
+    + `<main id="main" class="ssr-main">${body}</main>`
+    + `<footer class="ssr-foot"><p><b>Korrect Cars</b> · Online car dealer in Lagos · ${esc(st.hours || config.hours)}</p><p><a href="${wa}">WhatsApp</a> · <a href="tel:${esc(phone.replace(/\s/g, ''))}">${esc(phone)}</a> · <a href="mailto:${esc(st.email || config.email)}">${esc(st.email || config.email)}</a></p>`
+    + `<p><a href="/about-us">About us</a> · <a href="/faqs">FAQs</a> · <a href="/blog">Guides</a> · <a href="/vin-check">Free VIN check</a> · <a href="/privacy-policy">Privacy policy</a> · <a href="/terms-and-conditions">Terms</a></p>`
+    + `<p class="ssr-note">This is the light version of the page. It switches to the full site when your connection allows.</p></footer></div>`;
+}
+
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
 const strip = (h) => String(h || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -181,7 +199,7 @@ async function renderPage(req, nonce) {
   }
   if (p === '/' || p === '/cars') {
     const avail = allCars.filter((c) => c.status === 'available');
-    body += '<ul>' + avail.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(naira(c.price))}</li>`).join('') + '</ul>';
+    body += '<ul class="ssr-cars">' + avail.map((c) => `<li><a href="/cars/${esc(c.slug)}">${(c.photos || [])[0] ? `<img src="${esc(rs(c.photos[0], 400))}" alt="" width="400" height="300" loading="lazy" decoding="async">` : ''}<span>${esc(c.title)}</span></a> <b>${esc(naira(c.price))}</b></li>`).join('') + '</ul>';
     const catLinks = cats.pages().map((c) => [c, avail.filter(c.test).length]).filter(([, n]) => n > 0);
     if (catLinks.length) body += '<h2>Browse by category</h2><ul>' + catLinks.filter(([c]) => !c.budget).map(([c, n]) => `<li><a href="/cars/${c.slug}">${esc(c.name)}</a> (${n} in stock)</li>`).join('') + '</ul>';
     body += budgetLinksHtml(allCars);
@@ -245,7 +263,7 @@ async function renderPage(req, nonce) {
         : clip(`${car.title} for sale in ${car.location || 'Lagos'} at ${naira(car.price)}${pss}. ${extra}`, 160);
       meta = { ...meta, title: sold ? `Sold: ${car.title} — See Similar Cars in Lagos | Korrect Cars` : (car.seo_title || `${car.title} for Sale in Lagos — ${naira(car.price)} | Korrect Cars`), desc, image: (car.photos || [])[0] || DEFAULT.image };
       const similarHtml = (d.similar || []).length ? `<h2>${sold ? 'Similar cars in stock' : 'Similar cars'}</h2><ul>` + d.similar.map((x) => `<li><a href="/cars/${esc(x.slug)}">${esc(x.title)}</a> — ${esc(naira(x.price))}</li>`).join('') + '</ul>' : '';
-      body = `<h1>${esc(car.title)}</h1><p><strong>${esc(naira(car.price))}</strong>${sold ? ' — SOLD' : ''}</p>`
+      body = `<h1>${esc(car.title)}</h1>${(car.photos || [])[0] ? `<img class="ssr-hero" src="${esc(rs(car.photos[0], 800))}" alt="${esc(car.title)}" width="800" height="600">` : ''}<p><strong>${esc(naira(car.price))}</strong>${sold ? ' — SOLD' : ''}</p>`
         + (sold ? `<p>This car has been sold. See <a href="/cars/${slugify(car.make)}/${slugify(car.model)}">every ${esc(car.make)} ${esc(car.model)} for sale</a> or <a href="/cars">all cars in stock</a>.</p>` + similarHtml : '')
         + String(car.description || '').split(/\n\n+/).map((x) => `<p>${esc(x)}</p>`).join('')
         + (car.features && car.features.length ? '<ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
@@ -325,10 +343,7 @@ async function renderPage(req, nonce) {
     `<script type="application/json" id="__boot">${json(boot)}</script>`
   ].filter(Boolean).join('\n');
 
-  // Plain links to the main pages on every public page, so crawlers that do not run scripts (including AI search bots) can find them all
-  if (!noindex) body += '<nav aria-label="Site"><ul>' + [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/vin-check', 'Free VIN check'], ...(swapOn ? [['/swap', 'Korrect Swap']] : []), ['/blog', 'Guides'], ['/about-us', 'About us'], ['/contact', 'Contact'], ['/faqs', 'FAQs']]
-    .filter(([u]) => u !== p).map(([u, t]) => `<li><a href="${u}">${t}</a></li>`).join('') + '</ul></nav>';
-  const html = shell().replace('<!--HEAD-->', head).replace('<!--BODY-->', `<div class="ssr">${body}</div>`).replace(/__NONCE__/g, nonce);
+  const html = shell().replace('<!--HEAD-->', head).replace('<!--BODY-->', ssrFrame(body, isAdmin)).replace(/__NONCE__/g, nonce);
   return { status, html };
 }
 

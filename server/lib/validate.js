@@ -5,6 +5,8 @@ const { z } = require('zod');
 const phone = z.string().trim().regex(/^\+?[0-9 ()-]{7,20}$/, 'Enter a valid phone number');
 const email = z.string().trim().toLowerCase().email('Enter a valid email').max(120);
 const shortText = (max = 120) => z.string().trim().max(max);
+// A text list sent either as one string or as an array: capped so a huge list cannot be sent
+const textList = (items = 30, each = 120) => z.union([z.string().max(items * (each + 2)), z.array(z.string().max(each)).max(items)]);
 const money = z.coerce.number().int().min(0).max(5_000_000_000);
 
 const schemas = {
@@ -31,8 +33,8 @@ const schemas = {
     mileage: shortText(30).optional(), value: money, location: shortText(60).min(2),
     condition: shortText(40).optional(), color: shortText(30).optional(), transmission: shortText(30).optional(),
     description: shortText(2000).optional(),
-    wantsMakes: z.union([z.string(), z.array(z.string())]).optional(),
-    wantsBodies: z.union([z.string(), z.array(z.string())]).optional(),
+    wantsMakes: textList(30, 60).optional(),
+    wantsBodies: textList(20, 60).optional(),
     maxTopUp: money.optional(), wantsNotes: shortText(500).optional()
   }),
   offer: z.object({
@@ -51,9 +53,9 @@ const schemas = {
     interior: shortText(60).optional(), condition: shortText(40).optional(), location: shortText(60).optional(),
     trim: shortText(60).optional(), vin: shortText(40).optional(), stock: shortText(40).optional(),
     specsText: shortText(4000).optional(), infoText: shortText(4000).optional(),
-    description: shortText(8000).optional(), features: z.union([z.string(), z.array(z.string())]).optional(),
+    description: shortText(8000).optional(), features: textList(60, 200).optional(),
     status: z.enum(['available', 'sold', 'hidden']).optional(), featured: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
-    keepPhotos: z.union([z.string(), z.array(z.string())]).optional(),
+    keepPhotos: textList(100, 300).optional(),
     inspection: shortText(6000).optional() // JSON from the form; checked again by inspectionSchema
   }),
   // Guides written or edited in the staff area. Content is HTML and is cleaned by lib/sanitize.js before saving.

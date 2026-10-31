@@ -19,7 +19,7 @@ The code follows these rules. If a change breaks one, it is the wrong change.
 ```
 app.js                  start file for DirectAdmin "Setup Node.js App" (Passenger); just loads server/index.js
 server/
-  index.js              the Express app: security headers, static files, /api, sitemap, old WordPress redirects, page rendering, error handler
+  index.js              the Express 5 app (async errors reach the error handler by themselves): security headers, static files, /api, sitemap, old WordPress redirects, page rendering, error handler
   config.js             reads environment variables (.env or the panel) and gives safe defaults
   db.js                 MySQL connection (mysql2) and the CREATE TABLE statements; DB_DRIVER=sqlite for local tests
   render.js             builds the HTML for every page: title, description, structured data, readable content, embedded data
@@ -38,10 +38,10 @@ server/
     titles.js           hides staff codes such as "BF" from public car titles
     seo.js              robots.txt, llms.txt and IndexNow
     images.js           /r/<width>/... resized WebP photos, made once and kept on disk
-    uploads.js          checks and saves uploaded files; private files go to uploads/private
+    uploads.js          checks and saves uploaded files; private files go to the private folder outside the app (see below)
     mail.js             email through the server's sendmail; logs instead when sendmail is missing
     searches.js         saved-search matching and new-car alert emails
-    totp.js             6-digit two-step codes (Google Authenticator and similar)
+    totp.js             6-digit two-step codes (Google Authenticator and similar); the secret is stored encrypted (AES-256-GCM)
     catalog.js          make -> model -> body type lists for the forms
     pagecopy.js         written copy for Guides, Contact, Swap, VIN check and market pages (shared by server and React)
     sanitize.js         allowlist HTML cleaner for guide content: rebuilds every tag, drops scripts and outside images
@@ -56,11 +56,14 @@ client/
   src/lib/core.jsx      shared helpers: router, API calls, embedded data, naira format, photo sizes, WhatsApp links
   src/lib/rank.js       the "Recommended" car order (per visitor, changes daily)
   src/components/       Layout (header, footer, WhatsApp button), Bits (car card, calculator, forms), QuickView, Cascade, Copy (page copy)
-  src/pages/            one file per area: Home, Cars (list, detail, Pay Small Small, compare), Swap, Account, Content, Tools (VIN check, market), Admin, AdminGuides (guides, covers, market figures)
+  src/pages/            one file per area: Home; Cars (list, compare), CarDetail, PaySmallSmall; Swap; Account; Content; Tools (VIN check, market);
+                        staff area: Admin (frame, tabs, overview), AdminAuth (2FA), AdminCars, AdminLeads (leads, swaps), AdminSettings (settings, users, log), AdminGuides, AdminShared
   src/styles.css        the only stylesheet; design tokens at the top
 seed/                   the old WordPress export, loaded only into an empty database
 uploads/public          car, blog and swap photos (served at /uploads)
-uploads/private         swap papers and IDs: never served directly, only through the staff file route
+../<app folder>-private swap papers and IDs, outside the app folder (PRIVATE_DIR to change it): never served directly, only through the staff file route.
+                        Staging and live each have their own, so staging never sees customer files
+test/                   automatic tests (node --test test/*.test.js)
 docs/                   this guide and README screenshots
 ```
 
@@ -120,7 +123,10 @@ Tables are created on first start by `db.init()` in `server/db.js` (`CREATE TABL
 - **Staff area**: `requireStaff()` in `security.js` needs the right role, two-step login set up, and the code entered in this session. Roles: `admin`, `sales` (old name `moderator`) and `editor`. The staff sign-in address comes from `ADMIN_PATH`, which is set only on the server and is not linked anywhere on the site. Without it (or with fewer than 12 characters) the staff pages stay off. Staff roles are given only by a server command: `node server/tools-make-staff.js <email> <admin|sales|editor|user>`. Nobody becomes staff by signing up.
 - **Input**: every API body is checked by a Zod schema; keys such as `__proto__` are stripped first.
 - **Headers**: Helmet with a strict Content-Security-Policy that uses a per-request nonce. Only Google Analytics, AdSense and Google Fonts are allowed in.
-- **Uploads**: file types are checked by content, photos are re-encoded, and private files get random names and are served only through the staff route.
+- **Uploads**: file types are checked by content, photos are re-encoded, and private files get random names, live outside the app folder and are served only through the staff route.
+- **Two-step secrets** are encrypted in the database with AES-256-GCM. The key is `TOTP_KEY` (64 hex characters) if set, otherwise a random key in `.totp-key` next to the app (never in Git, never in the web folder). Losing that file means staff set up two-step login again; it does not expose anything.
+- **Packages**: exact versions are pinned in `package-lock.json`. `npm audit --omit=dev` should report 0 vulnerabilities.
+- **Health check**: `GET /api/health` answers 200 when the app and database are up, 503 when the database is down. Point an uptime monitor at it.
 - **Secrets** never go in Git. They live in the panel's environment variables or `.htaccess` `SetEnv` lines on the server.
 
 ## This repository is public: what must never be in it
@@ -152,12 +158,12 @@ AdSense rejected the site in October 2026 for thin content. These rules keep it 
 
 ## Tests
 
-`node --test test/*.test.js` runs the automated tests: the sanitizer against 30 script-injection tricks, draft import, VIN rules. Add a test when you fix a bug.
+`node --test test/*.test.js` runs the automated tests (21): the API end to end on a throwaway SQLite database (health check, CSRF guard, email confirmation, account lock after 5 wrong passwords, customers kept out of the staff API, staff two-step login with the encrypted secret and backup codes, editor vs admin, Pay Small Small figures, validation), two-step codes (RFC 6238 vector, encryption), the HTML cleaner against script-injection tricks, draft import and VIN rules. Add a test when you fix a bug.
 
 ## Running it on your computer
 
 ```
-npm install && (cd client && npm install)
+npm ci && (cd client && npm install)
 node client/build.js
 DB_DRIVER=sqlite SQLITE_FILE=/tmp/kc.db PORT=3123 MAIL_DISABLED=1 ADSENSE_CLIENT= GA_ID= node app.js
 ```
@@ -184,16 +190,11 @@ Never copy customer data to staging.
 - **A category or budget page is missing from Google**: it has fewer than `MIN_INDEX` (3) cars in stock, so it is marked noindex on purpose.
 - **Photos load slowly**: use `rs()` / `srcset()` from `core.jsx` so the browser gets a resized WebP from `/r/<width>/...`.
 
+## The light page (when the app cannot run)
+
+Every public page is first sent as plain HTML from `render.js`: header, the page's real content (cars with photos and prices, guide text, contact details) and footer. A small script in `client/index.html` hides it while the app loads, so there is no flash. If the app has not started within 6 seconds, or its file fails to download, the light page is shown instead. Visitors with scripts switched off see it straight away. Search engines and AI crawlers always read it. When the app starts, it replaces the light page.
+
 ## Known work left
 
-These are tracked in the developer brief:
-
-- More automatic tests (routes and pages)
-- Upgrade zod to version 4 (audit warning; request size limits already block it)
-- `package-lock.json` with `npm ci`
-- Encrypted 2FA secrets
-- Size limits on list inputs
-- `/api/health`
-- Splitting `Cars.jsx` and `Admin.jsx`
-- Keeping private uploads outside the app folder
-- Replacing the router patch at the top of `index.js`
+- More tests for the React pages (the API is covered)
+- Optional: draw the React pages on the server too (full server-side rendering), so the switch from the light page is seamless

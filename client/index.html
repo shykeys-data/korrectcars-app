@@ -10,12 +10,17 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Source+Sans+3:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="/assets/app.css?v=__BUILD__">
+<script nonce="__NONCE__">
+/* While the app loads, the light server page stays hidden (no flash). If the app has not started after 6 seconds,
+   or its file fails to download, the light page is shown so the visitor still sees cars, prices and contacts. */
+(function(){var d=document.documentElement;d.classList.add('js');function show(){if(!window.__kcMounted)d.classList.remove('js');}
+setTimeout(show,6000);window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT')show();},true);})();
+</script>
 <!--PRELOAD-->
 <!--HEAD-->
 </head>
 <body>
 <div id="root"><!--BODY--></div>
-<noscript><p style="padding:16px">Please turn on JavaScript to use all features of Korrect Cars, or WhatsApp us on +234 813 858 8818.</p></noscript>
 <script type="module" nonce="__NONCE__" src="/assets/app.js?v=__BUILD__"></script>
 </body>
 </html>

@@ -73,3 +73,4 @@ function App() {
 }
 
 createRoot(document.getElementById('root')).render(<App />);
+window.__kcMounted = true; // the light server page (see index.html) is no longer needed

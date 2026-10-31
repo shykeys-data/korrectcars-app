@@ -28,7 +28,7 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 | Layer | Tools |
 | --- | --- |
 | Front end | React 18, esbuild |
-| Back end | Node.js, Express |
+| Back end | Node.js, Express 5 |
 | Database | MySQL (mysql2); tables are created on first start |
 | Security | Helmet, rate limiting, CSRF protection, bcrypt password hashing, JWT sessions, Zod input validation |
 | Hosting | DirectAdmin Node.js app (Passenger) |
@@ -39,7 +39,7 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 - `server/`: Express API, MySQL data layer, security, server-rendered SEO; `server/lib/categories.js` holds the car categories
 - `client/`: React source (`client/src/lib/rank.js` is the Recommended order); build with `node client/build.js` (outputs to `dist/`)
 - `seed/`: cars, blog posts and pages imported from the old WordPress site, loaded when the database is empty
-- `uploads/public`: car, blog and swap photos; `uploads/private`: swap papers (staff only)
+- `uploads/public`: car, blog and swap photos; swap papers (staff only) are kept outside the app folder
 
 ## Categories and car order
 
@@ -51,7 +51,7 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 ## Running it
 
 1. Copy `.env.example` to `.env` and fill in your MySQL details.
-2. Install and build: `npm install`, then `node client/build.js`.
+2. Install and build: `npm ci` (exact versions from package-lock.json), then `node client/build.js`.
 3. Start: `node app.js`.
 
 Real credentials live only in `.env` and server environment variables, never in this repository.
