@@ -8,7 +8,7 @@ import { T } from './AdminShared.jsx';
 const LABEL = { pending_review: ['Waiting', 'tag-warn'], more_info: ['Asked for more', 'tag-info'], approved: ['Approved', 'tag-ok'], rejected: ['Rejected', 'tag-bad'], suspended: ['Paused', 'tag-bad'], draft: ['Not sent', 'tag-grey'] };
 const St = ({ s }) => <T c={(LABEL[s] || [s, 'tag-grey'])[1]}>{(LABEL[s] || [s])[0]}</T>;
 
-export function Dealers({ onChange }) {
+export function Dealers({ onChange, isAdmin }) {
   const [filter, setFilter] = useState('');
   const { data, reload } = useApi('/admin/dealers' + (filter ? '?status=' + filter : ''), [filter]);
   const [open, setOpen] = useState(null);
@@ -25,13 +25,14 @@ export function Dealers({ onChange }) {
             <td style={{ textAlign: 'right' }}><button className="btn btn-dark btn-sm" onClick={() => setOpen(d.id)}>Open</button></td>
           </tr>)}
         </tbody></table></div>)}
-      {open && <DealerReview id={open} onClose={() => setOpen(null)} onDone={() => { setOpen(null); reload(); if (onChange) onChange(); }} />}
+      {open && <DealerReview id={open} isAdmin={isAdmin} onClose={() => setOpen(null)} onDone={() => { setOpen(null); reload(); if (onChange) onChange(); }} />}
     </div>
   );
 }
 
-function DealerReview({ id, onClose, onDone }) {
-  const { data, error } = useApi('/admin/dealers/' + id);
+function DealerReview({ id, onClose, onDone, isAdmin }) {
+  const { data, error, reload } = useApi('/admin/dealers/' + id);
+  const [moving, setMoving] = useState(false);
   const [note, setNote] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState('');
   const decide = async (decision) => {
     setErr('');
@@ -62,6 +63,9 @@ function DealerReview({ id, onClose, onDone }) {
               <a className="btn btn-line btn-sm" href={`/api/admin/dealers/${id}/documents/${x.id}`} target="_blank" rel="noopener noreferrer">Open (logged)</a></div>))}
           {data.cars.length > 0 && <><h3 style={{ marginTop: 18 }}>Cars ({data.cars.length})</h3>
             {data.cars.slice(0, 8).map((c) => <div className="row" key={c.id}><div>{c.title} <span className="small muted">VIN {c.vin} · {naira(c.price)}</span></div><span className="small">{c.status}</span></div>)}</>}
+          {isAdmin && d.status === 'approved' && (moving
+            ? <MoveCars dealer={d} onClose={() => setMoving(false)} onDone={() => { setMoving(false); reload(); }} />
+            : <p style={{ marginTop: 14 }}><button className="btn btn-dark btn-sm" onClick={() => setMoving(true)}>Move cars to this dealer</button></p>)}
           <h3 style={{ marginTop: 18 }}>History</h3>
           {data.events.map((e, i) => <div className="small" key={i}>{date(e.created_at)} · {e.step} → <b>{e.result}</b>{e.actor ? ` by ${e.actor}` : ''}{e.note ? `: ${e.note}` : ''}</div>)}
           <div className="field" style={{ marginTop: 18 }}><label className="f" htmlFor="dr-note">Note to the dealer (needed unless approving)</label>
@@ -76,5 +80,44 @@ function DealerReview({ id, onClose, onDone }) {
         </>;
       })()}
     </Modal>
+  );
+}
+
+// Administrators: hand cars from Korrect Cars (or another dealer) to this dealer. All of Korrect Cars' cars start ticked.
+function MoveCars({ dealer, onClose, onDone }) {
+  const { data } = useApi('/admin/cars');
+  const cars = ((data && data.cars) || []).filter((c) => c.dealer_id !== dealer.id);
+  const [picked, setPicked] = useState(null);
+  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  if (!data) return <Loading />;
+  const sel = picked || new Set(cars.filter((c) => c.dealer_id === 1).map((c) => c.id));
+  const toggle = (cid) => { const n = new Set(sel); if (n.has(cid)) n.delete(cid); else n.add(cid); setPicked(n); };
+  const move = async () => {
+    if (!sel.size) { setErr('Tick at least one car.'); return; }
+    if (!window.confirm(`Move ${sel.size} car${sel.size === 1 ? '' : 's'} to ${dealer.business_name}? Staff codes like "BF" are taken off the titles, and the cars appear on their dealer page.`)) return;
+    setBusy(true); setErr('');
+    try { await api(`/admin/dealers/${dealer.id}/move-cars`, { method: 'POST', body: { carIds: [...sel] } }); onDone(); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="box" style={{ marginTop: 14 }}>
+      <h3 style={{ marginTop: 0 }}>Move cars to {dealer.business_name}</h3>
+      <p className="small muted">Each car keeps its web address, photos, views and VIN. Moved cars do not count towards the 50-car limit.</p>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <button type="button" className="btn btn-line btn-sm" onClick={() => setPicked(new Set(cars.map((c) => c.id)))}>Tick all</button>
+        <button type="button" className="btn btn-line btn-sm" onClick={() => setPicked(new Set())}>Untick all</button>
+      </div>
+      <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid var(--line)', borderRadius: 10, padding: '4px 10px' }}>
+        {!cars.length ? <p className="muted">No other cars to move.</p> : cars.map((c) => (
+          <label key={c.id} className="check" style={{ display: 'flex', gap: 8, padding: '6px 0' }}>
+            <input type="checkbox" checked={sel.has(c.id)} onChange={() => toggle(c.id)} />
+            <span>{c.title} <span className="small muted">· {c.status} · {c.dealer_name || 'Korrect Cars'}</span></span>
+          </label>))}
+      </div>
+      {err && <div className="err" role="alert">{err}</div>}
+      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+        <button className="btn btn-red" disabled={busy} onClick={move}>{busy ? 'Moving…' : `Move ${sel.size} car${sel.size === 1 ? '' : 's'}`}</button>
+        <button className="btn btn-line" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
   );
 }

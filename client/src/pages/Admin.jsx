@@ -73,7 +73,7 @@ function Console({ user }) {
           {tab === 'overview' && <Overview stats={stats} go={setTab} />}
           {tab === 'cars' && <Cars isAdmin={user.role === 'admin'} />}
           {tab === 'leads' && <Leads onChange={stats.reload} />}
-          {tab === 'dealers' && <Dealers onChange={stats.reload} />}
+          {tab === 'dealers' && <Dealers onChange={stats.reload} isAdmin={user.role === 'admin'} />}
           {tab === 'settings' && <Settings />}
           {tab === 'listings' && <Listings onChange={stats.reload} />}
           {tab === 'swaps' && <Swaps />}

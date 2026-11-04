@@ -110,7 +110,8 @@ async function liveLimit(d) {
   const ageDays = since ? (Date.now() - new Date(String(since).replace(' ', 'T') + (/Z$|[+-]\d\d:?\d\d$/.test(String(since)) ? '' : 'Z')).getTime()) / 86400000 : 0;
   return ageDays < NEW_DEALER_DAYS ? FIRST_MONTHS_LIMIT : null; // null = no limit
 }
-const liveCount = async (dealerId, exceptCar) => Number((await one(`SELECT COUNT(*) AS n FROM cars WHERE dealer_id = ? AND status IN ${registry.LIVE_SQL}${exceptCar ? ' AND id <> ?' : ''}`, exceptCar ? [dealerId, exceptCar] : [dealerId])).n);
+// Cars for sale that count towards the first-3-months limit (cars handed over by staff do not count, owner decision Nov 2026)
+const liveCount = async (dealerId, exceptCar) => Number((await one(`SELECT COUNT(*) AS n FROM cars WHERE dealer_id = ? AND moved_from IS NULL AND status IN ${registry.LIVE_SQL}${exceptCar ? ' AND id <> ?' : ''}`, exceptCar ? [dealerId, exceptCar] : [dealerId])).n);
 
 const dealerView = async (d) => (d ? {
   id: d.id, slug: d.slug, businessName: d.business_name, cacType: d.cac_type, cacNumber: d.cac_number, status: d.status,

@@ -4,7 +4,8 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { q, one } = require('../db');
-const { audit } = require('../lib/security');
+const { audit, requireStaff } = require('../lib/security');
+const { publicTitle } = require('../lib/titles');
 const { PRIVATE_DIR } = require('../lib/uploads');
 const mail = require('../lib/mail');
 const seo = require('../lib/seo');
@@ -89,6 +90,28 @@ r.post('/:id/decision', async (req, res) => {
   const owner = await one("SELECT u.name, u.email FROM dealer_members m JOIN users u ON u.id = m.user_id WHERE m.dealer_id = ? AND m.role = 'owner' LIMIT 1", [d.id]);
   if (owner) mail.send({ to: owner.email, ...mail.templates.dealerDecision(owner.name.split(' ')[0], d.business_name, decision, note) }).catch((e) => console.error('Dealer decision email failed:', e.message));
   res.json({ ok: true, status: (await one('SELECT status FROM dealers WHERE id = ?', [d.id])).status, carsChanged: changed.length });
+});
+
+// Hand cars over to an approved dealer (e.g. Korrect Cars' stock to Buffy). Administrators only.
+// The car keeps its web address, photos, views and VIN; the "one live listing per VIN" check simply follows it.
+// Staff codes at the end of the title and stock number (e.g. "BF") are removed, since the car is now the dealer's own.
+r.post('/:id/move-cars', requireStaff('admin'), async (req, res) => {
+  if (!isId(req.params.id) || req.params.id === '1') return res.status(404).json({ error: 'Not found' });
+  const d = await one('SELECT id, business_name, status FROM dealers WHERE id = ?', [req.params.id]);
+  if (!d) return res.status(404).json({ error: 'Not found' });
+  if (d.status !== 'approved') return res.status(400).json({ error: 'Approve this dealer first, then move cars to them.' });
+  const ids = [...new Set((Array.isArray(req.body.carIds) ? req.body.carIds : []).map(String).filter(isId))].slice(0, 1000);
+  if (!ids.length) return res.status(400).json({ error: 'Choose at least one car to move.' });
+  const cars = await q(`SELECT id, slug, title, stock, make, model, dealer_id FROM cars WHERE id IN (${ids.map(() => '?').join(',')}) AND dealer_id <> ?`, [...ids, d.id]);
+  const now = sqlTime(0);
+  for (const c of cars) {
+    await q('UPDATE cars SET dealer_id = ?, moved_from = ?, moved_at = ?, title = ?, stock = ? WHERE id = ?',
+      [d.id, c.dealer_id, now, publicTitle(c.title), c.stock ? publicTitle(c.stock) : c.stock, c.id]);
+    seo.notify(seo.carPaths(c));
+  }
+  await audit(req, `Moved ${cars.length} car(s) to dealer`, `${d.business_name}: ${cars.map((c) => publicTitle(c.title)).slice(0, 20).join(', ')}${cars.length > 20 ? '…' : ''}`);
+  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'cars_moved', 'done', ?, ?)", [d.id, req.user.id, `${cars.length} car(s) handed over by staff`]);
+  res.json({ ok: true, moved: cars.length });
 });
 
 module.exports = r;

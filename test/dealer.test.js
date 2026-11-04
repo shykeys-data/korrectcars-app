@@ -296,3 +296,31 @@ test('buyers can search by state and LGA; a car is where its dealer is', async (
   assert.ok(lagos.json.cars.length > pub.json.cars.length, 'Korrect Cars stock counts as Lagos');
   assert.strictEqual((await call('GET', '/api/cars?state=Kano')).json.cars.length, 0);
 });
+
+test('an administrator can hand Korrect Cars\' cars to a dealer; codes like BF come off; the limit ignores them', async () => {
+  const db = sqlite();
+  db.prepare("INSERT INTO cars (slug, title, stock, make, model, body, price, status) VALUES ('buffy-test-car', '2019 Lexus RX 350 BF', 'KC-77 BF', 'Lexus', 'RX', 'SUV', 30000000, 'available')").run();
+  const kcCars = db.prepare('SELECT id FROM cars WHERE dealer_id = 1').all().map((r) => r.id);
+  const adeId = db.prepare("SELECT id FROM dealers WHERE business_name = 'Ade Motors Ltd'").get().id;
+  db.close();
+  const before = (await call('GET', '/api/dealer/me', { cookie: ade.cookie })).json.dealer.liveCars;
+  // Editors may review dealers but not move stock
+  assert.strictEqual((await call('POST', `/api/admin/dealers/${adeId}/move-cars`, { cookie: staffCookie, body: { carIds: kcCars } })).status, 403);
+  const totp = require('../server/lib/totp');
+  await call('POST', '/api/auth/register', { body: { name: 'Owner Admin', email: 'owner@example.com', phone: '08012345678', password: 'testpass123' } });
+  const d2 = sqlite(); d2.prepare("UPDATE users SET email_verified = 1 WHERE email = 'owner@example.com'").run(); d2.close();
+  execFileSync(process.execPath, [path.join(ROOT, 'server/tools-make-staff.js'), 'owner@example.com', 'admin'], { env: ENV, stdio: 'pipe' });
+  let admin = (await call('POST', '/api/auth/login', { body: { email: 'owner@example.com', password: 'testpass123' } })).cookie;
+  const s = await call('POST', '/api/auth/2fa/setup', { cookie: admin });
+  admin = (await call('POST', '/api/auth/2fa/enable', { cookie: admin, body: { code: totp.hotp(s.json.secret, Math.floor(Date.now() / 30000)) } })).cookie;
+  const r = await call('POST', `/api/admin/dealers/${adeId}/move-cars`, { cookie: admin, body: { carIds: kcCars } });
+  assert.deepStrictEqual([r.status, r.json.moved], [200, kcCars.length]);
+  const db3 = sqlite();
+  const moved = db3.prepare("SELECT * FROM cars WHERE slug = 'buffy-test-car'").get();
+  assert.strictEqual(db3.prepare('SELECT COUNT(*) AS n FROM cars WHERE dealer_id = 1').get().n, 0);
+  db3.close();
+  assert.deepStrictEqual([moved.dealer_id, moved.title, moved.stock, moved.moved_from], [adeId, '2019 Lexus RX 350', 'KC-77', 1]);
+  assert.strictEqual((await call('GET', '/api/cars/buffy-test-car')).status, 200, 'same web address');
+  assert.strictEqual((await call('GET', '/api/dealer/me', { cookie: ade.cookie })).json.dealer.liveCars, before, 'moved cars do not count towards the limit');
+  assert.ok((await call('GET', '/api/dealer/cars', { cookie: ade.cookie })).json.cars.some((c) => c.slug === 'buffy-test-car'));
+});
