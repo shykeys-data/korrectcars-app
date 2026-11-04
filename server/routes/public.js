@@ -97,7 +97,7 @@ r.post('/auth/login', authLimit, validate('login'), async (req, res) => {
   await q('UPDATE users SET failed_logins = 0, lock_until = NULL WHERE id = ?', [user.id]);
   if (!user.email_verified) return res.status(403).json({ error: 'Please confirm your email first. Check your inbox (and spam folder) for the link.', unverified: true });
   issueSession(res, user);
-  res.json({ user: publicUser(user) });
+  res.json({ user: await withDealer(publicUser(user)) });
 });
 
 // Forgot / reset password
@@ -128,7 +128,7 @@ r.post('/auth/logout-all', requireAuth, async (req, res) => {
   await q('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [req.user.id]);
   clearSession(res); res.json({ ok: true });
 });
-r.get('/auth/me', (req, res) => res.json({ user: req.user ? publicUser(req.user, req.mfa) : null }));
+r.get('/auth/me', async (req, res) => res.json({ user: req.user ? await withDealer(publicUser(req.user, req.mfa)) : null }));
 
 // ---------- Two-step login for staff ----------
 const codeLimit = limiter(15, 10, 'Too many codes tried. Please wait 15 minutes.');
@@ -165,6 +165,13 @@ r.post('/auth/2fa/verify', codeLimit, requireAuth, staffOnly, async (req, res) =
   res.json({ user: publicUser(u, true) });
 });
 
+// Partner dealers: the header shows "My dealer page" instead of "For dealers" (Korrect Cars itself is dealer 1, run from the staff area)
+async function withDealer(out) {
+  if (!out || isStaff(out)) return out;
+  const d = await one('SELECT d.status, d.slug FROM dealer_members m JOIN dealers d ON d.id = m.dealer_id WHERE m.user_id = ? AND d.id <> 1 ORDER BY m.id LIMIT 1', [out.id]).catch(() => null);
+  if (d) out.dealer = { status: d.status, slug: d.slug };
+  return out;
+}
 function publicUser(u, mfa = false) {
   const out = { id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, verified: !!u.verified };
   if (isStaff(u)) out.twofa = { enabled: !!u.totp_enabled, ok: !!(u.totp_enabled && mfa) };
@@ -298,4 +305,4 @@ r.get('/pages/:slug', async (req, res) => {
 });
 
 module.exports = r;
-Object.assign(module.exports, { bnplPlan, publicConfig, facets, listCars, carDetail, publicUser, PUBLIC_POST_COLS });
+Object.assign(module.exports, { bnplPlan, publicConfig, facets, listCars, carDetail, publicUser, withDealer, PUBLIC_POST_COLS });

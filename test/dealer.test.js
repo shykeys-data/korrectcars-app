@@ -163,6 +163,20 @@ test('the business step needs a confirmed phone, and a CAC number can be used on
   g.append('cac', new Blob([PNG], { type: 'image/png' }), 'cac.png');
   const r = await call('POST', '/api/dealer', { cookie: a.cookie, form: g });
   assert.strictEqual(r.status, 409);
+  // Business name, CAC number, state, LGA and the certificate are all required; the certificate is a PDF or photo
+  const base = { businessName: 'Rules Motors', cacType: 'RC', cacNumber: '8881234', state: 'Lagos', lga: 'Ikeja', address: '1 Rules Street, Ikeja' };
+  const send = async (fields, file) => {
+    const fd = new FormData(); for (const [k, val] of Object.entries(fields)) if (val !== undefined) fd.append(k, val);
+    if (file) fd.append('cac', file[0], file[1]);
+    return call('POST', '/api/dealer', { cookie: a.cookie, form: fd });
+  };
+  const png = [new Blob([PNG], { type: 'image/png' }), 'cac.png'];
+  for (const [missing, fieldName] of [['businessName', 'businessName'], ['cacNumber', 'cacNumber'], ['state', 'state'], ['lga', 'lga']]) {
+    const res = await send({ ...base, [missing]: undefined }, png);
+    assert.deepStrictEqual([res.status, res.json.field], [400, fieldName], `missing ${missing}`);
+  }
+  assert.deepStrictEqual([(await send(base)).status, (await send(base)).json.field], [400, 'cac'], 'no certificate');
+  assert.strictEqual((await send(base, [new Blob(['just some text, not a certificate'], { type: 'text/plain' }), 'cac.txt'])).status, 400, 'a text file is refused');
   // The LGA must belong to the chosen state
   const h = new FormData();
   for (const [k, val] of Object.entries({ businessName: 'Wrong Area Motors', cacType: 'RC', cacNumber: '5551234', state: 'Lagos', lga: 'Bwari', address: '1 Some Street, Ikeja' })) h.append(k, val);
@@ -202,6 +216,11 @@ test('a waiting dealer\'s car is saved but stays off the site until approval', a
   assert.strictEqual((await fetch(B + '/cars/' + r.json.car.slug)).status, 404);
   const again = await call('GET', `/api/dealer/vin-check?vin=${makeVin(1)}&decode=0`, { cookie: ade.cookie });
   assert.strictEqual(again.json.state, 'yours');
+});
+
+test('a signed-in dealer is marked as one, so the header shows "My dealer page"', async () => {
+  const me = await call('GET', '/api/auth/me', { cookie: ade.cookie });
+  assert.strictEqual(me.json.user.dealer.status, 'pending_review');
 });
 
 test('dealers cannot open the staff review, staff can approve, and waiting cars go live', async () => {

@@ -75,6 +75,11 @@ r.put('/cars/:id', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'),
   const car = await one('SELECT id, photos, status, vin, vehicle_id_ref, dealer_id FROM cars WHERE id = ?', [req.params.id]);
   if (!car) return res.status(404).json({ error: 'Not found' });
   const v = carValues(req.valid);
+  // A partner dealer's car stays waiting until the dealer is approved, even if staff edit it
+  if (car.dealer_id !== 1 && v.status === 'available') {
+    const d = await one('SELECT status FROM dealers WHERE id = ?', [car.dealer_id]);
+    if (!d || d.status !== 'approved') v.status = 'pending';
+  }
   // An old VIN that breaks today's rules (or was never registered) may stay as it is; a new or changed one is checked
   let ref = null;
   const same = v.vin && registry.check(v.vin).value === registry.check(car.vin).value;

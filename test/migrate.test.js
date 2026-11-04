@@ -34,7 +34,7 @@ test('first start applies the dealer change and moves every car to Korrect Cars'
   const log = await startStop();
   assert.match(log, /Database change 001_dealers/);
   const db = sqlite();
-  assert.deepStrictEqual(db.prepare('SELECT id FROM schema_migrations').all().map((r) => r.id), ['001_dealers', '002_dealer_signup', '003_vehicle_ids', '004_car_moves']);
+  assert.deepStrictEqual(db.prepare('SELECT id FROM schema_migrations').all().map((r) => r.id), ['001_dealers', '002_dealer_signup', '003_vehicle_ids', '004_car_moves', '005_cac_per_type']);
   const kc = db.prepare('SELECT * FROM dealers WHERE id = 1').get();
   assert.strictEqual(kc.business_name, 'Korrect Cars');
   assert.strictEqual(kc.status, 'approved');
@@ -48,7 +48,7 @@ test('a restart runs no change twice and keeps one Korrect Cars row', async () =
   const log = await startStop();
   assert.doesNotMatch(log, /Database change 001_dealers/);
   const db = sqlite();
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 4);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 5);
   assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM dealers').get().n, 1);
   db.close();
 });
@@ -60,10 +60,12 @@ test('a car added without a dealer belongs to Korrect Cars', async () => {
   db.close();
 });
 
-test('a business number can belong to one dealer only', async () => {
+test('a CAC number can belong to one dealer per register (RC or BN)', async () => {
   const db = sqlite();
   db.prepare("INSERT INTO dealers (slug, business_name, cac_type, cac_number) VALUES ('ade-motors', 'Ade Motors', 'RC', '1234567')").run();
   assert.throws(() => db.prepare("INSERT INTO dealers (slug, business_name, cac_type, cac_number) VALUES ('ade-motors-2', 'Copy', 'RC', '1234567')").run(), /UNIQUE/);
+  // A business name (BN) may share digits with a company (RC): they are different CAC registers
+  db.prepare("INSERT INTO dealers (slug, business_name, cac_type, cac_number) VALUES ('bn-autos', 'BN Autos', 'BN', '1234567')").run();
   db.close();
 });
 

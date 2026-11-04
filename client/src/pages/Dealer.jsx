@@ -2,7 +2,7 @@
 // -> business papers), the dealer's home page with their cars, and the add / edit car form, which starts with the VIN.
 // Everything is checked again on the server; the VIN rules come from the same file the server uses.
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto, rs, shrinkPhoto, waLink } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto, rs, shrinkPhoto, waLink, forgetBoot } from '../lib/core.jsx';
 import { Loading } from '../components/Bits.jsx';
 import { check as checkVin } from '../../../server/lib/vehicle-id.js';
 import { STATES, lgasOf } from '../../../server/lib/ng-lgas.js';
@@ -45,7 +45,7 @@ export function DealerJoin() {
       {!user && stage === 'code' && <CodeStep email={email} onBack={() => setStage('email')} onOk={(p) => { setPass(p); setStage('account'); }} />}
       {!user && stage === 'account' && <AccountStep email={email} pass={pass} onRestart={() => setStage('email')} onDone={(u) => setUser(u)} />}
       {user && at === 2 && <PhoneStep phone={me.data.user.phone} onDone={me.reload} />}
-      {user && at === 3 && <BusinessStep dealer={me.data.dealer} onDone={() => go('/dealer')} />}
+      {user && at === 3 && <BusinessStep dealer={me.data.dealer} onDone={async () => { forgetBoot('/auth/me'); try { setUser((await api('/auth/me')).user); } catch (_e) { /* header updates on the next page load */ } go('/dealer'); }} />}
       {!user && <p className="small muted" style={{ marginTop: 16 }}>Already have a Korrect Cars account? <Link to="/login?next=/dealers/join">Sign in</Link> and carry on from the phone step.</p>}
     </div>
   );
@@ -154,8 +154,23 @@ function BusinessStep({ dealer, onDone }) {
   const [f, setF] = useState({ businessName: d.businessName || '', cacType: d.cacType || 'RC', cacNumber: d.cacNumber || '', state: STATES.includes(d.state) ? d.state : '', lga: okLga, address: d.address || '', whatsapp: d.whatsapp || '', about: d.about || '' });
   const [cac, setCac] = useState(null); const [err, setErr] = useState(''); const [field, setField] = useState(''); const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Business name, CAC number, state, LGA and the CAC certificate (PDF or photo) are all required
+  const CAC_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+  const problem = () => {
+    if (f.businessName.trim().length < 3) return ['businessName', 'Enter the business name as it is on your CAC certificate.'];
+    if (!/^\d{4,9}$/.test(String(f.cacNumber).replace(/^(RC|BN|IT)\s*/i, '').replace(/[\s-]/g, ''))) return ['cacNumber', 'Enter the CAC number: 4 to 9 digits.'];
+    if (!f.state) return ['state', 'Choose the state your business is in.'];
+    if (!f.lga) return ['lga', `Choose the local government area (LGA) in ${f.state}.`];
+    if (!dealer && !cac) return ['cac', 'Add your CAC certificate as a PDF or a photo.'];
+    if (cac && !CAC_TYPES.includes(cac.type)) return ['cac', 'The CAC certificate must be a PDF or a photo (JPG, PNG or WEBP).'];
+    if (cac && cac.size > 8 * 1024 * 1024) return ['cac', 'The CAC certificate must be under 8 MB. Take a photo of it instead of a scan, or save a smaller PDF.'];
+    return null;
+  };
   const submit = async (e) => {
-    e.preventDefault(); setErr(''); setField(''); setBusy(true);
+    e.preventDefault(); setErr(''); setField('');
+    const p = problem();
+    if (p) { setField(p[0]); setErr(p[1]); const el = document.getElementById({ businessName: 'db-name', cacNumber: 'db-cac', state: 'db-state', lga: 'db-lga', cac: 'db-file' }[p[0]]); if (el) el.focus(); return; }
+    setBusy(true);
     const fd = new FormData();
     Object.entries(f).forEach(([k, v]) => { if (v) fd.append(k, v); });
     try {
@@ -164,22 +179,22 @@ function BusinessStep({ dealer, onDone }) {
     } catch (e2) { setErr(e2.message); setField((e2.data && e2.data.field) || ''); } finally { setBusy(false); }
   };
   return (
-    <form className="box" onSubmit={submit}>
+    <form className="box" onSubmit={submit} noValidate>
       <h2>Your business</h2>
       {d.status === 'more_info' && d.lastNote && <p className="note" role="note"><b>Note from our team:</b> {d.lastNote}</p>}
-      <p className="small muted">As written on your CAC certificate. Only our team sees the certificate; it is kept for 12 months after our decision.</p>
+      <p className="small muted">As written on your CAC certificate. Fields marked <span aria-hidden="true">*</span><span className="sr">with a star</span> are required. Only our team sees the certificate; it is kept for 12 months after our decision.</p>
       <Err e={err} />
-      <div className="field"><label className="f" htmlFor="db-name">Business name</label><input id="db-name" className="input" required minLength={3} maxLength={160} value={f.businessName} onChange={set('businessName')} aria-invalid={field === 'businessName'} /></div>
+      <div className="field"><label className="f" htmlFor="db-name">Business name <span className="req" aria-hidden="true">*</span></label><input id="db-name" className="input" required minLength={3} maxLength={160} value={f.businessName} onChange={set('businessName')} aria-invalid={field === 'businessName'} /></div>
       <div className="grid2">
         <div className="field"><label className="f" htmlFor="db-type">Registered as</label><select id="db-type" className="input" value={f.cacType} onChange={set('cacType')}><option value="RC">Company (RC)</option><option value="BN">Business name (BN)</option><option value="IT">Trustees (IT)</option></select></div>
-        <div className="field"><label className="f" htmlFor="db-cac">CAC number</label><input id="db-cac" className="input" required inputMode="numeric" placeholder="1234567" value={f.cacNumber} onChange={set('cacNumber')} aria-invalid={field === 'cacNumber'} /></div>
-        <div className="field"><label className="f" htmlFor="db-state">State</label><select id="db-state" className="input" required value={f.state} onChange={(e) => setF({ ...f, state: e.target.value, lga: '' })} aria-invalid={field === 'state'}><option value="">Choose state</option>{STATES.map((s) => <option key={s}>{s}</option>)}</select></div>
-        <div className="field"><label className="f" htmlFor="db-lga">Local government area (LGA)</label><select id="db-lga" className="input" required disabled={!f.state} value={f.lga} onChange={set('lga')} aria-invalid={field === 'lga'}><option value="">{f.state ? `Choose LGA in ${f.state}` : 'Choose a state first'}</option>{lgasOf(f.state).map((l) => <option key={l}>{l}</option>)}</select></div>
+        <div className="field"><label className="f" htmlFor="db-cac">CAC number <span className="req" aria-hidden="true">*</span></label><input id="db-cac" className="input" required inputMode="numeric" placeholder="1234567" value={f.cacNumber} onChange={set('cacNumber')} aria-invalid={field === 'cacNumber'} /></div>
+        <div className="field"><label className="f" htmlFor="db-state">State <span className="req" aria-hidden="true">*</span></label><select id="db-state" className="input" required value={f.state} onChange={(e) => setF({ ...f, state: e.target.value, lga: '' })} aria-invalid={field === 'state'}><option value="">Choose state</option>{STATES.map((s) => <option key={s}>{s}</option>)}</select></div>
+        <div className="field"><label className="f" htmlFor="db-lga">Local government area (LGA) <span className="req" aria-hidden="true">*</span></label><select id="db-lga" className="input" required disabled={!f.state} value={f.lga} onChange={set('lga')} aria-invalid={field === 'lga'}><option value="">{f.state ? `Choose LGA in ${f.state}` : 'Choose a state first'}</option>{lgasOf(f.state).map((l) => <option key={l}>{l}</option>)}</select></div>
       </div>
       <div className="field"><label className="f" htmlFor="db-addr">Address buyers can visit</label><input id="db-addr" className="input" required minLength={8} maxLength={250} value={f.address} onChange={set('address')} aria-invalid={field === 'address'} /></div>
       <div className="field"><label className="f" htmlFor="db-wa">WhatsApp for buyers (if different)</label><input id="db-wa" className="input" type="tel" value={f.whatsapp} onChange={set('whatsapp')} /></div>
       <div className="field"><label className="f" htmlFor="db-about">About your business (optional)</label><textarea id="db-about" className="input" rows={3} maxLength={1500} value={f.about} onChange={set('about')} /></div>
-      <div className="field"><label className="f" htmlFor="db-file">CAC certificate (photo or PDF){d.status === 'more_info' ? ', only if asked for a new one' : ''}</label><input id="db-file" type="file" className="input" style={{ paddingTop: 12 }} accept="image/jpeg,image/png,image/webp,application/pdf" required={!dealer} onChange={(e) => setCac(e.target.files[0] || null)} aria-invalid={field === 'cac'} /></div>
+      <div className="field"><label className="f" htmlFor="db-file">CAC certificate {!dealer && <span className="req" aria-hidden="true">*</span>}{d.status === 'more_info' ? ' (only if asked for a new one)' : ''}</label><input id="db-file" type="file" className="input" style={{ paddingTop: 12 }} accept="image/jpeg,image/png,image/webp,application/pdf" required={!dealer} onChange={(e) => setCac(e.target.files[0] || null)} aria-invalid={field === 'cac'} aria-describedby="db-file-hint" /><div id="db-file-hint" className="hint">PDF or photo (JPG, PNG or WEBP), up to 8 MB. All four corners and the RC/BN number must be readable.</div></div>
       <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Sending…' : 'Send for review'}</button>
     </form>
   );

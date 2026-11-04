@@ -151,7 +151,7 @@ async function renderPage(req, nonce) {
   let body = ''; let status = 200; let noindex = NOINDEX.test(p) || isAdmin; let known = isAdmin;
   const ld = [];
   let preload = '';
-  const boot = { '/config': isAdmin ? { ...pub.publicConfig(), adminPath: config.adminPath } : pub.publicConfig(), '/auth/me': { user: req.user ? pub.publicUser(req.user, req.mfa) : null } };
+  const boot = { '/config': isAdmin ? { ...pub.publicConfig(), adminPath: config.adminPath } : pub.publicConfig(), '/auth/me': { user: req.user ? await pub.withDealer(pub.publicUser(req.user, req.mfa)) : null } };
 
   const swapOn = require('./lib/settings').current().swap;
   const swapPath = /^\/swap(\/|$)/.test(p);

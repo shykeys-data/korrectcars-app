@@ -47,4 +47,16 @@ async function guarded(ref, dealerId, fn) {
   }
 }
 
-module.exports = { lookup, refFor, guarded, taken, invalid, isLiveClash, LIVE_SQL, check };
+// Links cars that have a VIN but no register entry (e.g. cars loaded by the first-start import after the
+// database changes ran). Live cars first, oldest first; a clash leaves the later car unlinked for staff to check.
+async function backfill() {
+  const cars = await q(`SELECT id, vin FROM cars WHERE vin IS NOT NULL AND vin <> '' AND vehicle_id_ref IS NULL
+    ORDER BY CASE WHEN status IN ${LIVE_SQL} THEN 0 ELSE 1 END, id`);
+  let linked = 0;
+  for (const car of cars) {
+    try { const { ref, v } = await refFor(car.vin); await q('UPDATE cars SET vehicle_id_ref = ?, vin = ? WHERE id = ?', [ref, v.value, car.id]); linked++; } catch (_e) { /* invalid or clashing VIN: left for staff */ }
+  }
+  return linked;
+}
+
+module.exports = { lookup, refFor, guarded, taken, invalid, isLiveClash, backfill, LIVE_SQL, check };

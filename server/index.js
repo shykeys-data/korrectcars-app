@@ -185,6 +185,7 @@ db.init()
     try { const r = require('./photos').restorePhotos(); if (r.copied || r.missing) console.log('Photos restored from WordPress uploads:', r); } catch (e) { console.warn('Photo restore skipped:', e.message); }
     const c = await db.one('SELECT COUNT(*) AS n FROM cars');
     if (!Number(c.n)) console.log('Seeded live data:', await require('./seed').seed());
+    try { const n = await require('./lib/registry').backfill(); if (n) console.log(`VINs registered: ${n} car(s)`); } catch (e) { console.warn('VIN register check skipped:', e.message); }
     app.listen(config.port, () => console.log(`Korrect Cars running on port ${config.port}`));
   })
   .catch((e) => { console.error('Database connection failed:', e.message); process.exit(1); });

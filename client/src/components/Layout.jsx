@@ -21,13 +21,14 @@ export function Header() {
         <Link to="/" className="logo" aria-label="Korrect Cars home"><img src="/img/logo.svg" alt="Korrect Cars" width="200" height="50" /></Link>
         <nav className={'nav' + (open ? ' open' : '')} aria-label="Main">
           {NAV.filter(([to]) => to !== '/swap' || swapOn(cfg)).map(([to, label, cls]) => <Link key={to} to={to} className={[path.startsWith(to) ? 'on' : '', cls || ''].join(' ').trim()}>{label}</Link>)}
-          {dealersOn(cfg) && <Link to="/dealers/join" className="m-only">For dealers: sell your cars here</Link>}
+          {user && user.dealer ? <Link to="/dealer" className="m-only">My dealer page</Link> : dealersOn(cfg) && <Link to="/dealers/join" className="m-only">For dealers: sell your cars here</Link>}
           {swapOn(cfg) && <Link to="/swap/new" className="m-only">List my car</Link>}
           {user ? <><Link to="/account" className="m-only">My account</Link><a href="/" className="m-only" onClick={signOut}>Sign out</a></> : <Link to="/login" className="m-only">Sign in</Link>}
           <a className="m-only" href={'tel:' + phone.replace(/\s/g, '')}>Call {phone}</a>
         </nav>
         <div className="right">
-          {dealersOn(cfg) && <Link to="/dealers/join" className={'acct dealers-link' + (/^\/dealer/.test(path) ? ' on' : '')}>For dealers</Link>}
+          {user && user.dealer ? <Link to="/dealer" className={'acct dealers-link' + (/^\/dealer/.test(path) ? ' on' : '')}>My dealer page</Link>
+            : dealersOn(cfg) && <Link to="/dealers/join" className={'acct dealers-link' + (/^\/dealer/.test(path) ? ' on' : '')}>For dealers</Link>}
           {user ? <Link to="/account" className="acct">My account</Link> : <Link to="/login" className="acct">Sign in</Link>}
           <button className="menu-btn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen(!open)}><span /><span /><span /></button>
         </div>
