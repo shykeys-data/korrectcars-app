@@ -6,13 +6,14 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { q, one, J } = require('../db');
-const { validate, list, inspectionSchema } = require('../lib/validate');
+const { validate, list } = require('../lib/validate');
+const registry = require('../lib/registry');
 const { requireStaff, audit } = require('../lib/security');
 const settings = require('../lib/settings');
 const seo = require('../lib/seo');
 const searches = require('../lib/searches');
 const MAX_PHOTOS = 20; // photos per save (more can be added by editing the car)
-const { memory, save, PRIVATE_DIR } = require('../lib/uploads');
+const { memory, save, discard, PRIVATE_DIR } = require('../lib/uploads');
 
 const r = express.Router();
 const MAX_ADMINS = 3;
@@ -25,6 +26,7 @@ const isId = (s) => /^\d{1,10}$/.test(String(s));
 const slugify = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 120);
 
 r.use(requireStaff('admin', 'sales', 'editor'));
+r.use('/dealers', require('./admin-dealers')); // every staff role may review dealers (owner decision, Nov 2026)
 
 r.get('/stats', async (req, res) => {
   const c = async (sql, p) => Number((await one(sql, p)).n) || 0;
@@ -40,44 +42,27 @@ r.get('/stats', async (req, res) => {
     feePaid: await c("SELECT COALESCE(SUM(fee),0) AS n FROM offers WHERE fee_status = 'paid'"),
     reported: await c('SELECT COUNT(*) AS n FROM messages WHERE reported = 1'),
     newPss: await c("SELECT COUNT(*) AS n FROM enquiries WHERE status = 'new' AND type = 'bnpl'"),
+    dealersWaiting: await c("SELECT COUNT(*) AS n FROM dealers WHERE status = 'pending_review'"),
     role: req.user.role
   });
 });
 
 // ---------- Dealer inventory ----------
-r.get('/cars', carTeam, async (_req, res) => res.json({ cars: await q('SELECT * FROM cars ORDER BY created_at DESC, id DESC') }));
+r.get('/cars', carTeam, async (_req, res) => res.json({ cars: await q('SELECT c.*, d.business_name AS dealer_name FROM cars c LEFT JOIN dealers d ON d.id = c.dealer_id ORDER BY c.created_at DESC, c.id DESC') }));
 
-const rowsFromText = (t) => String(t || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const i = l.indexOf(':'); return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : [l, '']; });
-
-function carValues(v) {
-  return {
-    title: v.title, make: v.make, model: v.model, body: v.body, trim_level: v.trim || null, year: v.year || null, price: v.price,
-    old_price: v.oldPrice || null, mileage: v.mileage || null, engine: v.engine || null, transmission: v.transmission || null,
-    drivetrain: v.drivetrain || null, fuel: v.fuel || null, color: v.color || null, interior: v.interior || null,
-    car_condition: v.condition || null, location: v.location || 'Lagos', vin: v.vin || null, stock: v.stock || null,
-    description: v.description || null, features: J(list(String(v.features || '').includes('\n') ? String(v.features).split('\n') : v.features)),
-    specs: J(rowsFromText(v.specsText)), info: J(String(v.infoText || '').split('\n').map((s) => s.trim()).filter(Boolean)),
-    status: v.status || 'available', featured: v.featured === true || v.featured === 'true' ? 1 : 0,
-    inspection: inspectionJson(v.inspection)
-  };
-}
-
-// Inspection notes arrive as JSON from the car form; keep only filled-in areas
-function inspectionJson(raw) {
-  if (raw === undefined || raw === '') return null;
-  let data;
-  try { data = inspectionSchema.parse(JSON.parse(raw)); } catch (_e) { throw Object.assign(new Error('Check the inspection notes and try again.'), { status: 400 }); }
-  data.items = data.items.filter((i) => (i.note && i.note.trim()) || i.status);
-  return data.items.length ? JSON.stringify(data) : null;
-}
+const { carValues } = require('../lib/car-values');
 
 r.post('/cars', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'), async (req, res) => {
   const v = carValues(req.valid);
+  // Every VIN goes through the register: one live listing per car, across Korrect Cars and partner dealers
+  let ref = null;
+  if (v.vin) { const reg = await registry.refFor(v.vin); ref = reg.ref; v.vin = reg.v.value; }
   let slug = slugify(require('../lib/titles').publicTitle(req.valid.title)); // web address without staff codes
   if (await one('SELECT id FROM cars WHERE slug = ?', [slug])) slug += '-' + Date.now().toString(36);
   const photos = (req.files || []).map((f, i) => save(f, { folder: 'cars', name: `${slug}-lagos-${i + 1}` })); // e.g. 2016-lexus-es-350-lagos-1-3fa9c1.jpg
   const cols = Object.keys(v);
-  const ins = await q(`INSERT INTO cars (slug, photos, ${cols.join(', ')}) VALUES (?, ?, ${cols.map(() => '?').join(', ')})`, [slug, J(photos), ...cols.map((c) => v[c])]);
+  const ins = await registry.guarded(ref, 1, () => q(`INSERT INTO cars (slug, photos, vehicle_id_ref, created_by, ${cols.join(', ')}) VALUES (?, ?, ?, ?, ${cols.map(() => '?').join(', ')})`, [slug, J(photos), ref, req.user.id, ...cols.map((c) => v[c])]))
+    .catch((e) => { discard(photos); throw e; });
   await audit(req, 'Added car', v.title);
   const added = await one('SELECT * FROM cars WHERE id = ?', [ins.insertId]);
   seo.notify(seo.carPaths(added)); // tell Bing & co. straight away (does not slow the save)
@@ -87,14 +72,19 @@ r.post('/cars', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'), as
 
 r.put('/cars/:id', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'), async (req, res) => {
   if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
-  const car = await one('SELECT id, photos, status FROM cars WHERE id = ?', [req.params.id]);
+  const car = await one('SELECT id, photos, status, vin, vehicle_id_ref, dealer_id FROM cars WHERE id = ?', [req.params.id]);
   if (!car) return res.status(404).json({ error: 'Not found' });
   const v = carValues(req.valid);
+  // An old VIN that breaks today's rules (or was never registered) may stay as it is; a new or changed one is checked
+  let ref = null;
+  const same = v.vin && registry.check(v.vin).value === registry.check(car.vin).value;
+  if (v.vin && same && !car.vehicle_id_ref) { ref = null; v.vin = car.vin; } else if (v.vin) { const reg = await registry.refFor(v.vin); ref = reg.ref; v.vin = reg.v.value; }
   const current = car.photos || [];
   const keep = req.valid.keepPhotos !== undefined ? list(req.valid.keepPhotos).filter((p) => current.includes(p)) : current;
   const added = (req.files || []).map((f, i) => save(f, { folder: 'cars', name: `${slugify(require('../lib/titles').publicTitle(req.valid.title))}-lagos-${keep.length + i + 1}` }));
   const cols = Object.keys(v);
-  await q(`UPDATE cars SET ${cols.map((c) => `${c} = ?`).join(', ')}, photos = ? WHERE id = ?`, [...cols.map((c) => v[c]), J([...keep, ...added]), car.id]);
+  await registry.guarded(ref, car.dealer_id, () => q(`UPDATE cars SET ${cols.map((c) => `${c} = ?`).join(', ')}, photos = ?, vehicle_id_ref = ? WHERE id = ?`, [...cols.map((c) => v[c]), J([...keep, ...added]), ref, car.id]))
+    .catch((e) => { discard(added); throw e; });
   await audit(req, 'Edited car', v.title);
   const saved = await one('SELECT * FROM cars WHERE id = ?', [car.id]);
   seo.notify(seo.carPaths(saved));

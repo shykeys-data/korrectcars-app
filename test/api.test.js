@@ -131,3 +131,8 @@ test('form validation answers with a clear message, never a crash', async () => 
   const junk = await call('POST', '/api/auth/login', { body: { email: { $gt: '' }, password: ['x'] } });
   assert.strictEqual(junk.status, 400);
 });
+
+test('partner dealer sign-up is closed while the Partner dealers switch is off (live default)', async () => {
+  assert.strictEqual((await call('POST', '/api/dealer/signup/code', { body: { email: 'dealer@example.com' } })).status, 404);
+  assert.strictEqual((await call('GET', '/api/dealer/me')).status, 404);
+});

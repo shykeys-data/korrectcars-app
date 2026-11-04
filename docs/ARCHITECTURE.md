@@ -32,12 +32,19 @@ server/
     me.js               signed-in customers: saved cars, saved searches, their enquiries
     swap.js             Korrect Swap: listings, offers, masked chat (only when Swap is switched on in settings)
     admin.js            staff area: cars, leads, swap review, private files, users, posts, audit log, settings
+    admin-dealers.js    staff: "Dealers to review" (papers, approve / ask for more / reject / pause)
+    dealer.js           partner dealers: email-code sign-up, phone code, business papers, their cars (only when the switch is on)
   lib/
     security.js         sessions (JWT cookie), sign-in checks, staff + 2FA check, CSRF guard, rate limits, audit, contact masking
     validate.js         Zod schemas for every form the API accepts
     settings.js         owner-editable settings (phones, credit partners, estimate figures, Swap on/off, staff codes)
     categories.js       car categories and budget bands (shared by server and React)
     titles.js           hides staff codes such as "BF" from public car titles
+    vehicle-id.js       VIN and chassis-number rules (shared by server and React)
+    registry.js         the VIN register: one live listing per VIN
+    car-values.js       turns the car form into database columns (staff and dealer forms)
+    sms.js, disposable.js   text codes (Termii) and the temporary-email and common-password lists
+    phash.js            photo fingerprints (needs sharp)
     seo.js              robots.txt, llms.txt and IndexNow
     images.js           /r/<width>/... resized WebP photos, made once and kept on disk
     uploads.js          checks and saves uploaded files; private files go to the private folder outside the app (see below)
@@ -111,7 +118,11 @@ Tables are created on first start by `db.init()` in `server/db.js` (`CREATE TABL
 
 | Table | Holds |
 | --- | --- |
-| `cars` | listings: title (may end in a staff code), slug, make, model, price, photos (JSON), status available, reserved or sold, `old_slug` for redirects, `dealer_id` (who sells it; defaults to 1, Korrect Cars) |
+| `cars` | listings: title (may end in a staff code), slug, make, model, price, photos (JSON), status pending (a partner dealer waiting for approval), available, reserved, sold or hidden, `old_slug` for redirects, `dealer_id` (who sells it; defaults to 1, Korrect Cars), `vehicle_id_ref` (its VIN in the register), `live_key` (filled by the database while the car is pending, available or reserved; UNIQUE, so one live listing per VIN), `vin_photo` (private) |
+| `vehicle_ids` | the VIN register: every VIN or chassis number ever listed, once (type + value unique), with its check-digit result and a `locked` flag |
+| `car_photo_hashes` | a fingerprint of each partner car photo (spotting the same photos on two listings) |
+| `signup_codes`, `phone_otps` | hashed 6-digit codes: email codes sent before a dealer account exists, and phone codes; with tries and expiry |
+| `dealer_documents` | a dealer's CAC certificate and other papers (files in the private folder), with who reviewed them and `delete_after` (12 months after the decision) |
 | `dealers` | businesses that sell on the site. Korrect Cars is dealer 1. Status draft, pending_review, approved, rejected or suspended; the RC or BN number is unique |
 | `dealer_members` | which users work for which dealer, with a role: owner, manager or lister |
 | `verification_events` | every dealer check and staff decision, one row each, never edited |
@@ -166,7 +177,7 @@ AdSense rejected the site in October 2026 for thin content. These rules keep it 
 
 ## Tests
 
-`node --test test/*.test.js` runs the automated tests (25): database changes (run once, Korrect Cars is dealer 1 and owns every car, a restart changes nothing, one dealer per business number), the API end to end on a throwaway SQLite database (health check, CSRF guard, email confirmation, account lock after 5 wrong passwords, customers kept out of the staff API, staff two-step login with the encrypted secret and backup codes, editor vs admin, Pay Small Small figures, validation), two-step codes (RFC 6238 vector, encryption), the HTML cleaner against script-injection tricks, draft import and VIN rules. Add a test when you fix a bug.
+`node --test test/*.test.js` runs the automated tests (44): database changes (run once, Korrect Cars is dealer 1 and owns every car, a restart changes nothing, one dealer per business number, the database refuses a second live listing of a VIN), partner dealers end to end (temporary emails refused, at most 3 email codes an hour per address and 10 per connection, wrong codes, weak passwords, phone codes with 3 a day per number, CAC papers kept private, CAC number used once, staff review and approval, VIN rules, VIN_TAKEN, ten saves of one VIN at once giving exactly one listing, dealers kept apart, the 50-car limit, waiting cars kept off the site, the staff car form using the same register), the API end to end on a throwaway SQLite database (health check, CSRF guard, email confirmation, account lock after 5 wrong passwords, customers kept out of the staff API, staff two-step login with the encrypted secret and backup codes, editor vs admin, Pay Small Small figures, validation), two-step codes (RFC 6238 vector, encryption), the HTML cleaner against script-injection tricks, draft import and VIN rules. Add a test when you fix a bug.
 
 ## Running it on your computer
 
@@ -204,7 +215,15 @@ Every public page is first sent as plain HTML from `render.js`: header, the page
 
 ## Partner dealers (marketplace)
 
-The plan is in the developer brief and the clickable mockup (both shared by the owner). Work ships in milestones, staging first, with the **Partner dealers (marketplace)** switch in admin Settings kept Off on live until the owner chooses the launch day. Done so far: milestone 1 (numbered database changes, the `dealers` tables, Korrect Cars as dealer 1 owning every car, the switch). Next: dealer sign-up with an email code, phone code and CAC review.
+The plan is in the developer brief and the clickable mockup (both shared by the owner). Work ships in milestones, staging first, with the **Partner dealers (marketplace)** switch in admin Settings On on staging and Off on live until the owner chooses the launch day. While it is off, every `/api/dealer` address and every dealer page answers "not found".
+
+Done so far:
+- **Milestone 1**: numbered database changes, the `dealers` tables, Korrect Cars as dealer 1 owning every car, the switch.
+- **Milestone 2, sign-up** (`server/routes/dealer.js`, page `client/src/pages/Dealer.jsx`): the dealer types an email and gets a 6-digit code (15 minutes, 5 tries); no account exists until the code is entered. Temporary inboxes are refused (`server/lib/disposable.js`). The answer is the same for every email: an address that already has an account gets a "please sign in" email instead of a code. Then name, Nigerian mobile and a password of 10+ characters that is not a common one. Then a text code to the phone (`server/lib/sms.js`, Termii; set `TERMII_API_KEY`, and optionally `TERMII_SENDER_ID`). Without a key, staging shows the code on the page marked as a test code and the live site refuses the phone step. Then the business: name, RC/BN number (one dealer per number), state, address and the CAC certificate, saved in the private folder. The dealer waits as `pending_review`; staff get an email.
+- **Staff review**: "Dealers to review" in the staff area (`server/routes/admin-dealers.js`, `client/src/pages/AdminDealers.jsx`), open to every staff role, never to dealers. Opening a paper is written to the activity log. Approve (their waiting cars go live), ask for more, reject or pause (their cars come off the site and stop holding their VINs). Anything but approve needs a note, which the dealer sees and gets by email.
+- **Milestone 3, VIN register and dealer cars**: `server/lib/vehicle-id.js` holds the VIN rules for both server and browser (17 characters, no I/O/Q, position 10 never U/Z/0; a wrong check digit is an error on US and Chinese VINs, a warning elsewhere; Japanese chassis numbers accepted with a warning). `server/lib/registry.js` registers each VIN once, and the UNIQUE index on `cars.live_key` makes the database itself refuse a second live listing (`409 VIN_TAKEN`, with `canClaim`), even when two saves arrive at the same moment. The staff car form goes through the same register; an old VIN that breaks today's rules may stay as it is when a car is edited. Dealers add cars VIN first (`GET /api/dealer/vin-check` says free, yours or taken, and fills make, model and year from the free US decoder). A new dealer may have 50 cars for sale in their first 3 months (`dealers.live_limit` overrides). Photos get a fingerprint when sharp is installed (`server/lib/phash.js`).
+
+Next: milestone 4 (ownership claims for a taken VIN, flags for near-identical VINs and the same photos on two listings).
 
 ## Known work left
 

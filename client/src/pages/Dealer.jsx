@@ -1,0 +1,347 @@
+// Partner dealers (loaded only on /dealers/join and /dealer...): sign-up in steps (email code -> account -> phone code
+// -> business papers), the dealer's home page with their cars, and the add / edit car form, which starts with the VIN.
+// Everything is checked again on the server; the VIN rules come from the same file the server uses.
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto, rs, shrinkPhoto, waLink } from '../lib/core.jsx';
+import { Loading } from '../components/Bits.jsx';
+import { check as checkVin } from '../../../server/lib/vehicle-id.js';
+
+const STATUS = {
+  pending_review: ['Waiting for review', 'tag-warn', 'Our team is checking your CAC certificate and phone, usually within 2 working days. You can add cars now: they go live when you are approved.'],
+  more_info: ['We need a little more', 'tag-warn', 'Please read the note from our team below, then send your details again.'],
+  approved: ['Approved', 'tag-ok', 'Your cars are live on Korrect Cars.'],
+  rejected: ['Not approved', 'tag-bad', 'Your application was not approved. Contact us if you think this is a mistake.'],
+  suspended: ['Paused', 'tag-bad', 'Your listings are paused while our team looks into something. Please contact us.'],
+  draft: ['Not sent yet', 'tag-grey', '']
+};
+const CAR_STATUS = { pending: ['Waiting for approval', 'tag-warn'], available: ['For sale', 'tag-ok'], reserved: ['Reserved', 'tag-info'], sold: ['Sold', 'tag-grey'], hidden: ['Hidden', 'tag-bad'] };
+const Tag = ({ s, map }) => { const x = map[s] || [s, 'tag-grey']; return <span className={'tag ' + x[1]}>{x[0]}</span>; };
+const Err = ({ e }) => (e ? <div className="err" role="alert">{e}</div> : null);
+
+function Steps({ at }) {
+  const names = ['Email', 'Account', 'Phone', 'Business'];
+  return <ol className="signup-steps" aria-label="Sign-up steps">{names.map((n, i) => <li key={n} className={i < at ? 'done' : i === at ? 'on' : ''} aria-current={i === at ? 'step' : undefined}><span>{i + 1}</span>{n}</li>)}</ol>;
+}
+
+// ---------- /dealers/join ----------
+export function DealerJoin() {
+  useTitle('Sell your cars on Korrect Cars | Partner dealers', 'Verified car dealers can list their cars on Korrect Cars. Free to join; we check every dealer\'s CAC papers.');
+  const { user, setUser } = useApp();
+  const { go } = useRouter();
+  const me = useApi(user ? '/dealer/me' : null, [user && user.id]);
+  const [email, setEmail] = useState(''); const [pass, setPass] = useState('');
+  const [stage, setStage] = useState('email'); // email -> code -> account (then phone / business, from /dealer/me)
+  if (user === undefined || (user && me.loading && !me.data)) return <Loading />;
+  if (user && me.data && me.data.user.staff) return <Box title="Staff account"><p>You are signed in with a Korrect Cars staff account. Dealers need their own account: sign out and use a different email.</p></Box>;
+  if (user && me.data && me.data.dealer && !['more_info', 'draft'].includes(me.data.dealer.status)) { go('/dealer', { replace: true }); return <Loading />; }
+  const at = !user ? (stage === 'account' ? 1 : 0) : me.data && !me.data.user.phoneVerified ? 2 : 3;
+  return (
+    <div className="wrap sec-sm" style={{ maxWidth: 640 }}>
+      <h1 style={{ fontSize: 44 }}>Sell your cars on Korrect Cars</h1>
+      <p className="muted">Free to join. We check every dealer's CAC papers and phone before their cars go live, so buyers can trust every listing.</p>
+      <Steps at={at} />
+      {!user && stage === 'email' && <EmailStep onSent={(e) => { setEmail(e); setStage('code'); }} />}
+      {!user && stage === 'code' && <CodeStep email={email} onBack={() => setStage('email')} onOk={(p) => { setPass(p); setStage('account'); }} />}
+      {!user && stage === 'account' && <AccountStep email={email} pass={pass} onRestart={() => setStage('email')} onDone={(u) => setUser(u)} />}
+      {user && at === 2 && <PhoneStep phone={me.data.user.phone} onDone={me.reload} />}
+      {user && at === 3 && <BusinessStep dealer={me.data.dealer} onDone={() => go('/dealer')} />}
+      {!user && <p className="small muted" style={{ marginTop: 16 }}>Already have a Korrect Cars account? <Link to="/login?next=/dealers/join">Sign in</Link> and carry on from the phone step.</p>}
+    </div>
+  );
+}
+const Box = ({ title, children }) => <div className="wrap sec-sm" style={{ maxWidth: 620 }}><h1 style={{ fontSize: 40 }}>{title}</h1><div className="box">{children}</div></div>;
+
+function EmailStep({ onSent }) {
+  const [email, setEmail] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault(); setErr(''); setBusy(true);
+    try { const d = await api('/dealer/signup/code', { method: 'POST', body: { email } }); onSent(d.email); } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+  };
+  return (
+    <form className="box" onSubmit={submit}>
+      <h2>Your email</h2>
+      <p className="small muted">We send a 6-digit code to prove the inbox is yours. Buyers' messages and our team's emails go here, so use one you check every day.</p>
+      <Err e={err} />
+      <div className="field"><label className="f" htmlFor="dj-email">Email</label><input id="dj-email" className="input" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+      <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Sending…' : 'Send my code'}</button>
+    </form>
+  );
+}
+
+function CodeStep({ email, onOk, onBack }) {
+  const [code, setCode] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [again, setAgain] = useState('');
+  const ref = useRef(null); useEffect(() => { if (ref.current) ref.current.focus(); }, []);
+  const submit = async (e) => {
+    e.preventDefault(); setErr(''); setBusy(true);
+    try { const d = await api('/dealer/signup/verify', { method: 'POST', body: { email, code } }); onOk(d.pass); } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+  };
+  const resend = async () => { setAgain('sending'); try { await api('/dealer/signup/code', { method: 'POST', body: { email } }); setAgain('sent'); } catch (e2) { setAgain(''); setErr(e2.message); } };
+  return (
+    <form className="box" onSubmit={submit}>
+      <h2>Check your email</h2>
+      <p>We sent a 6-digit code to <b>{email}</b>. It works for 15 minutes. Can't see it? Check spam or promotions.</p>
+      <Err e={err} />
+      <div className="field"><label className="f" htmlFor="dj-code">Code</label><input id="dj-code" ref={ref} className="input code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" maxLength={7} required value={code} onChange={(e) => setCode(e.target.value)} /></div>
+      <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Checking…' : 'Continue'}</button>
+      <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+        <button type="button" className="btn btn-line btn-sm" onClick={resend} disabled={again === 'sending'}>{again === 'sent' ? 'New code sent' : again === 'sending' ? 'Sending…' : 'Send a new code'}</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>Use a different email</button>
+      </div>
+    </form>
+  );
+}
+
+function AccountStep({ email, pass, onDone, onRestart }) {
+  const [f, setF] = useState({ name: '', phone: '', password: '' }); const [err, setErr] = useState(''); const [field, setField] = useState(''); const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const submit = async (e) => {
+    e.preventDefault(); setErr(''); setField(''); setBusy(true);
+    try { const d = await api('/dealer/signup/account', { method: 'POST', body: { pass, ...f } }); onDone(d.user); } catch (e2) {
+      if (e2.data && e2.data.restart) { onRestart(); return; }
+      setErr(e2.message); setField((e2.data && e2.data.field) || '');
+    } finally { setBusy(false); }
+  };
+  return (
+    <form className="box" onSubmit={submit}>
+      <h2>Your account</h2>
+      <p className="small muted">Email confirmed: <b>{email}</b>. This is you, the person; your business comes next.</p>
+      <Err e={err} />
+      <div className="field"><label className="f" htmlFor="dj-name">Your full name</label><input id="dj-name" className="input" required minLength={2} maxLength={80} autoComplete="name" value={f.name} onChange={set('name')} aria-invalid={field === 'name'} /></div>
+      <div className="field"><label className="f" htmlFor="dj-phone">Your mobile number</label><input id="dj-phone" className="input" type="tel" required autoComplete="tel" placeholder="0803 123 4567" value={f.phone} onChange={set('phone')} aria-invalid={field === 'phone'} /><div className="hint">Nigerian number. We text a code to it next.</div></div>
+      <div className="field"><label className="f" htmlFor="dj-pw">Password</label><input id="dj-pw" className="input" type="password" required minLength={10} maxLength={128} autoComplete="new-password" value={f.password} onChange={set('password')} aria-invalid={field === 'password'} /><div className="hint">At least 10 characters. Three or four unrelated words are easy to remember and hard to guess.</div></div>
+      <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Creating…' : 'Create my account'}</button>
+    </form>
+  );
+}
+
+function PhoneStep({ phone, onDone }) {
+  const [num, setNum] = useState(phone || ''); const [sent, setSent] = useState(null); const [code, setCode] = useState('');
+  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const send = async (e) => {
+    if (e) e.preventDefault(); setErr(''); setBusy(true);
+    try { setSent(await api('/dealer/phone/send', { method: 'POST', body: { phone: num } })); } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+  };
+  const verify = async (e) => {
+    e.preventDefault(); setErr(''); setBusy(true);
+    try { await api('/dealer/phone/verify', { method: 'POST', body: { code } }); onDone(); } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+  };
+  if (!sent) return (
+    <form className="box" onSubmit={send}>
+      <h2>Your phone</h2>
+      <p className="small muted">We text a 6-digit code to confirm the number. Up to 3 codes per number a day.</p>
+      <Err e={err} />
+      <div className="field"><label className="f" htmlFor="dj-tel">Mobile number</label><input id="dj-tel" className="input" type="tel" required autoComplete="tel" value={num} onChange={(e) => setNum(e.target.value)} /></div>
+      <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Sending…' : 'Text me a code'}</button>
+    </form>
+  );
+  return (
+    <form className="box" onSubmit={verify}>
+      <h2>Enter the text code</h2>
+      <p>We sent a code to <b>{sent.phone}</b>. It works for 10 minutes.</p>
+      {sent.testCode && <p className="note" role="note">Test site: no text was sent. Your code is <b>{sent.testCode}</b>.</p>}
+      <Err e={err} />
+      <div className="field"><label className="f" htmlFor="dj-otp">Code</label><input id="dj-otp" className="input code-input" inputMode="numeric" autoComplete="one-time-code" maxLength={7} required value={code} onChange={(e) => setCode(e.target.value)} /></div>
+      <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Checking…' : 'Confirm my phone'}</button>
+      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}><button type="button" className="btn btn-line btn-sm" onClick={() => send()} disabled={busy}>Send again</button><button type="button" className="btn btn-ghost btn-sm" onClick={() => setSent(null)}>Change number</button></div>
+    </form>
+  );
+}
+
+function BusinessStep({ dealer, onDone }) {
+  const states = useApi('/dealer/states');
+  const d = dealer || {};
+  const [f, setF] = useState({ businessName: d.businessName || '', cacType: d.cacType || 'RC', cacNumber: d.cacNumber || '', state: d.state || 'Lagos', lga: d.lga || '', address: d.address || '', whatsapp: d.whatsapp || '', about: d.about || '' });
+  const [cac, setCac] = useState(null); const [err, setErr] = useState(''); const [field, setField] = useState(''); const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const submit = async (e) => {
+    e.preventDefault(); setErr(''); setField(''); setBusy(true);
+    const fd = new FormData();
+    Object.entries(f).forEach(([k, v]) => { if (v) fd.append(k, v); });
+    try {
+      if (cac) fd.append('cac', cac.type === 'application/pdf' ? cac : await shrinkPhoto(cac));
+      await api('/dealer', { method: 'POST', form: fd }); onDone();
+    } catch (e2) { setErr(e2.message); setField((e2.data && e2.data.field) || ''); } finally { setBusy(false); }
+  };
+  return (
+    <form className="box" onSubmit={submit}>
+      <h2>Your business</h2>
+      {d.status === 'more_info' && d.lastNote && <p className="note" role="note"><b>Note from our team:</b> {d.lastNote}</p>}
+      <p className="small muted">As written on your CAC certificate. Only our team sees the certificate; it is kept for 12 months after our decision.</p>
+      <Err e={err} />
+      <div className="field"><label className="f" htmlFor="db-name">Business name</label><input id="db-name" className="input" required minLength={3} maxLength={160} value={f.businessName} onChange={set('businessName')} aria-invalid={field === 'businessName'} /></div>
+      <div className="grid2">
+        <div className="field"><label className="f" htmlFor="db-type">Registered as</label><select id="db-type" className="input" value={f.cacType} onChange={set('cacType')}><option value="RC">Company (RC)</option><option value="BN">Business name (BN)</option><option value="IT">Trustees (IT)</option></select></div>
+        <div className="field"><label className="f" htmlFor="db-cac">CAC number</label><input id="db-cac" className="input" required inputMode="numeric" placeholder="1234567" value={f.cacNumber} onChange={set('cacNumber')} aria-invalid={field === 'cacNumber'} /></div>
+        <div className="field"><label className="f" htmlFor="db-state">State</label><select id="db-state" className="input" value={f.state} onChange={set('state')}>{((states.data && states.data.states) || ['Lagos']).map((s) => <option key={s}>{s}</option>)}</select></div>
+        <div className="field"><label className="f" htmlFor="db-lga">Area / LGA</label><input id="db-lga" className="input" maxLength={60} placeholder="Ikeja" value={f.lga} onChange={set('lga')} /></div>
+      </div>
+      <div className="field"><label className="f" htmlFor="db-addr">Address buyers can visit</label><input id="db-addr" className="input" required minLength={8} maxLength={250} value={f.address} onChange={set('address')} aria-invalid={field === 'address'} /></div>
+      <div className="field"><label className="f" htmlFor="db-wa">WhatsApp for buyers (if different)</label><input id="db-wa" className="input" type="tel" value={f.whatsapp} onChange={set('whatsapp')} /></div>
+      <div className="field"><label className="f" htmlFor="db-about">About your business (optional)</label><textarea id="db-about" className="input" rows={3} maxLength={1500} value={f.about} onChange={set('about')} /></div>
+      <div className="field"><label className="f" htmlFor="db-file">CAC certificate (photo or PDF){d.status === 'more_info' ? ', only if asked for a new one' : ''}</label><input id="db-file" type="file" className="input" style={{ paddingTop: 12 }} accept="image/jpeg,image/png,image/webp,application/pdf" required={!dealer} onChange={(e) => setCac(e.target.files[0] || null)} aria-invalid={field === 'cac'} /></div>
+      <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Sending…' : 'Send for review'}</button>
+    </form>
+  );
+}
+
+// ---------- /dealer ----------
+export function DealerHome() {
+  useTitle('My dealer page | Korrect Cars');
+  const { user, cfg } = useApp();
+  const { go } = useRouter();
+  const me = useApi(user ? '/dealer/me' : null, [user && user.id]);
+  const cars = useApi(me.data && me.data.dealer ? '/dealer/cars' : null, [me.data && me.data.dealer && me.data.dealer.id]);
+  if (user === undefined || (user && !me.data)) return <Loading />;
+  if (!user) { go('/login?next=/dealer', { replace: true }); return <Loading />; }
+  const d = me.data.dealer;
+  if (!d) { go('/dealers/join', { replace: true }); return <Loading />; }
+  const st = STATUS[d.status] || STATUS.draft;
+  const canList = !['rejected', 'suspended'].includes(d.status);
+  const list = (cars.data && cars.data.cars) || [];
+  const setStatus = async (c, status) => { try { await api(`/dealer/cars/${c.id}/status`, { method: 'POST', body: { status } }); cars.reload(); } catch (e) { window.alert(e.message); } };
+  return (
+    <div className="wrap sec-sm">
+      <div className="sec-head"><div><h1 style={{ fontSize: 40, margin: 0 }}>{d.businessName}</h1><div className="small muted">{d.cacType} {d.cacNumber} · {d.state}</div></div>
+        {canList && <Link to="/dealer/cars/new" className="btn btn-red">+ Add a car</Link>}</div>
+      <div className="box" role="status"><span className={'tag ' + st[1]}>{st[0]}</span> <span>{st[2]}</span>
+        {d.lastNote && ['more_info', 'rejected', 'suspended'].includes(d.status) && <p className="note" style={{ marginTop: 10 }}><b>Note from our team:</b> {d.lastNote}</p>}
+        {d.status === 'more_info' && <p style={{ marginTop: 10 }}><Link to="/dealers/join" className="btn btn-dark btn-sm">Update my details</Link></p>}
+        {!canList && <p style={{ marginTop: 10 }}><a className="btn btn-line btn-sm" href={waLink(cfg, `Hello Korrect Cars, about my dealer account ${d.businessName}`)}>Chat with us on WhatsApp</a></p>}
+      </div>
+      <div className="kpis">
+        <div className="box kpi"><div className="small muted">Cars for sale</div><div className="v">{d.liveCars}{d.liveLimit ? <span className="small muted"> / {d.liveLimit}</span> : null}</div>{d.liveLimit ? <div className="small muted">limit for your first 3 months</div> : null}</div>
+        <div className="box kpi"><div className="small muted">All your cars</div><div className="v">{list.length}</div></div>
+      </div>
+      <div className="box">
+        <h2>Your cars</h2>
+        {cars.loading && !cars.data ? <Loading /> : !list.length ? <p className="muted">No cars yet. {canList && <Link to="/dealer/cars/new">Add your first car</Link>}</p> : (
+          <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th>Views</th><th>Status</th><th /></tr></thead><tbody>
+            {list.map((c) => <tr key={c.id}>
+              <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">VIN …{String(c.vin || '').slice(-6)} · added {date(c.created_at)}</div></div></div></td>
+              <td>{naira(c.price)}</td><td>{c.views}</td><td><Tag s={c.status} map={CAR_STATUS} /></td>
+              <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                {c.status === 'available' && <Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link>}{' '}
+                {canList && <Link to={'/dealer/cars/' + c.id} className="btn btn-dark btn-sm">Edit</Link>}{' '}
+                {canList && ['available', 'pending'].includes(c.status) && <button className="btn btn-line btn-sm" onClick={() => setStatus(c, 'sold')}>Mark sold</button>}
+                {canList && ['sold', 'hidden'].includes(c.status) && <button className="btn btn-line btn-sm" onClick={() => setStatus(c, 'available')}>Put back on sale</button>}
+              </td>
+            </tr>)}
+          </tbody></table></div>)}
+      </div>
+    </div>
+  );
+}
+
+// ---------- /dealer/cars/new and /dealer/cars/:id ----------
+const EMPTY = { title: '', make: '', model: '', body: '', trim: '', year: '', price: '', mileage: '', engine: '', transmission: 'Automatic', drivetrain: '', fuel: 'Petrol', color: '', interior: '', condition: 'Foreign Used', location: 'Lagos', vin: '', description: '', features: '', specsText: '', status: 'available' };
+export function DealerCarForm({ id }) {
+  const isNew = !id;
+  useTitle((isNew ? 'Add a car' : 'Edit car') + ' | Korrect Cars');
+  const { go } = useRouter();
+  const existing = useApi(isNew ? null : '/dealer/cars/' + id);
+  const catalog = useApi('/catalog');
+  const [f, setF] = useState(EMPTY);
+  const [keep, setKeep] = useState([]);
+  const [vinState, setVinState] = useState(isNew ? null : { state: 'yours' });
+  const [files, setFiles] = useState([]); const [plate, setPlate] = useState(null);
+  const [err, setErr] = useState(''); const [busy, setBusy] = useState(''); const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    const c = existing.data && existing.data.car; if (!c) return;
+    setF({ ...EMPTY, title: c.title, make: c.make, model: c.model, body: c.body, trim: c.trim_level || '', year: c.year || '', price: c.price, mileage: c.mileage || '', engine: c.engine || '', transmission: c.transmission || '', drivetrain: c.drivetrain || '', fuel: c.fuel || '', color: c.color || '', interior: c.interior || '', condition: c.car_condition || '', location: c.location || '', vin: c.vin || '', description: c.description || '', features: (c.features || []).join('\n'), specsText: (c.specs || []).map((r) => `${r[0]}: ${r[1]}`).join('\n'), status: ['sold', 'hidden'].includes(c.status) ? c.status : 'available' });
+    setKeep(c.photos || []);
+  }, [existing.data]);
+  if (!isNew && existing.error) return <Box title="Car not found"><p>This car is not on your list. <Link to="/dealer">Back to my cars</Link></p></Box>;
+  if (!isNew && !existing.data) return <Loading />;
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const local = checkVin(f.vin);
+  const vinOk = isNew ? vinState && vinState.state === 'free' && vinState.value === local.value : true;
+
+  const lookUp = async (e) => {
+    e.preventDefault(); setErr(''); setVinState(null);
+    if (local.problems.length) { setErr(local.problems[0]); return; }
+    setChecking(true);
+    try {
+      const d = await api('/dealer/vin-check?vin=' + encodeURIComponent(local.value));
+      setVinState(d);
+      const x = d.decoded;
+      if (d.state === 'free' && x && x.found) setF((p) => ({ ...p, vin: d.value, make: p.make || x.make || '', model: p.model || x.model || '', year: p.year || x.year || '', title: p.title || x.title || '' }));
+      else setF((p) => ({ ...p, vin: d.value }));
+    } catch (e2) { setErr(e2.message); } finally { setChecking(false); }
+  };
+  const save = async (e) => {
+    e.preventDefault(); setErr('');
+    if (isNew && !files.length && f.status !== 'hidden') { setErr('Add at least one photo of the car.'); return; }
+    if (files.length + keep.length > 30) { setErr('A car can have up to 30 photos.'); return; }
+    setBusy('Preparing photos…');
+    const fd = new FormData();
+    Object.entries({ ...f, price: String(f.price).replace(/[^0-9]/g, '') }).forEach(([k, v]) => { if (v !== '' && v !== null) fd.append(k, String(v)); });
+    if (!isNew) { if (!keep.length) fd.append('keepPhotos', ''); keep.forEach((p) => fd.append('keepPhotos', p)); }
+    try {
+      for (const x of [...files].slice(0, 20)) fd.append('photos', await shrinkPhoto(x));
+      if (plate) fd.append('vinPhoto', await shrinkPhoto(plate));
+      setBusy('Saving…');
+      await api('/dealer/cars' + (isNew ? '' : '/' + id), { method: isNew ? 'POST' : 'PUT', form: fd });
+      go('/dealer');
+    } catch (e2) {
+      setErr(e2.message);
+      if (e2.data && e2.data.code === 'VIN_TAKEN') setVinState({ state: 'taken', value: local.value, canClaim: true });
+    } finally { setBusy(''); }
+  };
+  const tree = { ...(catalog.data || {}) };
+  if (f.make && !tree[f.make]) tree[f.make] = {};
+  const inp = (k, label, props = {}) => <div className="field"><label className="f" htmlFor={'dc-' + k}>{label}</label><input id={'dc-' + k} className="input" value={f[k]} onChange={set(k)} {...props} /></div>;
+
+  return (
+    <div className="wrap sec-sm" style={{ maxWidth: 820 }}>
+      <p className="small"><Link to="/dealer">← My cars</Link></p>
+      <h1 style={{ fontSize: 40 }}>{isNew ? 'Add a car' : 'Edit car'}</h1>
+      <form className="box" onSubmit={lookUp} aria-labelledby="vin-h">
+        <h2 id="vin-h">1. VIN or chassis number</h2>
+        <p className="small muted">Each car can be listed once on Korrect Cars. Type the 17-character VIN from the dashboard or door frame, or the chassis number on Japanese cars.</p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div className="field" style={{ flex: '1 1 280px', marginBottom: 0 }}><label className="f" htmlFor="dc-vin">VIN</label>
+            <input id="dc-vin" className="input mono" required autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={24} value={f.vin} onChange={(e) => { setF({ ...f, vin: e.target.value }); if (isNew) setVinState(null); }} aria-describedby="dc-vin-hint" /></div>
+          {isNew && <button className="btn btn-dark" disabled={checking || !f.vin}>{checking ? 'Checking…' : 'Check VIN'}</button>}
+        </div>
+        <div id="dc-vin-hint" className="hint" aria-live="polite">
+          {f.vin && local.problems.length ? <span style={{ color: 'var(--bad)' }}>{local.problems[0]}</span> : f.vin && local.warnings.length ? local.warnings[0] : f.vin && local.type === 'vin17' ? 'Looks like a valid VIN.' : ''}
+        </div>
+        {vinState && vinState.state === 'free' && isNew && <p className="note" role="status">✓ This car is not listed yet. {vinState.decoded && vinState.decoded.found ? <>Factory record: <b>{vinState.decoded.title}</b>. We filled in what we could; check it below.</> : 'Fill in the details below.'}</p>}
+        {vinState && vinState.state === 'yours' && isNew && <p className="note" role="status">You already list this car. <Link to={'/dealer/cars/' + vinState.carId}>Edit it instead</Link>.</p>}
+        {vinState && vinState.state === 'taken' && <div className="err" role="alert">This car is already listed on Korrect Cars by another seller. If it is yours (you have the papers), you can ask our team to check: ownership claims open soon. Meanwhile, <a href={'mailto:info@korrectcars.com?subject=' + encodeURIComponent('VIN already listed: ' + (vinState.value || local.value))}>email us</a>.</div>}
+        {vinState && vinState.state === 'locked' && <div className="err" role="alert">This VIN is on hold while our team checks it. Please contact us.</div>}
+      </form>
+
+      {vinOk && <form className="box" onSubmit={save} style={{ marginTop: 18 }}>
+        <h2>2. The car</h2>
+        <Err e={err} />
+        {inp('title', 'Title buyers see', { required: true, minLength: 3, maxLength: 140, placeholder: '2016 Toyota Camry SE' })}
+        <div className="grid2">
+          <div className="field"><label className="f" htmlFor="dc-make">Make</label><input id="dc-make" className="input" list="dc-makes" required value={f.make} onChange={set('make')} /><datalist id="dc-makes">{Object.keys(tree).map((m) => <option key={m} value={m} />)}</datalist></div>
+          <div className="field"><label className="f" htmlFor="dc-model">Model</label><input id="dc-model" className="input" list="dc-models" required value={f.model} onChange={set('model')} /><datalist id="dc-models">{Object.keys(tree[f.make] || {}).map((m) => <option key={m} value={m} />)}</datalist></div>
+          <div className="field"><label className="f" htmlFor="dc-body">Body type</label><select id="dc-body" className="input" required value={f.body} onChange={set('body')}><option value="">Choose</option>{['Sedan', 'SUV', 'SUV Coupe', 'Hatchback', 'Coupe', 'Pickup', 'Minivan', 'Wagon', 'Bus'].map((b) => <option key={b}>{b}</option>)}</select></div>
+          {inp('year', 'Year', { inputMode: 'numeric', maxLength: 4 })}
+          {inp('price', 'Price (₦)', { required: true, inputMode: 'numeric' })}
+          {inp('mileage', 'Mileage', { placeholder: '68,000 miles' })}
+          {inp('trim', 'Trim')}{inp('engine', 'Engine')}{inp('transmission', 'Transmission')}{inp('drivetrain', 'Drivetrain')}{inp('fuel', 'Fuel')}
+          {inp('color', 'Exterior colour')}{inp('interior', 'Interior')}
+          <div className="field"><label className="f" htmlFor="dc-cond">Condition</label><select id="dc-cond" className="input" value={f.condition} onChange={set('condition')}>{['Foreign Used', 'Nigerian Used', 'Brand New'].map((c) => <option key={c}>{c}</option>)}</select></div>
+          {inp('location', 'Where the car is')}
+          <div className="field"><label className="f" htmlFor="dc-status">Show it</label><select id="dc-status" className="input" value={f.status} onChange={set('status')}><option value="available">For sale</option><option value="hidden">Hidden (draft)</option><option value="sold">Sold</option></select></div>
+        </div>
+        <div className="field"><label className="f" htmlFor="dc-desc">Description (blank line between paragraphs)</label><textarea id="dc-desc" className="input" rows={6} maxLength={8000} value={f.description} onChange={set('description')} /></div>
+        <div className="grid2">
+          <div className="field"><label className="f" htmlFor="dc-feat">Features (one per line)</label><textarea id="dc-feat" className="input" rows={5} value={f.features} onChange={set('features')} /></div>
+          <div className="field"><label className="f" htmlFor="dc-specs">Specs (Label: value per line)</label><textarea id="dc-specs" className="input" rows={5} value={f.specsText} onChange={set('specsText')} /></div>
+        </div>
+        {!isNew && keep.length > 0 && <div className="field"><div className="f">Photos (first one is the cover)</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>{keep.map((p, i) => (
+          <div key={p}><img src={rs(p, 400)} alt={`Photo ${i + 1}`} className="thumb" style={{ width: 120, height: 90 }} />
+            <div><button type="button" className="btn btn-line btn-sm" onClick={() => setKeep(keep.filter((x) => x !== p))}>Remove</button></div></div>))}</div></div>}
+        <div className="field"><label className="f" htmlFor="dc-ph">{isNew ? 'Photos' : 'Add photos'} (up to 20 per save)</label><input id="dc-ph" type="file" className="input" style={{ paddingTop: 12 }} multiple accept="image/jpeg,image/png,image/webp" onChange={(e) => setFiles(e.target.files)} />
+          <div className="hint">{files.length ? `${files.length} selected. They are made smaller before upload.` : 'Clear daylight photos: front, back, both sides, dashboard, seats, engine.'}</div></div>
+        <div className="field"><label className="f" htmlFor="dc-plate">Photo of the VIN plate (only our team sees it)</label><input id="dc-plate" type="file" className="input" style={{ paddingTop: 12 }} accept="image/jpeg,image/png,image/webp" onChange={(e) => setPlate(e.target.files[0] || null)} /><div className="hint">Helps us confirm the car is really yours if someone else claims it.</div></div>
+        <div style={{ display: 'flex', gap: 10 }}><button className="btn btn-red" disabled={!!busy}>{busy || 'Save car'}</button><Link to="/dealer" className="btn btn-line">Cancel</Link></div>
+      </form>}
+    </div>
+  );
+}

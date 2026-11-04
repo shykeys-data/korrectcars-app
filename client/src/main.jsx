@@ -16,6 +16,11 @@ import { Account, AuthPage, VerifyEmail, ForgotPassword, ResetPassword } from '.
 import { Blog, Post, Page, Faqs, Contact, NotFound } from './pages/Content.jsx';
 import { VinCheck, Market } from './pages/Tools.jsx';
 const Admin = lazy(() => import('./pages/Admin.jsx'));
+// Partner dealer pages: their own bundle, loaded only when a dealer opens them
+const DealerJoin = lazy(() => import('./pages/Dealer.jsx').then((m) => ({ default: m.DealerJoin })));
+const DealerHome = lazy(() => import('./pages/Dealer.jsx').then((m) => ({ default: m.DealerHome })));
+const DealerCarForm = lazy(() => import('./pages/Dealer.jsx').then((m) => ({ default: m.DealerCarForm })));
+const Lazy = ({ children }) => <Suspense fallback={<div className="loading">Loading…</div>}>{children}</Suspense>;
 import { QuickViewProvider } from './components/QuickView.jsx';
 
 // /cars/toyota is a make page; /cars/2018-toyota-camry-se is a single car
@@ -41,6 +46,11 @@ function Routes() {
   if (path === '/swap') return <SwapHome />;
   if (path === '/swap/new') return <SwapNew />;
   if ((m = match('/swap/:id', path))) return <SwapListing id={m.id} />;
+  if (/^\/dealers?(\/|$)/.test(path) && !(cfg && cfg.marketplace)) return <NotFound />; // Partner dealers switched off
+  if (path === '/dealers/join') return <Lazy><DealerJoin /></Lazy>;
+  if (path === '/dealer') return <Lazy><DealerHome /></Lazy>;
+  if (path === '/dealer/cars/new') return <Lazy><DealerCarForm /></Lazy>;
+  if ((m = match('/dealer/cars/:id', path)) && /^\d+$/.test(m.id)) return <Lazy><DealerCarForm key={m.id} id={m.id} /></Lazy>;
   if (path === '/account') return <Account />;
   if (path === '/login') return <AuthPage mode="login" />;
   if (path === '/register') return <AuthPage mode="register" />;

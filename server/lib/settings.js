@@ -39,8 +39,8 @@ function current() {
     // Swap is being tested on staging first: shown there by default, hidden on the live site until switched on
     internalCodes: String(g('internalCodes', 'BF')).split(',').map((x) => x.trim()).filter(Boolean),
     swap: g('swap', /staging/.test(config.siteUrl) ? 'on' : 'off') === 'on',
-    // Partner dealers: off until the owner switches it on, so the code can go live before the launch day
-    marketplace: g('marketplace', 'off') === 'on'
+    // Partner dealers: on for testing on staging, off on the live site until the owner switches it on
+    marketplace: g('marketplace', /staging/.test(config.siteUrl) ? 'on' : 'off') === 'on'
   };
 }
 async function save(values) {

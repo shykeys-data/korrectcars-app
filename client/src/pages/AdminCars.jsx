@@ -18,14 +18,14 @@ export function Cars({ isAdmin }) {
   const del = async (c) => { if (!window.confirm(`Delete ${c.title}? This cannot be undone.`)) return; await api('/admin/cars/' + c.id, { method: 'DELETE' }); reload(); };
   return (
     <div className="box">
-      <div className="sec-head" style={{ marginBottom: 12 }}><h2 style={{ margin: 0 }}>Dealer cars</h2><button className="btn btn-red" onClick={() => setEdit({})}>+ Add car</button></div>
+      <div className="sec-head" style={{ marginBottom: 12 }}><h2 style={{ margin: 0 }}>Cars</h2><button className="btn btn-red" onClick={() => setEdit({})}>+ Add car</button></div>
       <div className="field" style={{ maxWidth: 420 }}><label className="f" htmlFor="car-find">Find a car by VIN, stock number or title</label><input id="car-find" className="input" type="search" value={find} onChange={(e) => setFind(e.target.value)} placeholder="e.g. the last 6 characters of the VIN" autoComplete="off" /></div>
       {data && fq && <div className="small muted" role="status">{cars.length} of {data.cars.length} cars match</div>}
       {!data ? <Loading /> : <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th>Views</th><th>Status</th><th /></tr></thead><tbody>
         {cars.map((c) => <tr key={c.id}>
-          <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">{c.make} · {c.model} · {c.body}{c.featured ? ' · featured' : ''}{c.vin ? <> · VIN …{norm(c.vin).slice(-6)}</> : ' · no VIN'}{vinCount[norm(c.vin)] > 1 ? <> · <span className="tag tag-bad">same VIN on {vinCount[norm(c.vin)]} cars</span></> : null}</div></div></div></td>
+          <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">{c.dealer_id && c.dealer_id !== 1 ? <><span className="tag tag-info">{c.dealer_name}</span> · </> : null}{c.make} · {c.model} · {c.body}{c.featured ? ' · featured' : ''}{c.vin ? <> · VIN …{norm(c.vin).slice(-6)}</> : ' · no VIN'}{vinCount[norm(c.vin)] > 1 ? <> · <span className="tag tag-bad">same VIN on {vinCount[norm(c.vin)]} cars</span></> : null}</div></div></div></td>
           <td>{naira(c.price)}{c.old_price ? <div className="small muted"><s>{naira(c.old_price)}</s></div> : null}</td><td>{c.views}</td>
-          <td><T c={stTag[c.status]}>{c.status}</T></td>
+          <td><T c={stTag[c.status]}>{c.status === 'pending' ? 'waiting' : c.status}</T></td>
           <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}><Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link> <button className="btn btn-dark btn-sm" onClick={() => setEdit(c)}>Edit</button> {isAdmin && <button className="btn btn-line btn-sm" onClick={() => del(c)}>Delete</button>}</td>
         </tr>)}
       </tbody></table></div>}

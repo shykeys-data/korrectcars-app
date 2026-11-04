@@ -320,7 +320,12 @@ async function renderPage(req, nonce) {
     }
   }
 
-  known = known || /^\/(compare|account|login|register|verify-email|forgot-password|reset-password)$/.test(p) || (swapOn && /^\/swap\/(new|\d+)$/.test(p));
+  // Partner dealer pages (only while the switch is on). The join page may be found by search; the rest are private.
+  const dealersOn = !!require('./lib/settings').current().marketplace;
+  if (dealersOn && p === '/dealers/join') meta = { ...meta, title: 'Sell your cars on Korrect Cars | Partner dealers', desc: 'Verified car dealers can list their cars on Korrect Cars. Free to join; we check every dealer\'s CAC papers before their cars go live.' };
+  if (dealersOn && /^\/dealer(\/cars\/(new|\d+))?$/.test(p)) noindex = true;
+  known = known || /^\/(compare|account|login|register|verify-email|forgot-password|reset-password)$/.test(p) || (swapOn && /^\/swap\/(new|\d+)$/.test(p))
+    || (dealersOn && /^\/(dealers\/join|dealer|dealer\/cars\/(new|\d+))$/.test(p));
   if (!known) { status = 404; noindex = true; meta.title = 'Page not found | Korrect Cars'; }
 
   const img = /^https?:/.test(meta.image) ? meta.image : config.siteUrl + meta.image;

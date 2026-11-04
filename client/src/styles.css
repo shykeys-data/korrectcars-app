@@ -538,3 +538,15 @@ details.faq p{margin:8px 0 0;color:var(--ink2)}
 .vin-band-row .btn{min-height:52px;white-space:nowrap}
 .vin-band-row .btn:active{transform:scale(.97)}
 @media(max-width:800px){.vin-band-grid{grid-template-columns:1fr;gap:16px}.vin-band-row{flex-direction:column}}
+
+/* Partner dealer sign-up and car form */
+.signup-steps{display:flex;gap:8px;margin:18px 0 20px;padding:0;counter-reset:none}
+.signup-steps li{flex:1;list-style:none;display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);padding-top:10px;border-top:4px solid var(--line)}
+.signup-steps li span{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--line);font-weight:700;font-size:13px;color:inherit}
+.signup-steps li.on{color:var(--ink,#18181b);border-top-color:var(--red);font-weight:700}
+.signup-steps li.on span{background:var(--red);color:#fff}
+.signup-steps li.done{border-top-color:var(--ok,#16a34a)}
+.signup-steps li.done span{background:var(--ok,#16a34a);color:#fff}
+@media(max-width:520px){.signup-steps li{font-size:0;gap:0}.signup-steps li span{font-size:13px}}
+.note{background:var(--grey,#f4f4f5);border-radius:12px;padding:12px 14px;font-size:15px;margin:12px 0}
+.mono{font-family:ui-monospace,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase}

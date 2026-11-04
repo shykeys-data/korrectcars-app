@@ -9,3 +9,4 @@ dist/
 *.log
 *.zip
 client/node_modules
+client/package-lock.json

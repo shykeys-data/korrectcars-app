@@ -63,7 +63,40 @@ ${bodyHtml}
 }
 const button = (url, label) => `<p style="margin:22px 0"><a href="${url}" style="display:inline-block;background:#d71920;color:#ffffff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:10px">${esc(label)}</a></p><p style="font-size:13px;color:#52525b">Or paste this link into your browser:<br><span style="word-break:break-all">${esc(url)}</span></p>`;
 
+const codeBox = (code) => `<p style="margin:22px 0;font-size:30px;letter-spacing:8px;font-weight:bold;font-family:Consolas,monospace">${esc(code)}</p>`;
 const templates = {
+  // Dealer sign-up: sent before any account exists, so it proves the inbox is real
+  dealerCode: (code) => ({
+    subject: `${code} is your Korrect Cars sign-up code`,
+    text: `Your Korrect Cars dealer sign-up code is: ${code}\n\nType it on the sign-up page. It works for 15 minutes.\n\nIf you did not ask to join Korrect Cars as a dealer, ignore this email; no account has been made.\n\nKorrect Cars`,
+    html: layout('Your sign-up code', `<p>Type this code on the Korrect Cars sign-up page. It works for 15 minutes.</p>${codeBox(code)}<p style="font-size:14px;color:#52525b">If you did not ask to join Korrect Cars as a dealer, ignore this email; no account has been made.</p>`)
+  }),
+  dealerExists: () => ({
+    subject: 'You already have a Korrect Cars account',
+    text: `Someone (probably you) asked to join Korrect Cars as a dealer with this email, but it already has an account.\n\nSign in, then open ${config.siteUrl}/dealers/join to add your business:\n${config.siteUrl}/login\n\nForgot your password? Use "Forgot password" on the sign-in page.\n\nKorrect Cars`,
+    html: layout('You already have an account', `<p>Someone (probably you) asked to join Korrect Cars as a dealer with this email, but it already has an account. Sign in, then add your business.</p>${button(`${config.siteUrl}/login?next=/dealers/join`, 'Sign in')}<p style="font-size:14px;color:#52525b">Forgot your password? Use “Forgot password” on the sign-in page.</p>`)
+  }),
+  dealerReceived: (name, business) => ({
+    subject: `We received ${business}'s application`,
+    text: `Hello ${name},\n\nThanks for applying to sell on Korrect Cars. Our team checks your business papers (CAC) and phone, usually within 2 working days, and emails you the result.\n\nYou can already add your cars: they go live as soon as you are approved.\n${config.siteUrl}/dealer\n\nKorrect Cars`,
+    html: layout('Application received', `<p>Hello ${esc(name)},</p><p>Thanks for applying to sell on Korrect Cars as <b>${esc(business)}</b>. Our team checks your business papers (CAC) and phone, usually within 2 working days, and emails you the result.</p><p>You can already add your cars: they go live as soon as you are approved.</p>${button(`${config.siteUrl}/dealer`, 'Open my dealer page')}`)
+  }),
+  dealerDecision: (name, business, decision, note) => {
+    const t = { approve: ['You are approved', `${business} is approved. Your cars are now live on Korrect Cars.`],
+      more_info: ['We need a little more', `We need a little more before we can approve ${business}.`],
+      reject: ['Application not approved', `We could not approve ${business} at this time.`],
+      suspend: ['Your dealer account is paused', `${business}'s listings are paused while our team looks into something.`] }[decision];
+    return {
+      subject: `${t[0]}: Korrect Cars`,
+      text: `Hello ${name},\n\n${t[1]}${note ? `\n\nNote from our team: ${note}` : ''}\n\n${config.siteUrl}/dealer\n\nQuestions? Reply to this email.\n\nKorrect Cars`,
+      html: layout(t[0], `<p>Hello ${esc(name)},</p><p>${esc(t[1])}</p>${note ? `<p style="background:#f4f4f5;border-radius:10px;padding:12px 14px"><b>Note from our team:</b> ${esc(note)}</p>` : ''}${button(`${config.siteUrl}/dealer`, 'Open my dealer page')}<p style="font-size:14px;color:#52525b">Questions? Reply to this email.</p>`)
+    };
+  },
+  staffNewDealer: (business, state) => ({
+    subject: `New dealer to review: ${business}`,
+    text: `${business} (${state || 'state not given'}) applied to sell on Korrect Cars. Open "Dealers to review" in the staff area.`,
+    html: layout('New dealer to review', `<p><b>${esc(business)}</b> (${esc(state || 'state not given')}) applied to sell on Korrect Cars. Open “Dealers to review” in the staff area.</p>`)
+  }),
   verify: (name, url) => ({
     subject: 'Confirm your email for Korrect Cars',
     text: `Hello ${name},\n\nPlease confirm your email to activate your Korrect Cars account:\n${url}\n\nThe link works for 24 hours. If you did not create an account, ignore this email and nothing will happen.\n\nKorrect Cars`,

@@ -203,13 +203,14 @@ async function listCars(query = {}) {
 r.get('/cars', async (req, res) => res.json({ cars: await listCars(req.query) }));
 
 async function carDetail(slug) {
-  let car = await one("SELECT * FROM cars WHERE slug = ? AND status <> 'hidden'", [String(slug)]);
+  // Customers see cars for sale, reserved and sold; hidden cars and partner cars waiting for approval stay private
+  let car = await one("SELECT * FROM cars WHERE slug = ? AND status IN ('available','reserved','sold')", [String(slug)]);
   let moved = false;
-  if (!car) { car = await one("SELECT * FROM cars WHERE old_slug = ? AND status <> 'hidden'", [String(slug)]); moved = !!car; } // old web address
+  if (!car) { car = await one("SELECT * FROM cars WHERE old_slug = ? AND status IN ('available','reserved','sold')", [String(slug)]); moved = !!car; } // old web address
   if (!car) return null;
   const similar = await q(`SELECT id, slug, title, make, model, body, year, price, old_price, mileage, photos, status FROM cars
     WHERE id <> ? AND status = 'available' AND (body = ? OR make = ?) ORDER BY ABS(price - ?) LIMIT 3`, [car.id, car.body, car.make, car.price]);
-  delete car.vin; delete car.old_slug; // staff only
+  for (const k of ['vin', 'old_slug', 'vin_photo', 'vehicle_id_ref', 'live_key', 'created_by']) delete car[k]; // staff only
   cleanCar(car); similar.forEach(cleanCar);
   return moved ? { car, similar, movedTo: car.slug } : { car, similar };
 }

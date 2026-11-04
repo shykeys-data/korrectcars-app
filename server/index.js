@@ -92,6 +92,7 @@ api.use(loadUser);
 api.use(csrfGuard);
 api.use('/', require('./routes/public'));
 api.use('/swap', (_req, res, next) => (settings.current().swap ? next() : res.status(404).json({ error: 'Not found' })), require('./routes/swap'));
+api.use('/dealer', (_req, res, next) => (settings.current().marketplace ? next() : res.status(404).json({ error: 'Not found' })), require('./routes/dealer'));
 api.use('/me', require('./routes/me'));
 api.use('/admin', require('./routes/admin'));
 api.use((_req, res) => res.status(404).json({ error: 'Not found' }));
@@ -162,11 +163,18 @@ app.use((err, req, res, _next) => {
   if (/Unexpected end of form|Request aborted/i.test(err.message || '')) upload = 'The upload was cut off before it finished. Check your internet connection and try again.';
   const status = err.status || (upload ? 400 : 500);
   // Unexpected errors get a short reference code, shown to the user and written to the log next to the cause
-  const ref = status >= 500 ? 'KC-' + require('crypto').randomBytes(3).toString('hex').toUpperCase() : null;
-  const msg = upload || (status < 500 ? err.message : `Something went wrong (ref ${ref}). Please try again, or send this code to the Korrect Cars team.`);
-  if (status >= 500) console.error(new Date().toISOString(), `[${ref}]`, req.method, req.originalUrl, req.user ? `user ${req.user.id}` : 'signed out', err);
+  // expose: a planned 5xx with a message meant for the user (e.g. the SMS service is down)
+  const ref = status >= 500 && !err.expose ? 'KC-' + require('crypto').randomBytes(3).toString('hex').toUpperCase() : null;
+  const msg = upload || (status < 500 || err.expose ? err.message : `Something went wrong (ref ${ref}). Please try again, or send this code to the Korrect Cars team.`);
+  if (ref) console.error(new Date().toISOString(), `[${ref}]`, req.method, req.originalUrl, req.user ? `user ${req.user.id}` : 'signed out', err);
   else if (upload) console.warn(new Date().toISOString(), '[upload]', req.method, req.originalUrl, err.code || err.message);
-  if (req.originalUrl.startsWith('/api/')) return res.status(status).json(ref ? { error: msg, ref } : { error: msg });
+  if (req.originalUrl.startsWith('/api/')) {
+    if (ref) return res.status(status).json({ error: msg, ref });
+    // Our own error codes (VIN_TAKEN, VIN_INVALID, LIMIT...) travel with the details the page needs
+    const extra = /^[A-Z][A-Z_]+$/.test(String(err.code || '')) && !UPLOAD[err.code]
+      ? Object.fromEntries(['code', 'canClaim', 'yours', 'carId', 'problems', 'warnings', 'limit'].filter((k) => err[k] !== undefined).map((k) => [k, err[k]])) : {};
+    return res.status(status).json({ error: msg, ...extra });
+  }
   res.status(status).type('text/plain').send(msg);
 });
 

@@ -34,7 +34,7 @@ test('first start applies the dealer change and moves every car to Korrect Cars'
   const log = await startStop();
   assert.match(log, /Database change 001_dealers/);
   const db = sqlite();
-  assert.deepStrictEqual(db.prepare('SELECT id FROM schema_migrations').all().map((r) => r.id), ['001_dealers']);
+  assert.deepStrictEqual(db.prepare('SELECT id FROM schema_migrations').all().map((r) => r.id), ['001_dealers', '002_dealer_signup', '003_vehicle_ids']);
   const kc = db.prepare('SELECT * FROM dealers WHERE id = 1').get();
   assert.strictEqual(kc.business_name, 'Korrect Cars');
   assert.strictEqual(kc.status, 'approved');
@@ -48,7 +48,7 @@ test('a restart runs no change twice and keeps one Korrect Cars row', async () =
   const log = await startStop();
   assert.doesNotMatch(log, /Database change 001_dealers/);
   const db = sqlite();
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 1);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 3);
   assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM dealers').get().n, 1);
   db.close();
 });
@@ -64,5 +64,16 @@ test('a business number can belong to one dealer only', async () => {
   const db = sqlite();
   db.prepare("INSERT INTO dealers (slug, business_name, cac_type, cac_number) VALUES ('ade-motors', 'Ade Motors', 'RC', '1234567')").run();
   assert.throws(() => db.prepare("INSERT INTO dealers (slug, business_name, cac_type, cac_number) VALUES ('ade-motors-2', 'Copy', 'RC', '1234567')").run(), /UNIQUE/);
+  db.close();
+});
+
+test('the database itself refuses a second live listing of one VIN, but sold cars keep theirs', async () => {
+  const db = sqlite();
+  const ref = db.prepare("INSERT INTO vehicle_ids (id_type, id_value) VALUES ('vin17', '1HGCM82633A004352')").run().lastInsertRowid;
+  const add = (slug, status) => db.prepare('INSERT INTO cars (slug, title, make, model, body, price, status, vehicle_id_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(slug, 'T', 'Honda', 'Accord', 'Sedan', 1, status, ref);
+  add('live-a', 'available');
+  assert.throws(() => add('live-b', 'pending'), /UNIQUE/);
+  add('sold-a', 'sold'); add('hidden-a', 'hidden'); // history: any number of sold or hidden rows
+  assert.throws(() => db.prepare("UPDATE cars SET status = 'available' WHERE slug = 'sold-a'").run(), /UNIQUE/);
   db.close();
 });

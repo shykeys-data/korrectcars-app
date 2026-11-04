@@ -73,4 +73,12 @@ function save(file, { folder, privateFile = false, allowPdf = false, name: base 
   return `/uploads/${folder}/${name}`;
 }
 
-module.exports = { memory, save, PUBLIC_DIR, PRIVATE_DIR };
+// Removes files saved for a car whose save was then refused (e.g. the VIN was taken a moment earlier)
+function discard(names = []) {
+  for (const n of names.filter(Boolean)) {
+    const file = n.startsWith('/uploads/') ? path.join(PUBLIC_DIR, n.slice('/uploads/'.length)) : path.join(PRIVATE_DIR, path.basename(n));
+    if (file.startsWith(PUBLIC_DIR + path.sep) || file.startsWith(PRIVATE_DIR + path.sep)) fs.rm(file, { force: true }, () => {});
+  }
+}
+
+module.exports = { memory, save, discard, PUBLIC_DIR, PRIVATE_DIR };

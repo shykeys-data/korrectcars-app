@@ -8,13 +8,14 @@ import { Loading } from '../components/Bits.jsx';
 import { AuthPage } from './Account.jsx';
 import { TwoFASetup, TwoFAVerify } from './AdminAuth.jsx';
 import { Cars } from './AdminCars.jsx';
+import { Dealers } from './AdminDealers.jsx';
 import { Leads, Listings, STATUS_LABEL, Swaps, TYPE_LABEL } from './AdminLeads.jsx';
 import { Audit, Settings, Users } from './AdminSettings.jsx';
 import { ROLE_LABEL, STAFF, T, stTag } from './AdminShared.jsx';
 
 
 // Tabs each role can see. admin = Administrator; moderator is the old name for sales.
-const ALL_TABS = [['overview', 'Overview', 'admin sales editor'], ['leads', 'Leads', 'admin sales'], ['cars', 'Dealer cars', 'admin sales editor'], ['listings', 'Swap listings', 'admin sales'], ['swaps', 'Swaps & fees', 'admin sales'], ['blog', 'Guides', 'admin editor'], ['market', 'Market figures', 'admin editor'], ['users', 'Staff & users', 'admin'], ['settings', 'Settings', 'admin'], ['audit', 'Activity log', 'admin']];
+const ALL_TABS = [['overview', 'Overview', 'admin sales editor'], ['leads', 'Leads', 'admin sales'], ['cars', 'Cars', 'admin sales editor'], ['dealers', 'Dealers to review', 'admin sales editor'], ['listings', 'Swap listings', 'admin sales'], ['swaps', 'Swaps & fees', 'admin sales'], ['blog', 'Guides', 'admin editor'], ['market', 'Market figures', 'admin editor'], ['users', 'Staff & users', 'admin'], ['settings', 'Settings', 'admin'], ['audit', 'Activity log', 'admin']];
 const roleKey = (r) => (r === 'moderator' ? 'sales' : r);
 
 export default function Admin() {
@@ -43,7 +44,7 @@ function NoAccess({ user }) {
 function Console({ user }) {
   const { setUser, cfg } = useApp();
   const rk = roleKey(user.role);
-  const TABS = ALL_TABS.filter((t) => t[2].split(' ').includes(rk) && ((cfg && cfg.swap) || !['listings', 'swaps'].includes(t[0])));
+  const TABS = ALL_TABS.filter((t) => t[2].split(' ').includes(rk) && ((cfg && cfg.swap) || !['listings', 'swaps'].includes(t[0])) && ((cfg && cfg.marketplace) || t[0] !== 'dealers'));
   const [tab, setTab] = useState('overview');
   const stats = useApi('/admin/stats');
   const logout = async () => { await api('/auth/logout', { method: 'POST' }); setUser(null); };
@@ -56,7 +57,7 @@ function Console({ user }) {
             <div className="small" style={{ color: '#a1a1aa' }}>{user.name} · {ROLE_LABEL[user.role] || user.role}</div>
           </div>
           <nav className="sidenav">{TABS.map(([k, l]) => {
-            const n = stats.data ? { listings: stats.data.pendingListings, leads: stats.data.newEnquiries }[k] : 0;
+            const n = stats.data ? { listings: stats.data.pendingListings, leads: stats.data.newEnquiries, dealers: stats.data.dealersWaiting }[k] : 0;
             return <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{n ? <span className="n">{n}</span> : null}</button>;
           })}</nav>
           <button className="btn btn-ghost btn-sm btn-block" style={{ marginTop: 12 }} onClick={logout}>Sign out</button>
@@ -65,6 +66,7 @@ function Console({ user }) {
           {tab === 'overview' && <Overview stats={stats} go={setTab} />}
           {tab === 'cars' && <Cars isAdmin={user.role === 'admin'} />}
           {tab === 'leads' && <Leads onChange={stats.reload} />}
+          {tab === 'dealers' && <Dealers onChange={stats.reload} />}
           {tab === 'settings' && <Settings />}
           {tab === 'listings' && <Listings onChange={stats.reload} />}
           {tab === 'swaps' && <Swaps />}
@@ -90,6 +92,7 @@ function Overview({ stats, go }) {
     <>
       <div className="kpis">
         <K l="Cars in stock" v={s.carsAvail} sub={`${s.carsSold} sold`} to="cars" />
+        {cfg && cfg.marketplace && <K l="Dealers to review" v={s.dealersWaiting || 0} to="dealers" />}
         {seesLeads && <K l="New leads" v={s.newEnquiries} sub={s.newPss ? `${s.newPss} Pay Small Small` : ''} to="leads" />}
         {swap && <K l="Swap listings to review" v={s.pendingListings} sub={`${s.liveListings} live`} to="listings" />}
         {swap && <K l="Open swap offers" v={s.openOffers} to="swaps" />}
