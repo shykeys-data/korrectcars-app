@@ -16,6 +16,7 @@ const FIELDS = {
   swapFeePct: { type: 'number', label: 'Swap fee %', min: 0, max: 20 },
   internalCodes: { type: 'list', label: 'Staff-only codes at the end of car titles, hidden from customers (comma separated, e.g. BF)' },
   swap: { type: 'choice', label: 'Swap your car (Korrect Swap)', options: [['off', 'Hidden: not shown anywhere on the site'], ['on', 'Shown: menu, home page, swap pages and account tabs']] },
+  marketplace: { type: 'choice', label: 'Partner dealers (marketplace)', options: [['off', 'Off: only Korrect Cars lists cars; dealer sign-up is closed'], ['on', 'On: verified partner dealers can sign up and list cars']] },
   aiTraining: { type: 'choice', label: 'AI training bots (GPTBot, ClaudeBot, Google-Extended, CCBot)', options: [['allow', 'Allow: the site can be used to train AI models'], ['block', 'Block: AI search assistants can still read and cite the site']] }
 };
 let cache = {};
@@ -37,7 +38,9 @@ function current() {
     aiTraining: g('aiTraining', 'allow') === 'block' ? 'block' : 'allow',
     // Swap is being tested on staging first: shown there by default, hidden on the live site until switched on
     internalCodes: String(g('internalCodes', 'BF')).split(',').map((x) => x.trim()).filter(Boolean),
-    swap: g('swap', /staging/.test(config.siteUrl) ? 'on' : 'off') === 'on'
+    swap: g('swap', /staging/.test(config.siteUrl) ? 'on' : 'off') === 'on',
+    // Partner dealers: off until the owner switches it on, so the code can go live before the launch day
+    marketplace: g('marketplace', 'off') === 'on'
   };
 }
 async function save(values) {

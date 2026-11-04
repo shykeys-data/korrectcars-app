@@ -29,7 +29,7 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 | --- | --- |
 | Front end | React 18, esbuild |
 | Back end | Node.js, Express 5 |
-| Database | MySQL (mysql2); tables are created on first start |
+| Database | MySQL (mysql2); tables are created on first start, later changes are numbered files in `server/migrations` |
 | Security | Helmet, rate limiting, CSRF protection, bcrypt password hashing, JWT sessions, Zod input validation |
 | Hosting | DirectAdmin Node.js app (Passenger) |
 

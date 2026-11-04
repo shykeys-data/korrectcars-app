@@ -24,7 +24,7 @@ async function init() {
         sql = sql.replace(/NOW\(\)/g, "datetime('now')");
         const p = safeParams(params).map((v) => (v instanceof Date ? v.toISOString() : v));
         const st = db.prepare(sql);
-        if (/^\s*(SELECT|SHOW|WITH)/i.test(sql)) return st.all(...p);
+        if (/^\s*(SELECT|SHOW|WITH|PRAGMA)/i.test(sql)) return st.all(...p);
         const r = st.run(...p);
         return { insertId: Number(r.lastInsertRowid), affectedRows: r.changes };
       },
@@ -37,6 +37,7 @@ async function init() {
       const have = db.prepare(`PRAGMA table_info(${t})`).all().map((x) => x.name);
       if (!have.includes(c)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${def.replace(/VARCHAR\(\d+\)/, 'TEXT').replace(/ ON UPDATE CURRENT_TIMESTAMP/, '')}`);
     }
+    await require('./migrate').run((sql, p) => driver.query(sql, p), 'sqlite');
     return;
   }
   const mysql = require('mysql2/promise');
@@ -65,6 +66,17 @@ async function init() {
   // The encrypted 2FA secret is longer than the old plain one
   const [ts] = await pool.query("SHOW COLUMNS FROM users LIKE 'totp_secret'");
   if (ts.length && /varchar\((\d+)\)/i.test(ts[0].Type) && Number(RegExp.$1) < 255) await pool.query('ALTER TABLE users MODIFY COLUMN totp_secret VARCHAR(255) NULL');
+  // Numbered database changes (server/migrations). One connection holds a lock, so two app processes
+  // starting at the same time never run the same change twice.
+  const conn = await pool.getConnection();
+  try {
+    const [[lock]] = await conn.query("SELECT GET_LOCK('kc_migrate', 120) AS ok");
+    if (!lock || Number(lock.ok) !== 1) throw new Error('Could not get the database change lock');
+    await require('./migrate').run(async (sql, p) => (await conn.query(sql, safeParams(p || [])))[0], 'mysql');
+  } finally {
+    await conn.query("SELECT RELEASE_LOCK('kc_migrate')").catch(() => {});
+    conn.release();
+  }
 }
 
 // New columns added after launch: [table, column, definition]

@@ -22,6 +22,8 @@ server/
   index.js              the Express 5 app (async errors reach the error handler by themselves): security headers, static files, /api, sitemap, old WordPress redirects, page rendering, error handler
   config.js             reads environment variables (.env or the panel) and gives safe defaults
   db.js                 MySQL connection (mysql2) and the CREATE TABLE statements; DB_DRIVER=sqlite for local tests
+  migrate.js            runs the numbered database changes in server/migrations, once each, in order
+  migrations/           001_dealers.js, ... one file per database change; never edit one that has shipped
   render.js             builds the HTML for every page: title, description, structured data, readable content, embedded data
   seed.js, photos.js    first-start import of the old WordPress cars, posts, pages and photos
   tools-*.js            one-time scripts (content updates, slug renames). Each says how to run it and backs up first
@@ -105,9 +107,15 @@ flowchart LR
 
 Tables are created on first start by `db.init()` in `server/db.js` (`CREATE TABLE IF NOT EXISTS`). Prices are whole naira in `BIGINT` columns. Every query uses `?` placeholders, never string building.
 
+**Changing the database.** From November 2026 every change is a numbered file in `server/migrations` (`001_dealers.js`, `002_…`). `server/migrate.js` runs each file once, in name order, at start-up and records it in `schema_migrations`; on MySQL it holds a lock so two app processes never run the same change. Write each step so it is safe to run again (`CREATE TABLE IF NOT EXISTS`, check a column before adding it). Run it on staging first; the live database is backed up before the live restart that applies it. Never edit a file that has shipped: add the next one.
+
 | Table | Holds |
 | --- | --- |
-| `cars` | listings: title (may end in a staff code), slug, make, model, price, photos (JSON), status available, reserved or sold, `old_slug` for redirects |
+| `cars` | listings: title (may end in a staff code), slug, make, model, price, photos (JSON), status available, reserved or sold, `old_slug` for redirects, `dealer_id` (who sells it; defaults to 1, Korrect Cars) |
+| `dealers` | businesses that sell on the site. Korrect Cars is dealer 1. Status draft, pending_review, approved, rejected or suspended; the RC or BN number is unique |
+| `dealer_members` | which users work for which dealer, with a role: owner, manager or lister |
+| `verification_events` | every dealer check and staff decision, one row each, never edited |
+| `schema_migrations` | which numbered database changes have run |
 | `users` | customers and staff: bcrypt password hash, role, verified flag, TOTP secret, `token_version` (raise it to sign a user out everywhere) |
 | `enquiries` | leads from forms and WhatsApp clicks, with status and notes |
 | `swap_listings`, `offers`, `messages` | Korrect Swap: an owner's car, offers between owners, chat with phone numbers and emails masked until an offer is accepted |
@@ -158,7 +166,7 @@ AdSense rejected the site in October 2026 for thin content. These rules keep it 
 
 ## Tests
 
-`node --test test/*.test.js` runs the automated tests (21): the API end to end on a throwaway SQLite database (health check, CSRF guard, email confirmation, account lock after 5 wrong passwords, customers kept out of the staff API, staff two-step login with the encrypted secret and backup codes, editor vs admin, Pay Small Small figures, validation), two-step codes (RFC 6238 vector, encryption), the HTML cleaner against script-injection tricks, draft import and VIN rules. Add a test when you fix a bug.
+`node --test test/*.test.js` runs the automated tests (25): database changes (run once, Korrect Cars is dealer 1 and owns every car, a restart changes nothing, one dealer per business number), the API end to end on a throwaway SQLite database (health check, CSRF guard, email confirmation, account lock after 5 wrong passwords, customers kept out of the staff API, staff two-step login with the encrypted secret and backup codes, editor vs admin, Pay Small Small figures, validation), two-step codes (RFC 6238 vector, encryption), the HTML cleaner against script-injection tricks, draft import and VIN rules. Add a test when you fix a bug.
 
 ## Running it on your computer
 
@@ -193,6 +201,10 @@ Never copy customer data to staging.
 ## The light page (when the app cannot run)
 
 Every public page is first sent as plain HTML from `render.js`: header, the page's real content (cars with photos and prices, guide text, contact details) and footer. A small script in `client/index.html` hides it while the app loads, so there is no flash. If the app has not started within 6 seconds, or its file fails to download, the light page is shown instead. Visitors with scripts switched off see it straight away. Search engines and AI crawlers always read it. When the app starts, it replaces the light page.
+
+## Partner dealers (marketplace)
+
+The plan is in the developer brief and the clickable mockup (both shared by the owner). Work ships in milestones, staging first, with the **Partner dealers (marketplace)** switch in admin Settings kept Off on live until the owner chooses the launch day. Done so far: milestone 1 (numbered database changes, the `dealers` tables, Korrect Cars as dealer 1 owning every car, the switch). Next: dealer sign-up with an email code, phone code and CAC review.
 
 ## Known work left
 
