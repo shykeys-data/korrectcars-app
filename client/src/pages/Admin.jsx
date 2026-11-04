@@ -15,7 +15,13 @@ import { ROLE_LABEL, STAFF, T, stTag } from './AdminShared.jsx';
 
 
 // Tabs each role can see. admin = Administrator; moderator is the old name for sales.
-const ALL_TABS = [['overview', 'Overview', 'admin sales editor'], ['leads', 'Leads', 'admin sales'], ['cars', 'Cars', 'admin sales editor'], ['dealers', 'Dealers to review', 'admin sales editor'], ['listings', 'Swap listings', 'admin sales'], ['swaps', 'Swaps & fees', 'admin sales'], ['blog', 'Guides', 'admin editor'], ['market', 'Market figures', 'admin editor'], ['users', 'Staff & users', 'admin'], ['settings', 'Settings', 'admin'], ['audit', 'Activity log', 'admin']];
+// Grouped by the job: daily selling work first, then stock, then content, then admin. [key, label, roles, group]
+const ALL_TABS = [
+  ['overview', 'Overview', 'admin sales editor', 'Today'], ['leads', 'Leads', 'admin sales', 'Today'],
+  ['cars', 'Cars', 'admin sales editor', 'Stock'], ['dealers', 'Dealers to review', 'admin sales editor', 'Stock'],
+  ['listings', 'Swap listings', 'admin sales', 'Swap'], ['swaps', 'Swaps & fees', 'admin sales', 'Swap'],
+  ['blog', 'Guides', 'admin editor', 'Content'], ['market', 'Market figures', 'admin editor', 'Content'],
+  ['users', 'Staff & users', 'admin', 'Admin'], ['settings', 'Settings', 'admin', 'Admin'], ['audit', 'Activity log', 'admin', 'Admin']];
 const roleKey = (r) => (r === 'moderator' ? 'sales' : r);
 
 export default function Admin() {
@@ -56,9 +62,10 @@ function Console({ user }) {
             <div className="disp" style={{ fontSize: 22, color: '#fff' }}>Admin console</div>
             <div className="small" style={{ color: '#a1a1aa' }}>{user.name} · {ROLE_LABEL[user.role] || user.role}</div>
           </div>
-          <nav className="sidenav">{TABS.map(([k, l]) => {
+          <nav className="sidenav">{TABS.map(([k, l, , g], i) => {
             const n = stats.data ? { listings: stats.data.pendingListings, leads: stats.data.newEnquiries, dealers: stats.data.dealersWaiting }[k] : 0;
-            return <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{n ? <span className="n">{n}</span> : null}</button>;
+            return <React.Fragment key={k}>{(i === 0 || TABS[i - 1][3] !== g) && <div className="grp" aria-hidden="true">{g}</div>}
+              <button className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined} onClick={() => setTab(k)}>{l}{n ? <span className="n">{n}</span> : null}</button></React.Fragment>;
           })}</nav>
           <button className="btn btn-ghost btn-sm btn-block" style={{ marginTop: 12 }} onClick={logout}>Sign out</button>
         </aside>

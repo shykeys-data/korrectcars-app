@@ -1,10 +1,12 @@
-// Site frame: Header (menu, phone, WhatsApp), Footer, and the floating WhatsApp button (phones only).
+// Site frame: Header (menu, For dealers, account), Footer, and the floating WhatsApp button (all screen sizes).
 import React, { useState, useEffect } from 'react';
 import { Link, useRouter, useApp, waLink, api, booted } from '../lib/core.jsx';
 
 // Swap your car is switched on in admin Settings (on by default only on staging)
 export const swapOn = (cfg) => !!(cfg && cfg.swap);
-const NAV = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/vin-check', 'VIN check'], ['/swap', 'Swap your car'], ['/blog', 'Guides'], ['/contact', 'Contact']];
+// Buyer menu, most used first. The phone number and WhatsApp live in the floating WhatsApp button, Contact and the footer.
+const NAV = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/swap', 'Swap your car'], ['/vin-check', 'VIN check'], ['/blog', 'Guides'], ['/contact', 'Contact']];
+export const dealersOn = (cfg) => !!(cfg && cfg.marketplace);
 
 export function Header() {
   const { path, go } = useRouter();
@@ -18,15 +20,15 @@ export function Header() {
       <div className="wrap">
         <Link to="/" className="logo" aria-label="Korrect Cars home"><img src="/img/logo.svg" alt="Korrect Cars" width="200" height="50" /></Link>
         <nav className={'nav' + (open ? ' open' : '')} aria-label="Main">
-          {NAV.filter(([to]) => to !== '/swap' || swapOn(cfg)).map(([to, label]) => <Link key={to} to={to} className={path.startsWith(to) ? 'on' : ''}>{label}</Link>)}
+          {NAV.filter(([to]) => to !== '/swap' || swapOn(cfg)).map(([to, label, cls]) => <Link key={to} to={to} className={[path.startsWith(to) ? 'on' : '', cls || ''].join(' ').trim()}>{label}</Link>)}
+          {dealersOn(cfg) && <Link to="/dealers/join" className="m-only">For dealers: sell your cars here</Link>}
           {swapOn(cfg) && <Link to="/swap/new" className="m-only">List my car</Link>}
           {user ? <><Link to="/account" className="m-only">My account</Link><a href="/" className="m-only" onClick={signOut}>Sign out</a></> : <Link to="/login" className="m-only">Sign in</Link>}
           <a className="m-only" href={'tel:' + phone.replace(/\s/g, '')}>Call {phone}</a>
         </nav>
         <div className="right">
-          <a className="tel" href={'tel:' + phone.replace(/\s/g, '')}>{phone}</a>
+          {dealersOn(cfg) && <Link to="/dealers/join" className={'acct dealers-link' + (/^\/dealer/.test(path) ? ' on' : '')}>For dealers</Link>}
           {user ? <Link to="/account" className="acct">My account</Link> : <Link to="/login" className="acct">Sign in</Link>}
-          <a className="btn btn-wa btn-sm" href={waLink(cfg, 'Hello Korrect Cars, I am looking for a car.')} target="_blank" rel="noopener noreferrer">WhatsApp us</a>
           <button className="menu-btn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen(!open)}><span /><span /><span /></button>
         </div>
       </div>
