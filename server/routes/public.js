@@ -181,15 +181,19 @@ async function facets() {
 }
 r.get('/cars/facets', async (_req, res) => res.json(await facets()));
 
-const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured, created_at';
+const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured, created_at'
+  // A car is where its dealer is (one location per dealer for now; branches may come later)
+  + ', (SELECT d.state FROM dealers d WHERE d.id = cars.dealer_id) AS state, (SELECT d.lga FROM dealers d WHERE d.id = cars.dealer_id) AS lga';
 async function listCars(query = {}) {
   const where = [`status IN ${PUBLIC_STATUSES}`]; const p = [];
   const add = (sql, v) => { where.push(sql); p.push(v); };
-  const { make, model, body, condition, minPrice, maxPrice, yearMin, yearMax, sort, featured, search, limit } = query;
+  const { make, model, body, condition, minPrice, maxPrice, yearMin, yearMax, sort, featured, search, limit, state, lga } = query;
   if (make) add('make = ?', String(make));
   if (model) add('model = ?', String(model));
   if (body) add('body = ?', String(body));
   if (condition) add('car_condition = ?', String(condition));
+  if (state) add('dealer_id IN (SELECT id FROM dealers WHERE state = ?)', String(state));
+  if (lga) add('dealer_id IN (SELECT id FROM dealers WHERE lga = ?)', String(lga));
   if (featured === '1') where.push("featured = 1 AND status = 'available'");
   if (minPrice) add('price >= ?', Number(minPrice) || 0);
   if (maxPrice) add('price <= ?', Number(maxPrice) || 1e12);

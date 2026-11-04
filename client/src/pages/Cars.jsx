@@ -15,7 +15,8 @@ const YEAR_QUICK = [['2018', '', '2018 and newer'], ['2015', '2017', '2015–201
 function applyFilters(all, f, cat) {
   let cars = all.filter((c) => (!cat || cat.test(c)) && (!f.make || c.make === f.make) && (!f.model || c.model === f.model) && (!f.body || c.body === f.body)
     && (!f.condition || c.car_condition === f.condition) && (!f.maxPrice || Number(c.price) <= Number(f.maxPrice))
-    && (!f.yearMin || Number(c.year) >= Number(f.yearMin)) && (!f.yearMax || Number(c.year) <= Number(f.yearMax)));
+    && (!f.yearMin || Number(c.year) >= Number(f.yearMin)) && (!f.yearMax || Number(c.year) <= Number(f.yearMax))
+    && (!f.state || c.state === f.state) && (!f.lga || c.lga === f.lga));
   const newest = (a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || b.id - a.id;
   const by = { 'price-asc': (a, b) => a.price - b.price, 'price-desc': (a, b) => b.price - a.price, 'year-desc': (a, b) => (b.year - a.year) || (b.price - a.price), newest };
   if (by[f.sort]) cars = cars.slice().sort(by[f.sort]);
@@ -36,16 +37,17 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   const f = {
     make: makeFromSlug || query.get('make') || '', model: modelFromSlug || query.get('model') || '',
     body: query.get('body') || '', condition: query.get('condition') || '', maxPrice: query.get('maxPrice') || '',
-    yearMin: query.get('yearMin') || '', yearMax: query.get('yearMax') || '', sort: query.get('sort') || (category && category.sort) || 'recommended'
+    yearMin: query.get('yearMin') || '', yearMax: query.get('yearMax') || '', state: query.get('state') || '', lga: query.get('lga') || '', sort: query.get('sort') || (category && category.sort) || 'recommended'
   };
   const defaultSort = (category && category.sort) || 'recommended';
   const setF = (patch) => {
     const n = { ...f, ...patch };
     if ('make' in patch && patch.make !== f.make) n.model = patch.model || '';
+    if ('state' in patch && patch.state !== f.state) n.lga = patch.lga || '';
     // Body type follows make/model: drop a body type the chosen make/model doesn't come in
     if (('make' in patch || 'model' in patch) && n.body && !all.some((c) => c.body === n.body && (!n.make || c.make === n.make) && (!n.model || c.model === n.model))) n.body = '';
     // On a category page (/cars/suv) make and model go in the query, so the visitor stays in the category
-    const rest = Object.entries({ ...(category ? { make: n.make, model: n.model } : {}), body: n.body, condition: n.condition, maxPrice: n.maxPrice, yearMin: n.yearMin, yearMax: n.yearMax, sort: n.sort === defaultSort ? '' : n.sort }).filter(([, v]) => v);
+    const rest = Object.entries({ ...(category ? { make: n.make, model: n.model } : {}), body: n.body, condition: n.condition, maxPrice: n.maxPrice, yearMin: n.yearMin, yearMax: n.yearMax, state: n.state, lga: n.lga, sort: n.sort === defaultSort ? '' : n.sort }).filter(([, v]) => v);
     const base = category ? `/cars/${category.slug}` : n.make ? `/cars/${slugify(n.make)}${n.model ? '/' + slugify(n.model) : ''}` : '/cars';
     go(base + (rest.length ? '?' + new URLSearchParams(rest) : ''), { replace: true, keepScroll: true });
   };
@@ -53,7 +55,8 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   const fKey = JSON.stringify(f);
   const cars = useMemo(() => applyFilters(all, f, category), [all, fKey, category]); // eslint-disable-line react-hooks/exhaustive-deps
   const subject = f.model ? `${f.make} ${f.model}` : f.make;
-  const heading = category ? (subject ? `${subject}: ${category.h1.replace(/ in Lagos$/, '')}` : category.h1) : subject ? `${subject} for sale in Lagos` : 'Cars for sale in Lagos';
+  const place = f.lga ? `${f.lga}, ${f.state}` : f.state || 'Lagos';
+  const heading = category ? (subject ? `${subject}: ${category.h1.replace(/ in Lagos$/, '')}` : category.h1) : subject ? `${subject} for sale in ${place}` : `Cars for sale in ${place}`;
   useTitle(category ? `${category.h1} — Prices & Pay Small Small | Korrect Cars` : subject ? `${subject} for Sale in Lagos — Prices & Pay Small Small | Korrect Cars` : 'Cars for Sale in Lagos — Tokunbo & Foreign Used | Korrect Cars');
   // Category links with live counts (only categories that have cars)
   const catCount = (c) => [c, all.filter((x) => x.status === 'available' && c.test(x)).length];
@@ -68,6 +71,9 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   const bodies = [...new Set(all.filter((c) => (!f.make || c.make === f.make) && (!f.model || c.model === f.model)).map((c) => c.body).filter(Boolean))].sort();
   const autoBody = f.model && bodies.length === 1 ? bodies[0] : '';
   const conds = [...new Set(all.map((c) => c.car_condition).filter(Boolean))].sort();
+  // Where the cars are: states and LGAs that have cars, with counts
+  const states = [...new Set(all.map((c) => c.state).filter(Boolean))].sort();
+  const lgas = [...new Set(all.filter((c) => c.state === f.state).map((c) => c.lga).filter(Boolean))].sort();
   const years = [...new Set(all.map((c) => Number(c.year)).filter(Boolean))].sort((a, b) => a - b);
   const yMin = years[0] || 2000; const yMax = years[years.length - 1] || new Date().getFullYear();
   const yearOpts = []; for (let y = yMax; y >= yMin; y--) yearOpts.push(y);
@@ -79,6 +85,8 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   if (f.body) chips.push([f.body, { body: '' }]);
   if (f.maxPrice) chips.push([BUDGETS.find(([v]) => v === f.maxPrice)?.[1] || 'Budget', { maxPrice: '' }]);
   if (f.condition) chips.push([f.condition, { condition: '' }]);
+  if (f.state) chips.push([f.state, { state: '', lga: '' }]);
+  if (f.lga) chips.push([f.lga, { lga: '' }]);
   const reset = () => go(category ? '/cars/' + category.slug : '/cars', { replace: true, keepScroll: true });
 
   const avail = cars.filter((c) => c.status === 'available');
@@ -124,6 +132,12 @@ export function Inventory({ makeSlug, modelSlug, category }) {
                 {bodies.map((m) => <button key={m} className={'pill' + (f.body === m ? ' on' : '')} onClick={() => setF({ body: m })}>{m}</button>)}
               </>}
             </div></div>
+            {states.length > 0 && <div className="grp"><h3>Location</h3>
+              <div className="yr">
+                <label className="small">State<select className="input" value={f.state} onChange={(e) => setF({ state: e.target.value })} aria-label="State"><option value="">Any state</option>{states.map((x) => <option key={x} value={x}>{x} ({count((c) => c.state === x)})</option>)}</select></label>
+                <label className="small">LGA<select className="input" value={f.lga} disabled={!f.state} onChange={(e) => setF({ lga: e.target.value })} aria-label="LGA"><option value="">{f.state ? 'Any LGA' : 'Pick a state'}</option>{lgas.map((x) => <option key={x} value={x}>{x} ({count((c) => c.state === f.state && c.lga === x)})</option>)}</select></label>
+              </div>
+            </div>}
             <div className="grp"><h3>Budget</h3><div className="pills">{BUDGETS.map(([v, l]) => <button key={l} className={'pill' + (f.maxPrice === v ? ' on' : '')} onClick={() => setF({ maxPrice: v })}>{l}</button>)}</div></div>
             {conds.length > 1 && <div className="grp"><h3>Condition</h3><div className="pills">
               <button className={'pill' + (!f.condition ? ' on' : '')} onClick={() => setF({ condition: '' })}>Any</button>

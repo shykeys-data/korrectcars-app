@@ -286,3 +286,13 @@ test('the dealer pages open (200) and the private ones are kept out of search', 
   assert.strictEqual(home.status, 200);
   assert.match(await home.text(), /noindex/);
 });
+
+test('buyers can search by state and LGA; a car is where its dealer is', async () => {
+  const pub = await call('GET', '/api/cars?state=Lagos&lga=Ikeja&limit=100');
+  assert.strictEqual(pub.status, 200);
+  assert.ok(pub.json.cars.length >= 1, 'Ade Motors (Lagos, Ikeja) has cars for sale');
+  assert.ok(pub.json.cars.every((c) => c.state === 'Lagos' && c.lga === 'Ikeja'));
+  const lagos = await call('GET', '/api/cars?state=Lagos&limit=100');
+  assert.ok(lagos.json.cars.length > pub.json.cars.length, 'Korrect Cars stock counts as Lagos');
+  assert.strictEqual((await call('GET', '/api/cars?state=Kano')).json.cars.length, 0);
+});

@@ -4,7 +4,7 @@ const { q } = require('../db');
 const config = require('../config');
 const mail = require('./mail');
 
-const KEYS = ['make', 'model', 'body', 'condition', 'maxPrice', 'yearMin', 'yearMax'];
+const KEYS = ['make', 'model', 'body', 'condition', 'maxPrice', 'yearMin', 'yearMax', 'state', 'lga'];
 const naira = (n) => '₦' + Number(n).toLocaleString('en-NG');
 const short = (n) => (n >= 1e6 ? '₦' + (n / 1e6).toLocaleString('en-NG', { maximumFractionDigits: 1 }) + 'm' : naira(n));
 
@@ -30,19 +30,21 @@ function describe(f) {
   if (f.body) parts.push(f.body);
   if (f.condition) parts.push(f.condition);
   if (f.maxPrice) parts.push(`under ${short(f.maxPrice)}`);
+  if (f.lga || f.state) parts.push(`in ${[f.lga, f.state].filter(Boolean).join(', ')}`);
   return parts.join(' · ');
 }
 
 const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 function url(f) {
-  const rest = Object.entries({ body: f.body, condition: f.condition, maxPrice: f.maxPrice, yearMin: f.yearMin, yearMax: f.yearMax }).filter(([, v]) => v);
+  const rest = Object.entries({ body: f.body, condition: f.condition, maxPrice: f.maxPrice, yearMin: f.yearMin, yearMax: f.yearMax, state: f.state, lga: f.lga }).filter(([, v]) => v);
   return (f.make ? `/cars/${slug(f.make)}${f.model ? '/' + slug(f.model) : ''}` : '/cars') + (rest.length ? '?' + new URLSearchParams(rest) : '');
 }
 
 function matches(car, f) {
   return (!f.make || car.make === f.make) && (!f.model || car.model === f.model) && (!f.body || car.body === f.body)
     && (!f.condition || car.car_condition === f.condition) && (!f.maxPrice || Number(car.price) <= f.maxPrice)
-    && (!f.yearMin || Number(car.year) >= f.yearMin) && (!f.yearMax || Number(car.year) <= f.yearMax);
+    && (!f.yearMin || Number(car.year) >= f.yearMin) && (!f.yearMax || Number(car.year) <= f.yearMax)
+    && (!f.state || car.state === f.state) && (!f.lga || car.lga === f.lga);
 }
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -51,7 +53,8 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 async function notifyNewCar(car) {
   try {
     if (!car || car.status !== 'available') return { sent: 0 };
-    car = { ...car, title: require('./titles').publicTitle(car.title) };
+    const area = (await q('SELECT state, lga FROM dealers WHERE id = ?', [car.dealer_id || 1]))[0] || {}; // the car is where its dealer is
+    car = { ...car, state: area.state, lga: area.lga, title: require('./titles').publicTitle(car.title) };
     const rows = await q(`SELECT s.id, s.user_id, s.name, s.filters, u.name AS user_name, u.email FROM saved_searches s
       JOIN users u ON u.id = s.user_id WHERE s.alerts = 1 AND u.disabled = 0 AND u.email_verified = 1`);
     const byUser = new Map();
