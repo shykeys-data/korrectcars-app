@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto, rs, shrinkPhoto, waLink } from '../lib/core.jsx';
 import { Loading } from '../components/Bits.jsx';
 import { check as checkVin } from '../../../server/lib/vehicle-id.js';
+import { STATES, lgasOf } from '../../../server/lib/ng-lgas.js';
 
 const STATUS = {
   pending_review: ['Waiting for review', 'tag-warn', 'Our team is checking your CAC certificate and phone, usually within 2 working days. You can add cars now: they go live when you are approved.'],
@@ -148,9 +149,9 @@ function PhoneStep({ phone, onDone }) {
 }
 
 function BusinessStep({ dealer, onDone }) {
-  const states = useApi('/dealer/states');
   const d = dealer || {};
-  const [f, setF] = useState({ businessName: d.businessName || '', cacType: d.cacType || 'RC', cacNumber: d.cacNumber || '', state: d.state || 'Lagos', lga: d.lga || '', address: d.address || '', whatsapp: d.whatsapp || '', about: d.about || '' });
+  const okLga = d.state && lgasOf(d.state).includes(d.lga) ? d.lga : '';
+  const [f, setF] = useState({ businessName: d.businessName || '', cacType: d.cacType || 'RC', cacNumber: d.cacNumber || '', state: STATES.includes(d.state) ? d.state : '', lga: okLga, address: d.address || '', whatsapp: d.whatsapp || '', about: d.about || '' });
   const [cac, setCac] = useState(null); const [err, setErr] = useState(''); const [field, setField] = useState(''); const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = async (e) => {
@@ -172,8 +173,8 @@ function BusinessStep({ dealer, onDone }) {
       <div className="grid2">
         <div className="field"><label className="f" htmlFor="db-type">Registered as</label><select id="db-type" className="input" value={f.cacType} onChange={set('cacType')}><option value="RC">Company (RC)</option><option value="BN">Business name (BN)</option><option value="IT">Trustees (IT)</option></select></div>
         <div className="field"><label className="f" htmlFor="db-cac">CAC number</label><input id="db-cac" className="input" required inputMode="numeric" placeholder="1234567" value={f.cacNumber} onChange={set('cacNumber')} aria-invalid={field === 'cacNumber'} /></div>
-        <div className="field"><label className="f" htmlFor="db-state">State</label><select id="db-state" className="input" value={f.state} onChange={set('state')}>{((states.data && states.data.states) || ['Lagos']).map((s) => <option key={s}>{s}</option>)}</select></div>
-        <div className="field"><label className="f" htmlFor="db-lga">Area / LGA</label><input id="db-lga" className="input" maxLength={60} placeholder="Ikeja" value={f.lga} onChange={set('lga')} /></div>
+        <div className="field"><label className="f" htmlFor="db-state">State</label><select id="db-state" className="input" required value={f.state} onChange={(e) => setF({ ...f, state: e.target.value, lga: '' })} aria-invalid={field === 'state'}><option value="">Choose state</option>{STATES.map((s) => <option key={s}>{s}</option>)}</select></div>
+        <div className="field"><label className="f" htmlFor="db-lga">Local government area (LGA)</label><select id="db-lga" className="input" required disabled={!f.state} value={f.lga} onChange={set('lga')} aria-invalid={field === 'lga'}><option value="">{f.state ? `Choose LGA in ${f.state}` : 'Choose a state first'}</option>{lgasOf(f.state).map((l) => <option key={l}>{l}</option>)}</select></div>
       </div>
       <div className="field"><label className="f" htmlFor="db-addr">Address buyers can visit</label><input id="db-addr" className="input" required minLength={8} maxLength={250} value={f.address} onChange={set('address')} aria-invalid={field === 'address'} /></div>
       <div className="field"><label className="f" htmlFor="db-wa">WhatsApp for buyers (if different)</label><input id="db-wa" className="input" type="tel" value={f.whatsapp} onChange={set('whatsapp')} /></div>

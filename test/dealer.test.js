@@ -51,7 +51,7 @@ async function signUp(email, { business = 'Ade Motors Ltd', cac = '1234567', pho
   assert.strictEqual(s.status, 200, JSON.stringify(s.json));
   assert.strictEqual((await call('POST', '/api/dealer/phone/verify', { cookie, body: { code: s.json.testCode } })).status, 200);
   const f = new FormData();
-  for (const [k, val] of Object.entries({ businessName: business, cacType: 'RC', cacNumber: cac, state: 'Lagos', address: '12 Allen Avenue, Ikeja' })) f.append(k, val);
+  for (const [k, val] of Object.entries({ businessName: business, cacType: 'RC', cacNumber: cac, state: 'Lagos', lga: 'Ikeja', address: '12 Allen Avenue, Ikeja' })) f.append(k, val);
   f.append('cac', new Blob([PNG], { type: 'image/png' }), 'cac.png');
   const d = await call('POST', '/api/dealer', { cookie, form: f });
   assert.strictEqual(d.status, 201, JSON.stringify(d.json));
@@ -159,10 +159,16 @@ test('the business step needs a confirmed phone, and a CAC number can be used on
   const s = await call('POST', '/api/dealer/phone/send', { cookie: a.cookie, body: {} });
   await call('POST', '/api/dealer/phone/verify', { cookie: a.cookie, body: { code: s.json.testCode } });
   const g = new FormData();
-  for (const [k, val] of Object.entries({ businessName: 'Copy Motors', cacType: 'RC', cacNumber: 'RC 1234567', state: 'Lagos', address: '1 Copy Street, Ikeja' })) g.append(k, val);
+  for (const [k, val] of Object.entries({ businessName: 'Copy Motors', cacType: 'RC', cacNumber: 'RC 1234567', state: 'Lagos', lga: 'Ikeja', address: '1 Copy Street, Ikeja' })) g.append(k, val);
   g.append('cac', new Blob([PNG], { type: 'image/png' }), 'cac.png');
   const r = await call('POST', '/api/dealer', { cookie: a.cookie, form: g });
   assert.strictEqual(r.status, 409);
+  // The LGA must belong to the chosen state
+  const h = new FormData();
+  for (const [k, val] of Object.entries({ businessName: 'Wrong Area Motors', cacType: 'RC', cacNumber: '5551234', state: 'Lagos', lga: 'Bwari', address: '1 Some Street, Ikeja' })) h.append(k, val);
+  h.append('cac', new Blob([PNG], { type: 'image/png' }), 'cac.png');
+  const w = await call('POST', '/api/dealer', { cookie: a.cookie, form: h });
+  assert.deepStrictEqual([w.status, w.json.field], [400, 'lga']);
 });
 
 test('phone codes: wrong codes are counted and a number gets at most 3 a day', async () => {

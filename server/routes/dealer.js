@@ -156,8 +156,8 @@ r.post('/phone/verify', requireAuth, limiter(15, 20, 'Too many tries. Please wai
 });
 
 // ---------- 5: the business ----------
-const STATES = ['Abia', 'Abuja (FCT)', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara'];
-r.get('/states', (_req, res) => res.json({ states: STATES }));
+const { STATES, LGAS, isLga } = require('../lib/ng-lgas');
+r.get('/states', (_req, res) => res.json({ states: STATES, lgas: LGAS }));
 
 // CAC numbers: RC (companies) and BN (business names) are digits; IT (trustees) too. Stored without the prefix.
 function cacNumber(type, raw) {
@@ -178,11 +178,13 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
   if (!num) return res.status(400).json({ error: 'Enter the CAC number: RC or BN, then 4 to 9 digits.', field: 'cacNumber' });
   const state = STATES.includes(b.state) ? b.state : null;
   if (!state) return res.status(400).json({ error: 'Choose the state your business is in.', field: 'state' });
+  const lga = String(b.lga || '').trim();
+  if (!isLga(state, lga)) return res.status(400).json({ error: `Choose the local government area (LGA) in ${state}.`, field: 'lga' });
   const address = String(b.address || '').trim().slice(0, 250);
   if (address.length < 8) return res.status(400).json({ error: 'Enter the address buyers can visit.', field: 'address' });
   const whatsapp = b.whatsapp ? sms.toE164(b.whatsapp) : u.phone;
   if (!whatsapp) return res.status(400).json({ error: 'Enter a Nigerian WhatsApp number.', field: 'whatsapp' });
-  const fields = { business_name: business, cac_type: type, cac_number: num, state, lga: String(b.lga || '').trim().slice(0, 60) || null, address,
+  const fields = { business_name: business, cac_type: type, cac_number: num, state, lga, address,
     whatsapp, phone: u.phone, email: u.email, about: String(b.about || '').trim().slice(0, 1500) || null };
 
   const cac = req.files && req.files.cac && req.files.cac[0];
