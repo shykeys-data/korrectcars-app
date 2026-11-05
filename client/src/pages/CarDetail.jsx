@@ -1,6 +1,6 @@
 // One car's page: photos, price, Pay Small Small estimate, inspection notes, enquiry form and similar cars.
 import React, { useState, useEffect } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, bnpl, rs, srcset } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal } from '../components/Bits.jsx';
 
 
@@ -39,11 +39,11 @@ export function CarDetail({ slug }) {
   const sold = car.status === 'sold';
   const spec = [['Year', car.year], ['Make', car.make], ['Model', car.model], ['Trim', car.trim_level], ['Body type', car.body], ['Condition', car.car_condition], ['Mileage', car.mileage], ['Engine', car.engine], ['Transmission', car.transmission], ['Drivetrain', car.drivetrain], ['Fuel', car.fuel], ['Exterior colour', car.color], ['Interior', car.interior], ['Location', car.location], ['Stock number', car.stock]].filter(([, v]) => v);
   const tech = (car.specs || []).filter((r) => r && r[0]);
-  const wa = `Hello Korrect Cars, I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${window.location.href}`;
+  const wa = `Hello ${sellerName(car)}, I saw this on Korrect Cars. I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${window.location.href}`;
   return (
     <div className="wrap sec-sm">
       <nav className="small muted" aria-label="Breadcrumb" style={{ marginBottom: 14 }}><Link to="/">Home</Link> / <Link to="/cars">Cars for sale</Link> / <Link to={'/cars/' + slugify(car.make)}>{car.make}</Link> / <Link to={`/cars/${slugify(car.make)}/${slugify(car.model)}`}>{car.model}</Link></nav>
-      {sold && <div className="notice" role="status" style={{ marginBottom: 16 }}><b>This {car.make} {car.model} has been sold.</b> {data.similar && data.similar.length ? <>See <a href="#similar">similar cars in stock</a>, or </> : ''}<Link to={`/cars/${slugify(car.make)}/${slugify(car.model)}`}>every {car.make} {car.model}</Link> · <Link to="/cars">all cars for sale</Link>. Or ask us on WhatsApp to find you one like it.</div>}
+      {sold && <div className="notice" role="status" style={{ marginBottom: 16 }}><b>This {car.make} {car.model} has been sold.</b> {data.similar && data.similar.length ? <>See <a href="#similar">similar cars in stock</a>, or </> : ''}<Link to={`/cars/${slugify(car.make)}/${slugify(car.model)}`}>every {car.make} {car.model}</Link> · <Link to="/cars">all cars for sale</Link>.</div>}
       <div className="detail">
         <div>
           <div className="gallery">
@@ -75,16 +75,16 @@ export function CarDetail({ slug }) {
             {hasPrice(car) && car.old_price && !sold ? <div className="muted">Was <s>{naira(car.old_price)}</s></div> : null}
             {sold ? <div className="tag tag-grey" style={{ marginTop: 8 }}>Sold</div> : !hasPrice(car) ? <div className="small muted" style={{ marginTop: 6 }}>Call or WhatsApp for the price</div> : <div className="small" style={{ color: 'var(--ok)', fontWeight: 600, marginTop: 6 }}>Pay small small from about {naira(bnpl(Number(car.price), 40, 24, cfg).monthly)}/month (estimate)</div>}
             <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
-              <a className="btn btn-wa" href={waLink(cfg, wa)} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
+              <a className="btn btn-wa" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
               {!sold && <>
                 <button className="btn btn-red" onClick={() => setModal('viewing')}>Book a viewing</button>
                 <button className="btn btn-line" onClick={() => setModal('offer')}>Make an offer</button>
                 <button className="btn btn-line" onClick={() => setTab('bnpl')}>Pay small small</button>
               </>}
-              {cfg && cfg.phones && <a className="btn btn-dark" href={'tel:' + cfg.phones[0].replace(/\s/g, '')}>Call {cfg.phones[0]}</a>}
+              {sellerPhone(car, cfg) && <a className="btn btn-dark" href={'tel:' + sellerPhone(car, cfg).replace(/\s/g, '')}>Call {car.seller || 'the seller'}: {sellerPhone(car, cfg)}</a>}
               <button className={'btn ' + (saved.has(car.id) ? 'btn-saved' : 'btn-line')} aria-pressed={saved.has(car.id)} onClick={() => saved.toggle(car.id)}>{saved.has(car.id) ? 'Saved ✓' : 'Save this car'}</button>
             </div>
-            {!sold && <p className="small muted" style={{ margin: '14px 0 0' }}>Parked at a partner car lot in Lagos. Book a viewing and we send you the address on WhatsApp. You inspect before you pay. We also deliver anywhere in Nigeria.</p>}
+            {!sold && <p className="small muted" style={{ margin: '14px 0 0' }}>Sold by {car.seller || 'a verified dealer'}{car.state ? <> in {[car.lga, car.state].filter(Boolean).join(', ')}</> : null}. Contact them to view the car. Inspect it and its papers before you pay.</p>}
           </div>
           {cfg && cfg.swap && <div className="box">
             <h3 style={{ fontSize: 22 }}>Want to change your car?</h3>
@@ -98,10 +98,11 @@ export function CarDetail({ slug }) {
         <section className="sec-sm" id="similar"><h2>{sold ? 'Similar cars in stock' : 'Similar cars'}</h2><div className="cards">{data.similar.map((c) => <CarCard key={c.id} car={c} />)}</div></section>
       )}
       {!sold && <div className="car-bar" role="region" aria-label="Contact about this car">
-        {cfg && cfg.phones && <a className="btn btn-line" href={'tel:' + cfg.phones[0].replace(/\s/g, '')}>Call</a>}
-        <a className="btn btn-wa" href={waLink(cfg, wa)} target="_blank" rel="noopener noreferrer">WhatsApp about this car</a>
+        {sellerPhone(car, cfg) && <a className="btn btn-line" href={'tel:' + sellerPhone(car, cfg).replace(/\s/g, '')}>Call</a>}
+        <a className="btn btn-wa" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer">WhatsApp about this car</a>
         <button className="btn btn-red" onClick={() => setModal('viewing')}>Book</button>
       </div>}
+      {!sold && <a className="wa-fab" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${sellerName(car)} about this car`}><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M16 3.2A12.7 12.7 0 0 0 5.1 22.4L3.3 28.8l6.6-1.7A12.7 12.7 0 1 0 16 3.2Zm0 23.2c-1.9 0-3.8-.5-5.4-1.5l-.4-.2-3.9 1 1-3.8-.3-.4A10.5 10.5 0 1 1 16 26.4Zm5.8-7.9c-.3-.2-1.9-.9-2.2-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7.1a8.6 8.6 0 0 1-4.3-3.7c-.3-.6.3-.5.9-1.7.1-.2 0-.4 0-.6l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.9.4 3.6 3.6 0 0 0-1.1 2.7 6.3 6.3 0 0 0 1.3 3.3 14.4 14.4 0 0 0 5.5 4.9c2 .9 2.8 1 3.9.8a3.2 3.2 0 0 0 2.1-1.5 2.6 2.6 0 0 0 .2-1.5c-.1-.1-.3-.2-.6-.3Z" /></svg></a>}
       {modal && <Modal onClose={() => setModal(null)} label={modal === 'viewing' ? 'Book a viewing' : 'Make an offer'}>
         <EnquiryForm type={modal} car={car} title={modal === 'viewing' ? 'Book a viewing' : 'Make an offer'} cta={modal === 'viewing' ? 'Request viewing' : 'Send offer'} />
       </Modal>}

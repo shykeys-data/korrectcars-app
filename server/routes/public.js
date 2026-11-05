@@ -188,9 +188,12 @@ async function facets() {
 }
 r.get('/cars/facets', async (_req, res) => res.json(await facets()));
 
+const SELLER = ', (SELECT d.business_name FROM dealers d WHERE d.id = cars.dealer_id) AS seller, (SELECT d.whatsapp FROM dealers d WHERE d.id = cars.dealer_id) AS seller_whatsapp, (SELECT d.phone FROM dealers d WHERE d.id = cars.dealer_id) AS seller_phone';
 const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured, created_at'
   // A car is where its dealer is (one location per dealer for now; branches may come later)
-  + ', (SELECT d.state FROM dealers d WHERE d.id = cars.dealer_id) AS state, (SELECT d.lga FROM dealers d WHERE d.id = cars.dealer_id) AS lga';
+  + ', (SELECT d.state FROM dealers d WHERE d.id = cars.dealer_id) AS state, (SELECT d.lga FROM dealers d WHERE d.id = cars.dealer_id) AS lga'
+  // Who sells it, and how buyers reach them (their WhatsApp and phone from sign-up)
+  + SELLER;
 async function listCars(query = {}) {
   const where = [`status IN ${PUBLIC_STATUSES}`]; const p = [];
   const add = (sql, v) => { where.push(sql); p.push(v); };
@@ -219,11 +222,13 @@ async function carDetail(slug) {
   let moved = false;
   if (!car) { car = await one("SELECT * FROM cars WHERE old_slug = ? AND status IN ('available','reserved','sold')", [String(slug)]); moved = !!car; } // old web address
   if (!car) return null;
-  const similar = await q(`SELECT id, slug, title, make, model, body, year, price, old_price, mileage, photos, status FROM cars
+  const similar = await q(`SELECT id, slug, title, make, model, body, year, price, old_price, mileage, photos, status${SELLER} FROM cars
     WHERE id <> ? AND status = 'available' AND (body = ? OR make = ?) ORDER BY ABS(price - ?) LIMIT 3`, [car.id, car.body, car.make, car.price]);
   // Who sells it: buyers pay this business, so the car page names it (the "Stay safe" note)
-  const seller = car.dealer_id ? await one('SELECT business_name FROM dealers WHERE id = ?', [car.dealer_id]) : null;
+  const seller = car.dealer_id ? await one('SELECT business_name, whatsapp, phone, state, lga FROM dealers WHERE id = ?', [car.dealer_id]) : null;
   car.seller = (seller && seller.business_name) || 'Korrect Cars';
+  car.seller_whatsapp = (seller && seller.whatsapp) || null; car.seller_phone = (seller && seller.phone) || null;
+  car.state = (seller && seller.state) || null; car.lga = (seller && seller.lga) || null;
   for (const k of ['vin', 'old_slug', 'vin_photo', 'vehicle_id_ref', 'live_key', 'created_by']) delete car[k]; // staff only
   cleanCar(car); similar.forEach(cleanCar);
   return moved ? { car, similar, movedTo: car.slug } : { car, similar };

@@ -148,6 +148,23 @@ export function useTitle(title, desc) {
   }, [title, desc]);
 }
 
+// Marketplace (Nov 2026): buyers contact the dealer selling the car. Korrect Cars' own numbers are only in the
+// footer (id="footer-contact"); ContactUs buttons scroll there.
+const digits = (n) => String(n || '').replace(/[^0-9]/g, '');
+export const sellerWa = (car, cfg, text) => (car && digits(car.seller_whatsapp || car.seller_phone)
+  ? `https://wa.me/${digits(car.seller_whatsapp || car.seller_phone)}?text=${encodeURIComponent(text || '')}` : waLink(cfg, text));
+export const sellerPhone = (car, cfg) => (car && (car.seller_phone || car.seller_whatsapp)) || ((cfg && cfg.phones) || [])[0] || '';
+export const sellerName = (car) => (car && car.seller) || 'the seller';
+export function ContactUs({ className = 'btn btn-line', style, children = 'Contact Korrect Cars' }) {
+  const go = (e) => {
+    e.preventDefault();
+    const el = document.getElementById('footer-contact') || document.getElementById('footer');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1800);
+  };
+  return <a href="#footer-contact" className={className} style={style} onClick={go}>{children}</a>;
+}
 export const waLink = (cfg, text) => `https://wa.me/${(cfg && cfg.whatsapp) || '2348138588818'}?text=${encodeURIComponent(text || 'Hello Korrect Cars')}`;
 
 export const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

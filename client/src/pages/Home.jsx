@@ -1,7 +1,7 @@
 // Home page: the banner with the search box, trust tiles, "Shop by budget" links and the category rows
 // (buildRows uses server/lib/categories.js; a row shows only with MIN_HOME cars and a car appears in at most 2 rows).
 import React, { useState, useMemo } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, priced, date, waLink, slugify, rs, srcset } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, priced, date, waLink, slugify, rs, srcset, ContactUs } from '../lib/core.jsx';
 import { CarCard, BnplCalc } from '../components/Bits.jsx';
 import { CATEGORIES, MIN_HOME, budgets } from '../../../server/lib/categories.js';
 import { recommended, newestFirst } from '../lib/rank.js';
@@ -109,7 +109,7 @@ export default function Home() {
           <p className="lead">Tokunbo and foreign-used cars we have checked inside and out. {swap ? 'Buy outright, pay small small through our credit partners, or swap your car with a verified owner.' : 'Buy outright or pay small small through our credit partners.'}</p>
           <div className="ctas">
             <Link to="/cars" className="btn btn-red">Browse cars</Link>
-            <a className="btn btn-ghost" href={waLink(cfg, 'Hello Korrect Cars, I am looking for a car.')} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
+            <Link to="/vin-check" className="btn btn-ghost">Free VIN check</Link>
           </div>
           </div>
             <form className="search-card" onSubmit={search} aria-label="Find a car">
@@ -248,10 +248,10 @@ export default function Home() {
 
       <section className="contact-band">
         <div className="wrap">
-          <div><h2 style={{ marginBottom: 6 }}>Not sure which car?</h2><div>Tell us your budget and needs. We will shortlist cars for you today.</div></div>
+          <div><h2 style={{ marginBottom: 6 }}>Not sure which car?</h2><div>Search by budget, body type and where you are, then contact the dealer on the car's page.</div></div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <a className="btn btn-wa" href={waLink(cfg, 'Hello Korrect Cars, please help me choose a car. My budget is: ')} target="_blank" rel="noopener noreferrer">WhatsApp us</a>
-            {cfg && cfg.phones && cfg.phones[0] && <a className="btn btn-dark" href={'tel:' + cfg.phones[0].replace(/\s/g, '')}>Call {cfg.phones[0]}</a>}
+            <Link to="/cars" className="btn btn-red">Browse cars</Link>
+            <ContactUs className="btn btn-dark" />
           </div>
         </div>
       </section>

@@ -561,3 +561,6 @@ details.faq p{margin:8px 0 0;color:var(--ink2)}
 .opt{min-height:38px;padding:0 13px;border-radius:999px;border:1.5px solid var(--line2);background:#fff;color:var(--ink);font:600 14px var(--body);cursor:pointer}
 .opt:hover{border-color:var(--ink)}
 .opt.on{background:#fde8e9;border-color:var(--red);color:#9e1117}
+/* "Contact Korrect Cars" buttons scroll to the footer contacts and briefly highlight them */
+#footer-contact{border-radius:12px;transition:box-shadow .3s,background .3s;padding:4px}
+#footer-contact.flash{background:rgba(255,255,255,.08);box-shadow:0 0 0 2px var(--red)}

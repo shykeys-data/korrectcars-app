@@ -145,7 +145,6 @@ export function Inventory({ makeSlug, modelSlug, category }) {
               {conds.map((m) => <button key={m} className={'pill' + (f.condition === m ? ' on' : '')} onClick={() => setF({ condition: m })}>{m}</button>)}
             </div></div>}
             <SaveSearch filters={f} />
-            <a className="btn btn-line btn-block" style={{ marginTop: 8 }} href={waLink(cfg, alertMsg)} target="_blank" rel="noopener noreferrer">Alert me on WhatsApp</a>
             <button className="btn btn-red btn-block filt-toggle" style={{ marginTop: 10 }} onClick={() => setOpen(false)}>Show {cars.length} car{cars.length === 1 ? '' : 's'}</button>
           </aside>
           <div>
@@ -160,7 +159,7 @@ export function Inventory({ makeSlug, modelSlug, category }) {
             </div>
             {chips.length > 0 && <div className="chips">{chips.map(([l, patch]) => <button key={l} className="chip" onClick={() => setF(patch)} aria-label={`Remove filter ${l}`}>{l} ✕</button>)}<button className="chip" style={{ background: 'none', color: 'var(--muted)' }} onClick={reset}>Clear all</button></div>}
             {list.error ? <div className="err">{list.error.message}</div> : !list.loading && !cars.length
-              ? <div className="empty box center"><h3>No cars match right now</h3><p className="muted">Save this search and we will email you as soon as one arrives, or ask us on WhatsApp.</p><div style={{ maxWidth: 340, margin: '0 auto 10px' }}><SaveSearch filters={f} /></div><div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}><a className="btn btn-wa" href={waLink(cfg, alertMsg)} target="_blank" rel="noopener noreferrer">Alert me on WhatsApp</a><button className="btn btn-line" onClick={reset}>Clear filters</button></div></div>
+              ? <div className="empty box center"><h3>No cars match right now</h3><p className="muted">Save this search and we will email you as soon as one arrives.</p><div style={{ maxWidth: 340, margin: '0 auto 10px' }}><SaveSearch filters={f} /></div><div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}><button className="btn btn-line" onClick={reset}>Clear filters</button></div></div>
               : <div className="cards">{cars.map((c) => <CarCard key={c.id} car={c} />)}</div>}
             {avail.length > 0 && (
               <section className="box faq-box">

@@ -290,6 +290,9 @@ test('a car for sale needs its mileage, and a price or "Call for price"; such ca
   const html = await (await fetch(`${B}/cars/${r.json.car.slug}`, { headers: { 'x-forwarded-for': '10.9.9.9' } })).text();
   assert.match(html, /Call for price/);
   assert.strictEqual((await call('GET', `/api/cars/${r.json.car.slug}`)).json.car.seller, 'Ade Motors Ltd', 'the car page names the business buyers pay');
+  const page = (await call('GET', `/api/cars/${r.json.car.slug}`)).json.car;
+  assert.deepStrictEqual([page.seller_whatsapp, page.state], ['+2348031234567', 'Lagos'], "buyers reach the dealer's own WhatsApp");
+  assert.ok((await call('GET', '/api/cars')).json.cars.find((c) => c.slug === r.json.car.slug).seller_whatsapp, 'car cards too');
   assert.doesNotMatch(html, /"Offer","price":0/, 'no ₦0 offer for search engines');
   // Quick status change cannot put a car without mileage on sale
   const d = await call('POST', `/api/dealer/cars/${draft.json.car.id}/status`, { cookie: ade.cookie, body: { status: 'available' } });

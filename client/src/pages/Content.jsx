@@ -1,6 +1,6 @@
 // Content pages: blog / guides list and posts, About and legal pages, FAQs, Contact and the 404 page.
 import React, { useState } from 'react';
-import { Link, useApi, useApp, useTitle, date, waLink, rs, srcset } from '../lib/core.jsx';
+import { Link, useApi, useApp, useTitle, date, waLink, rs, srcset, ContactUs } from '../lib/core.jsx';
 import { Loading, ErrorBox, EnquiryForm } from '../components/Bits.jsx';
 import { CopySections } from '../components/Copy.jsx';
 import { GUIDES, CONTACT } from '../../../server/lib/pagecopy.js';
@@ -64,8 +64,8 @@ export function Post({ slug }) {
       {p.image_credit && <p className="small muted" style={{ maxWidth: 760 }}>Cover: {p.image_credit}</p>}
       {p.author_bio && <div className="box" style={{ marginTop: 28, maxWidth: 760 }}><div className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em' }}>About the author</div><p style={{ margin: '6px 0 0' }}><b>{p.author || 'The Korrect Cars team'}</b>: {p.author_bio}</p></div>}
       <div className="box" style={{ marginTop: 32, maxWidth: 760, display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div><b>Looking for a car?</b><div className="muted small">See inspected cars in Lagos or ask us on WhatsApp.</div></div>
-        <div style={{ display: 'flex', gap: 10 }}><Link to="/cars" className="btn btn-red btn-sm">Browse cars</Link><a className="btn btn-wa btn-sm" href={waLink(cfg, `Hello Korrect Cars, I just read "${p.title}".`)} target="_blank" rel="noopener noreferrer">WhatsApp</a></div>
+        <div><b>Looking for a car?</b><div className="muted small">See cars from verified dealers, each listed with its VIN.</div></div>
+        <div style={{ display: 'flex', gap: 10 }}><Link to="/cars" className="btn btn-red btn-sm">Browse cars</Link></div>
       </div>
       {data.more.length > 0 && <section className="sec-sm"><h2>More guides</h2><div className="post-cards">{data.more.map((m) => (
         <Link key={m.slug} to={'/blog/' + m.slug} className="card"><div className="ph" style={{ aspectRatio: '16/9' }}>{m.image && <img src={rs(m.image, 800)} alt="" loading="lazy" />}</div><div className="bd"><div className="ttl">{m.title}</div></div></Link>
@@ -121,10 +121,10 @@ export function Contact() {
         </div>
         <aside className="side">
           <div className="box">
-            <h3>Fastest: WhatsApp</h3>
-            <a className="btn btn-wa btn-block" href={waLink(cfg, 'Hello Korrect Cars, ')} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
-            <h3 style={{ marginTop: 20 }}>Call</h3>
-            {((cfg && cfg.phones) || []).map((p) => <div key={p}><a href={'tel:' + p.replace(/\s/g, '')}>{p}</a></div>)}
+            <h3>About a car</h3>
+            <p className="small">Contact the dealer selling it: their WhatsApp and phone are on the car's page.</p>
+            <h3 style={{ marginTop: 20 }}>About the site, your account or Pay Small Small</h3>
+            <ContactUs className="btn btn-dark btn-block">Korrect Cars developers' contacts</ContactUs>
             <h3 style={{ marginTop: 20 }}>Email</h3>
             <a href={'mailto:' + email}>{email}</a>
             <dl className="facts"><dt>Open</dt><dd>{(cfg && cfg.hours) || 'Mon–Sat, 8am – 6pm'}</dd><dt>Viewings</dt><dd>By appointment</dd><dt>Delivery</dt><dd>Anywhere in Nigeria</dd></dl>

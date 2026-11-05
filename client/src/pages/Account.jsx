@@ -1,7 +1,7 @@
 // Customer account: sign in / register, email check, password reset, saved cars, saved searches,
 // their requests and swap chats.
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, priceText, date, api, firstPhoto, waLink, rs, srcset, useLocalList } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, priceText, date, api, firstPhoto, waLink, rs, srcset, useLocalList, ContactUs } from '../lib/core.jsx';
 import { Loading, CarCard } from '../components/Bits.jsx';
 
 export function AuthPage({ mode, adminGate = false }) {
@@ -212,7 +212,7 @@ function MyRequests({ user, cfg }) {
               {['lost', 'closed'].includes(e.status) ? <p className="small muted" style={{ margin: '10px 0 0' }}>This application is closed. Message us if you want to try again or pick another car.</p>
                 : <ol className="track" style={{ marginTop: 12 }}>{PSS_STEPS.map((t, i) => <li key={t} className={i < pssStep(e.status) ? 'done' : i === pssStep(e.status) ? 'on' : ''}>{t}</li>)}</ol>}
             </>}
-            {!['won', 'lost', 'closed'].includes(e.status) && <a className="btn btn-wa btn-sm" style={{ marginTop: 12 }} href={waLink(cfg, `Hello Korrect Cars, about my request #${e.id}${e.car ? ' (' + e.car.title + ')' : ''}.`)} target="_blank" rel="noopener noreferrer">Ask about it on WhatsApp</a>}
+            {!['won', 'lost', 'closed'].includes(e.status) && <ContactUs className="btn btn-line btn-sm" style={{ marginTop: 12 }}>Ask about it (request #{e.id})</ContactUs>}
           </div>
         );
       })}
@@ -280,7 +280,7 @@ export function Account() {
                   {!o.mine && o.status === 'pending' && <><button className="btn btn-ok btn-sm" onClick={() => act(o, 'accept')}>Accept offer</button><button className="btn btn-line btn-sm" onClick={() => act(o, 'decline')}>Decline</button></>}
                   {o.mine && ['pending', 'accepted'].includes(o.status) && <button className="btn btn-line btn-sm" onClick={() => act(o, 'withdraw')}>Withdraw offer</button>}
                   <button className="btn btn-dark btn-sm" onClick={() => setOpen(open === o.id ? null : o.id)}>{open === o.id ? 'Hide messages' : 'Messages'}</button>
-                  {['accepted', 'inspection'].includes(o.status) && <a className="btn btn-wa btn-sm" href={waLink(cfg, `Hello Korrect Cars, please book the inspection for swap offer #${o.id}.`)} target="_blank" rel="noopener noreferrer">Book inspection</a>}
+                  {['accepted', 'inspection'].includes(o.status) && <ContactUs className="btn btn-wa btn-sm">Book inspection (offer #{o.id})</ContactUs>}
                 </div>
                 {open === o.id && <Chat offerId={o.id} closed={['declined', 'withdrawn', 'cancelled'].includes(o.status)} />}
               </div>
@@ -299,7 +299,7 @@ export function Account() {
             <div className="row"><div><b>Email</b><div className="small muted">{user.email}</div></div></div>
             <div className="row"><div><b>Phone</b><div className="small muted">{user.phone}</div></div></div>
             <div className="row"><div><b>Sign out everywhere</b><div className="small muted">Ends every session on every device, including this one</div></div><button className="btn btn-line btn-sm" onClick={() => logout(true)}>Sign out all devices</button></div>
-            <div className="row" style={{ borderBottom: 0 }}><div><b>Your data</b><div className="small muted">To download or delete your data, message us from your registered number</div></div><a className="btn btn-line btn-sm" href={waLink(cfg, 'Hello Korrect Cars, I want to manage my account data.')} target="_blank" rel="noopener noreferrer">Request</a></div>
+            <div className="row" style={{ borderBottom: 0 }}><div><b>Your data</b><div className="small muted">To download or delete your data, message us from your registered number</div></div><ContactUs className="btn btn-line btn-sm">Request</ContactUs></div>
             <button className="btn btn-dark" style={{ marginTop: 14 }} onClick={() => logout(false)}>Sign out</button>
           </div>}
         </main>

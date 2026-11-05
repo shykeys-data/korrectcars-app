@@ -2,7 +2,7 @@
 // -> business papers), the dealer's home page with their cars, and the add / edit car form, which starts with the VIN.
 // Everything is checked again on the server; the VIN rules come from the same file the server uses.
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, priceText, date, api, firstPhoto, rs, shrinkPhoto, waLink, forgetBoot } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, priceText, date, api, firstPhoto, rs, shrinkPhoto, waLink, forgetBoot, ContactUs } from '../lib/core.jsx';
 import { Loading } from '../components/Bits.jsx';
 import { check as checkVin } from '../../../server/lib/vehicle-id.js';
 import { STATES, lgasOf } from '../../../server/lib/ng-lgas.js';
@@ -224,7 +224,7 @@ export function DealerHome() {
       <div className="box" role="status"><span className={'tag ' + st[1]}>{st[0]}</span> <span>{st[2]}</span>
         {d.lastNote && ['more_info', 'rejected', 'suspended'].includes(d.status) && <p className="note" style={{ marginTop: 10 }}><b>Note from our team:</b> {d.lastNote}</p>}
         {d.status === 'more_info' && <p style={{ marginTop: 10 }}><Link to="/dealers/join" className="btn btn-dark btn-sm">Update my details</Link></p>}
-        {!canList && <p style={{ marginTop: 10 }}><a className="btn btn-line btn-sm" href={waLink(cfg, `Hello Korrect Cars, about my dealer account ${d.businessName}`)}>Chat with us on WhatsApp</a></p>}
+        {!canList && <p style={{ marginTop: 10 }}><ContactUs className="btn btn-line btn-sm">Contact Korrect Cars</ContactUs></p>}
       </div>
       <div className="kpis">
         <div className="box kpi"><div className="small muted">Cars for sale</div><div className="v">{d.liveCars}{d.liveLimit ? <span className="small muted"> / {d.liveLimit}</span> : null}</div>{d.liveLimit ? <div className="small muted">limit for your first 3 months</div> : null}</div>

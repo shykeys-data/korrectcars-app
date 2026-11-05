@@ -1,7 +1,7 @@
 // Free tools for buyers: the VIN checker (/vin-check) and "Nigeria car market today" (/car-market-today).
 // Their written copy comes from server/lib/pagecopy.js so the server HTML and these pages match.
 import React, { useState, useRef } from 'react';
-import { Link, useApi, useApp, useTitle, useRouter, api, priceText, waLink, firstPhoto, rs, date } from '../lib/core.jsx';
+import { Link, useApi, useApp, useTitle, useRouter, api, priceText, waLink, firstPhoto, rs, date, ContactUs } from '../lib/core.jsx';
 import { Loading } from '../components/Bits.jsx';
 import { CopySections } from '../components/Copy.jsx';
 import { VIN, MARKET } from '../../../server/lib/pagecopy.js';
@@ -58,7 +58,7 @@ export function VinCheck() {
 
       {res && <section className="sec-sm"><div className="wrap" style={{ maxWidth: 760 }}>
         <div className="box vin-result" ref={resultRef} tabIndex={-1} aria-live="polite">
-          {!res.valid ? <>{res.chassis && res.basics && <><h2>{res.basics.title}</h2><dl className="vin-dl">{[['Make', res.basics.make], ['Model', res.basics.model], ['Engine', res.basics.engine], ['Fuel', res.basics.fuel], ['Drive', res.basics.drivetrain], ['Model code', ((res.basics.specs || []).find((x) => x[0] === 'Model code') || [])[1]]].filter(([, v]) => v).map(([k, v]) => <React.Fragment key={k}><dt>{k}</dt><dd>{v}</dd></React.Fragment>)}</dl></>}<p className={res.chassis ? '' : 'err-text'}>{res.message}</p>{res.chassis && <a className="btn btn-wa" href={waLink(cfg, `Hello Korrect Cars, can you check this chassis number for me: ${res.vin}`)} target="_blank" rel="noopener noreferrer">Send it on WhatsApp</a>}</> : !res.found ? <>
+          {!res.valid ? <>{res.chassis && res.basics && <><h2>{res.basics.title}</h2><dl className="vin-dl">{[['Make', res.basics.make], ['Model', res.basics.model], ['Engine', res.basics.engine], ['Fuel', res.basics.fuel], ['Drive', res.basics.drivetrain], ['Model code', ((res.basics.specs || []).find((x) => x[0] === 'Model code') || [])[1]]].filter(([, v]) => v).map(([k, v]) => <React.Fragment key={k}><dt>{k}</dt><dd>{v}</dd></React.Fragment>)}</dl></>}<p className={res.chassis ? '' : 'err-text'}>{res.message}</p>{res.chassis && <ContactUs className="btn btn-dark">Ask Korrect Cars</ContactUs>}</> : !res.found ? <>
             <h2>{res.basics && res.basics.make ? `${res.basics.year ? res.basics.year + ' ' : ''}${res.basics.make}` : 'What this VIN tells us'}</h2>
             {res.basics && (res.basics.make || res.basics.region) && <dl className="vin-dl">
               {res.basics.make && <><dt>Make</dt><dd>{res.basics.make}</dd></>}
@@ -66,7 +66,7 @@ export function VinCheck() {
               {res.basics.region && <><dt>Made in</dt><dd>{res.basics.region}</dd></>}
             </dl>}
             <p>The full factory record (model, engine, trim) for <code>{res.vin}</code> is not in the free US database. That is normal for cars built for Europe, the Gulf, China or Japan's home market. {res.checkDigitOk ? '' : 'Its 9th character also fails the check digit, which on US and Chinese cars usually means a typo.'} We can look it up for you.</p>
-            <a className="btn btn-wa" href={waLink(cfg, `Hello Korrect Cars, can you check this VIN for me: ${res.vin}`)} target="_blank" rel="noopener noreferrer">Ask us on WhatsApp</a>
+            <ContactUs className="btn btn-dark">Ask Korrect Cars</ContactUs>
           </> : <>
             <div className="small muted"><code>{res.vin}</code> · {res.checkDigitOk ? 'check digit OK' : 'check digit does not match: confirm the VIN on the car'}</div>
             <h2 style={{ marginTop: 4 }}>{res.title}</h2>
@@ -83,7 +83,7 @@ export function VinCheck() {
               <b>{c.title}</b><span>{priceText(c)}</span>
             </Link>
           ))}</div>}
-          <a className="btn btn-wa" style={{ marginTop: 12 }} href={waLink(cfg, `Hello Korrect Cars, I checked VIN ${res.vin} (${res.title}). Can you help me?`)} target="_blank" rel="noopener noreferrer">Ask us about this car on WhatsApp</a>
+          <ContactUs className="btn btn-dark" style={{ marginTop: 12 }}>Ask Korrect Cars about this VIN</ContactUs>
         </div>}
       </div></section>}
 

@@ -1,6 +1,6 @@
 // Pay Small Small page: how instalments work through our credit partners, the estimate calculator and FAQs.
 import React, { useState } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, bnpl, api } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, bnpl, api, ContactUs } from '../lib/core.jsx';
 
 
 const PSS_FAQ = [
@@ -115,7 +115,7 @@ export function PaySmallSmall() {
             <div className="okmsg"><div className="disp" style={{ fontSize: 28 }}>Application sent</div>We have passed your details to {partner}. They will contact you directly. We will also follow up on WhatsApp.</div>
             <h3 style={{ marginTop: 18 }}>What happens next</h3>
             <ol className="track"><li className="done">Application received</li><li className="on">Sent to our credit partner</li><li>Partner checks if you qualify</li><li>Approved: we sell you the car</li></ol>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>{user ? <Link to="/account?tab=requests" className="btn btn-red">Track it in My account</Link> : <Link to="/register?next=/account?tab=requests" className="btn btn-red">Create an account to track it</Link>}<Link to="/cars" className="btn btn-line">Back to cars</Link><a className="btn btn-wa" href={waLink(cfg, 'Hello Korrect Cars, I just applied for Pay Small Small.')} target="_blank" rel="noopener noreferrer">WhatsApp us</a></div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>{user ? <Link to="/account?tab=requests" className="btn btn-red">Track it in My account</Link> : <Link to="/register?next=/account?tab=requests" className="btn btn-red">Create an account to track it</Link>}<Link to="/cars" className="btn btn-line">Back to cars</Link><ContactUs className="btn btn-dark" /></div>
           </div>}
         </div>
       </div></section>

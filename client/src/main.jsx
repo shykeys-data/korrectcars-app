@@ -4,7 +4,7 @@ import React, { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { Router, AppProvider, useRouter, match, useApp } from './lib/core.jsx';
-import { Header, Footer, WhatsApp } from './components/Layout.jsx';
+import { Header, Footer } from './components/Layout.jsx';
 import Home from './pages/Home.jsx';
 import { Inventory, CarDetail, PaySmallSmall, Compare } from './pages/Cars.jsx';
 import { useApi, slugify, booted } from './lib/core.jsx';
@@ -76,7 +76,6 @@ function App() {
         <Header />
         <QuickViewProvider><main id="main"><Routes /></main></QuickViewProvider>
         <Footer />
-        <WhatsApp />
       </AppProvider>
     </Router>
   );

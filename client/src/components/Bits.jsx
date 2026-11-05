@@ -1,7 +1,7 @@
 // Small shared pieces: CarCard (car tile in every list), BnplCalc (Pay Small Small estimate), EnquiryForm,
 // Loading (skeleton cards), ErrorBox and Modal.
 import React, { useState } from 'react';
-import { Link, naira, hasPrice, priceText, bnpl, useApp, api, firstPhoto, waLink, useLocalList, rs, srcset } from '../lib/core.jsx';
+import { Link, naira, hasPrice, priceText, bnpl, useApp, api, firstPhoto, waLink, useLocalList, sellerWa, sellerName, rs, srcset } from '../lib/core.jsx';
 import { useQV } from './QuickView.jsx';
 
 export function CarCard({ car }) {
@@ -34,7 +34,7 @@ export function CarCard({ car }) {
         <span>Quick view</span>
       </button>}
       <div className="card-actions">
-        {!sold && <a className="btn btn-wa btn-sm" href={waLink(cfg, `Hello Korrect Cars, I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${window.location.origin}${url}`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+        {!sold && <a className="btn btn-wa btn-sm" href={sellerWa(car, cfg, `Hello ${sellerName(car)}, I saw this on Korrect Cars. I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${window.location.origin}${url}`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
         <button type="button" className={'btn btn-sm ' + (isSaved ? 'btn-saved' : 'btn-line')} aria-pressed={isSaved} onClick={() => saved.toggle(car.id)}>{isSaved ? 'Saved ✓' : 'Save'}</button>
         <button type="button" className={'btn btn-sm ' + (isCmp ? 'btn-dark' : 'btn-line')} aria-pressed={isCmp} disabled={!isCmp && cmp.full} title={!isCmp && cmp.full ? 'You can compare up to 3 cars' : undefined} onClick={() => cmp.toggle(car.id)}>{isCmp ? 'Compare ✓' : 'Compare'}</button>
       </div>
