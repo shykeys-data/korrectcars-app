@@ -576,3 +576,11 @@ details.faq p{margin:8px 0 0;color:var(--ink2)}
 /* "Contact Korrect Cars" buttons scroll to the footer contacts and briefly highlight them */
 #footer-contact{border-radius:12px;transition:box-shadow .3s,background .3s;padding:4px}
 #footer-contact.flash{background:rgba(255,255,255,.08);box-shadow:0 0 0 2px var(--red)}
+/* Dealer dashboard: views per day (one series, brand red, thin bars, 2px gaps, rounded tops on the baseline) */
+.vbars{display:flex;align-items:flex-end;gap:2px;height:140px;border-bottom:1px solid var(--line2);padding-top:6px}
+.vbar{flex:1;height:100%;display:flex;align-items:flex-end;background:none;border:0;padding:0;cursor:pointer;min-width:0}
+.vbar span{display:block;width:100%;background:var(--red);border-radius:4px 4px 0 0;transition:opacity .15s}
+.vbars:hover .vbar span{opacity:.45}.vbars .vbar.on span,.vbars .vbar:focus-visible span{opacity:1}
+.vbar:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.vbars-axis{display:flex;justify-content:space-between;margin-top:4px}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums}

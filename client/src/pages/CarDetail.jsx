@@ -1,7 +1,7 @@
 // One car's page: photos, price, Pay Small Small estimate, inspection notes, enquiry form and similar cars.
 import React, { useState, useEffect } from 'react';
 import { placeOf } from '../../../server/lib/places.js';
-import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, rs, srcset } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, rs, srcset, api } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal } from '../components/Bits.jsx';
 
 
@@ -32,6 +32,14 @@ export function CarDetail({ slug }) {
   const [modal, setModal] = useState(null);
   const saved = useLocalList('kc-saved');
   useEffect(() => { setI(0); setTab('overview'); }, [slug]);
+  // Count this view once per car per day, however the buyer arrived (Google, WhatsApp or the site itself)
+  const carId = data && data.car && data.car.id;
+  useEffect(() => {
+    if (!carId) return;
+    const day = new Date(Date.now() + 3600000).toISOString().slice(0, 10); const k = `kc-view:${carId}`;
+    try { if (localStorage.getItem(k) === day) return; localStorage.setItem(k, day); } catch (_e) { /* private mode: the server still drops repeats */ }
+    api(`/cars/${carId}/view`, { method: 'POST' }).catch(() => {});
+  }, [carId]);
   const car = data && data.car;
   useTitle(car ? `${car.title} for Sale in ${placeOf(car)}${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars` : null);
   if (loading && !car) return <Loading />;

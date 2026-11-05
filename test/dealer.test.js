@@ -299,6 +299,27 @@ test('a car for sale needs its mileage, and a price or "Call for price"; such ca
   assert.strictEqual(d.status, 400);
 });
 
+test('views: once per buyer per car per day; bots and the dealer team are not counted; the dashboard shows today, 7 days, 30 days and all time', async () => {
+  const car = (await call('GET', '/api/cars')).json.cars.find((c) => c.seller === 'Ade Motors Ltd');
+  assert.ok(car, 'an approved dealer car is public');
+  const before = (await call('GET', '/api/dealer/cars', { cookie: ade.cookie })).json.cars.find((c) => c.id === car.id);
+  const view = (opts) => call('POST', `/api/cars/${car.id}/view`, opts);
+  assert.strictEqual((await view({ ip: '10.77.0.1' })).json.result, 'counted');
+  assert.strictEqual((await view({ ip: '10.77.0.1' })).json.result, 'repeat', 'same buyer, same day');
+  assert.strictEqual((await view({ ip: '10.77.0.2' })).json.result, 'counted');
+  assert.strictEqual((await view({ cookie: ade.cookie })).json.result, 'own');
+  const bot = await fetch(`${B}/api/cars/${car.id}/view`, { method: 'POST', headers: { 'x-requested-with': 'korrect', 'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)', 'x-forwarded-for': '10.77.0.3' } });
+  assert.strictEqual((await bot.json()).result, 'bot');
+  assert.strictEqual((await call('GET', `/api/cars/${car.slug}`)).status, 200, 'opening the page data no longer counts by itself');
+  const after = (await call('GET', '/api/dealer/cars', { cookie: ade.cookie })).json.cars.find((c) => c.id === car.id);
+  assert.deepStrictEqual([after.views - before.views, after.views_today - before.views_today, after.views_week - before.views_week], [2, 2, 2]);
+  const st = (await call('GET', '/api/dealer/stats', { cookie: ade.cookie })).json;
+  assert.strictEqual(st.daily.length, 30);
+  assert.ok(st.today >= 2 && st.week >= st.today && st.month >= st.week && st.total >= st.month);
+  assert.strictEqual(st.daily[29].views, st.today);
+  assert.strictEqual((await call('GET', '/api/dealer/stats', { cookie: (await signUp('noview@example.com', { business: 'No View Autos', cac: '5550001', phone: '08055550001' })).cookie })).json.total, 0, 'each dealer sees only their own');
+});
+
 test('the staff car form uses the same register', async () => {
   const f = new FormData();
   for (const [k, v] of Object.entries({ title: '2016 Toyota Camry SE BF', make: 'Toyota', model: 'Camry', body: 'Sedan', price: '9000000', mileage: '50,000 km', vin: makeVin(77) })) f.append(k, v);

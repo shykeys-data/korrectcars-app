@@ -239,8 +239,11 @@ async function carDetail(slug) {
 r.get('/cars/:slug', async (req, res) => {
   const d = await carDetail(req.params.slug);
   if (!d) return res.status(404).json({ error: 'Car not found' });
-  await q('UPDATE cars SET views = views + 1 WHERE id = ?', [d.car.id]);
-  res.json(d);
+  res.json(d); // views are counted by the page itself (POST /cars/:id/view), so visits from Google and WhatsApp count too
+});
+r.post('/cars/:id/view', limiter(10, 120), async (req, res) => {
+  if (!/^\d{1,10}$/.test(String(req.params.id))) return res.status(400).json({ error: 'Bad car' });
+  res.json({ ok: true, result: await require('../lib/views').count(req, Number(req.params.id)) });
 });
 
 // ---------- Enquiries (viewing, offer, Pay Small Small, contact) ----------

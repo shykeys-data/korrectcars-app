@@ -205,12 +205,44 @@ function BusinessStep({ dealer, onDone }) {
 }
 
 // ---------- /dealer ----------
+// Views of all the dealer's cars: today, this week, 30 days, all time, and a bar per day for the last 30 days.
+// Counted once per visitor per car per day; bots, staff and the dealer's own team are not counted.
+const dayName = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short' });
+function ViewsPanel({ s }) {
+  const [hover, setHover] = useState(null);
+  if (!s) return null;
+  const max = Math.max(1, ...s.daily.map((d) => d.views));
+  const shown = hover != null ? s.daily[hover] : s.daily[s.daily.length - 1];
+  return (
+    <div className="box">
+      <h2 style={{ marginBottom: 4 }}>Views of your cars</h2>
+      <p className="small muted" style={{ marginTop: 0 }}>Each buyer counts once per car per day. Search engines, our staff and your own team are not counted.</p>
+      <div className="kpis" style={{ marginBottom: 12 }}>
+        {[['Today', s.today], ['Last 7 days', s.week], ['Last 30 days', s.month], ['All time', s.total], ['Buyer requests', s.enquiries]].map(([l, v]) => (
+          <div key={l} className="kpi"><div className="small muted">{l}</div><div className="v">{Number(v).toLocaleString('en-NG')}</div></div>))}
+      </div>
+      <div className="small" aria-live="polite" style={{ minHeight: 22 }}><b>{dayName(shown.day)}</b>: {shown.views} view{shown.views === 1 ? '' : 's'}</div>
+      <div className="vbars" role="img" aria-label={`Views per day for the last 30 days. Highest: ${max}.`} onMouseLeave={() => setHover(null)}>
+        {s.daily.map((d, i) => (
+          <button type="button" key={d.day} className={'vbar' + (hover === i ? ' on' : '')} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onClick={() => setHover(i)} aria-label={`${dayName(d.day)}: ${d.views} views`}>
+            <span style={{ height: d.views ? `${Math.max(4, (d.views / max) * 100)}%` : 0 }} />
+          </button>))}
+      </div>
+      <div className="vbars-axis small muted"><span>{dayName(s.daily[0].day)}</span><span>Today</span></div>
+      <details style={{ marginTop: 8 }}><summary className="small">Show as a table</summary>
+        <table className="tbl" style={{ marginTop: 8 }}><thead><tr><th>Day</th><th className="num">Views</th></tr></thead>
+          <tbody>{s.daily.slice().reverse().map((d) => <tr key={d.day}><td>{dayName(d.day)}</td><td className="num">{d.views}</td></tr>)}</tbody></table></details>
+    </div>
+  );
+}
+
 export function DealerHome() {
   useTitle('My dealer page | Korrect Cars');
   const { user, cfg } = useApp();
   const { go } = useRouter();
   const me = useApi(user ? '/dealer/me' : null, [user && user.id]);
   const cars = useApi(me.data && me.data.dealer ? '/dealer/cars' : null, [me.data && me.data.dealer && me.data.dealer.id]);
+  const stats = useApi(me.data && me.data.dealer ? '/dealer/stats' : null, [me.data && me.data.dealer && me.data.dealer.id]);
   if (user === undefined || (user && !me.data)) return <Loading />;
   if (!user) { go('/login?next=/dealer', { replace: true }); return <Loading />; }
   const d = me.data.dealer;
@@ -232,13 +264,14 @@ export function DealerHome() {
         <div className="box kpi"><div className="small muted">Cars for sale</div><div className="v">{d.liveCars}{d.liveLimit ? <span className="small muted"> / {d.liveLimit}</span> : null}</div>{d.liveLimit ? <div className="small muted">limit for your first 3 months</div> : null}</div>
         <div className="box kpi"><div className="small muted">All your cars</div><div className="v">{list.length}</div></div>
       </div>
+      <ViewsPanel s={stats.data} />
       <div className="box">
         <h2>Your cars</h2>
         {cars.loading && !cars.data ? <Loading /> : !list.length ? <p className="muted">No cars yet. {canList && <Link to="/dealer/cars/new">Add your first car</Link>}</p> : (
-          <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th>Views</th><th>Status</th><th /></tr></thead><tbody>
+          <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th className="num">Views today</th><th className="num">Last 7 days</th><th className="num">All time</th><th className="num">Buyer requests</th><th>Status</th><th /></tr></thead><tbody>
             {list.map((c) => <tr key={c.id}>
               <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">VIN …{String(c.vin || '').slice(-6)} · added {date(c.created_at)}</div></div></div></td>
-              <td>{priceText(c)}</td><td>{c.views}</td><td><Tag s={c.status} map={CAR_STATUS} /></td>
+              <td>{priceText(c)}</td><td className="num">{c.views_today}</td><td className="num">{c.views_week}</td><td className="num">{c.views}</td><td className="num">{c.enquiries}{c.enquiries_week ? <span className="small muted"> ({c.enquiries_week} this week)</span> : null}</td><td><Tag s={c.status} map={CAR_STATUS} /></td>
               <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {c.status === 'available' && <Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link>}{' '}
                 {canList && <Link to={'/dealer/cars/' + c.id} className="btn btn-dark btn-sm">Edit</Link>}{' '}

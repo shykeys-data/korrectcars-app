@@ -256,7 +256,32 @@ r.get('/vin-check', requireDealer, limiter(15, 120), async (req, res) => {
 });
 
 r.get('/cars', requireDealer, async (req, res) => {
-  res.json({ cars: await q(`SELECT ${CAR_COLS} FROM cars WHERE dealer_id = ? ORDER BY id DESC LIMIT 500`, [req.dealer.id]), liveLimit: await liveLimit(req.dealer), liveCars: await liveCount(req.dealer.id) });
+  const { lagosDay } = require('../lib/views');
+  const today = lagosDay(); const weekAgo = lagosDay(Date.now() - 6 * 86400000);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 19).replace('T', ' ');
+  // Per car: views today, in the last 7 days and all time (cars.views), and buyer requests (viewings, offers, Pay Small Small)
+  const cars = await q(`SELECT ${CAR_COLS},
+      (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = cars.id AND v.day = ?) AS views_today,
+      (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = cars.id AND v.day >= ?) AS views_week,
+      (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = cars.id) AS enquiries,
+      (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = cars.id AND e.created_at >= ?) AS enquiries_week
+    FROM cars WHERE dealer_id = ? ORDER BY id DESC LIMIT 500`, [today, weekAgo, sevenDaysAgo, req.dealer.id]);
+  for (const c of cars) for (const k of ['views', 'views_today', 'views_week', 'enquiries', 'enquiries_week']) c[k] = Number(c[k]) || 0;
+  res.json({ cars, liveLimit: await liveLimit(req.dealer), liveCars: await liveCount(req.dealer.id) });
+});
+
+// Views of all the dealer's cars, day by day for the last 30 days (Lagos days), for the dashboard chart
+r.get('/stats', requireDealer, async (req, res) => {
+  const { lastDays } = require('../lib/views');
+  const days = lastDays(30);
+  const rows = await q(`SELECT v.day, SUM(v.views) AS views FROM car_views_daily v JOIN cars c ON c.id = v.car_id
+    WHERE c.dealer_id = ? AND v.day >= ? GROUP BY v.day`, [req.dealer.id, days[0]]);
+  const by = Object.fromEntries(rows.map((r2) => [r2.day, Number(r2.views) || 0]));
+  const daily = days.map((day) => ({ day, views: by[day] || 0 }));
+  const sum = (n) => daily.slice(-n).reduce((s, d) => s + d.views, 0);
+  const total = Number((await one('SELECT COALESCE(SUM(views), 0) AS n FROM cars WHERE dealer_id = ?', [req.dealer.id])).n) || 0;
+  const enq = await one('SELECT COUNT(*) AS n FROM enquiries e JOIN cars c ON c.id = e.car_id WHERE c.dealer_id = ?', [req.dealer.id]);
+  res.json({ daily, today: sum(1), week: sum(7), month: sum(30), total, enquiries: Number(enq.n) || 0 });
 });
 r.get('/cars/:id', requireDealer, async (req, res) => {
   const car = isId(req.params.id) && await one(`SELECT ${CAR_COLS} FROM cars WHERE id = ? AND dealer_id = ?`, [req.params.id, req.dealer.id]);
