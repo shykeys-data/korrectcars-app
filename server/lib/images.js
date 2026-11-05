@@ -6,7 +6,7 @@ const path = require('path');
 const os = require('os');
 const config = require('../config');
 
-const WIDTHS = [400, 800, 1200, 1600];
+const WIDTHS = [400, 600, 800, 1200, 1600];
 const FOLDERS = { cars: 'uploads', blog: 'uploads', swap: 'uploads', site: 'uploads', img: 'dist' };
 const CACHE = path.join(config.uploadsDir, 'cache');
 

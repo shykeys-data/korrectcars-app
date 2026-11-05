@@ -49,15 +49,15 @@ export function Footer() {
             <p>Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright{swapOn(cfg) ? ', pay small small through our credit partners, or swap your car with a verified owner' : ' or pay small small through our credit partners'}.</p>
           </div>
           <div>
-            <h4>Buy</h4>
+            <h2 className="foot-h">Buy</h2>
             <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/vin-check">Free VIN check</Link></li>{swapOn(cfg) && <><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></>}{cfg && cfg.marketplace && <li><Link to="/dealers/join">Dealers: sell with us</Link></li>}</ul>
           </div>
           <div>
-            <h4>Company</h4>
+            <h2 className="foot-h">Company</h2>
             <ul><li><Link to="/about-us">About us</Link></li><li><Link to="/blog">Guides</Link></li><li><Link to="/faqs">FAQs</Link></li><li><Link to="/privacy-policy">Privacy policy</Link></li><li><Link to="/terms-and-conditions">Terms and conditions</Link></li></ul>
           </div>
           <div id="footer-contact">
-            <h4>Korrect Cars developers</h4>
+            <h2 className="foot-h">Korrect Cars developers</h2>
             <ul>
               <li>We build and run this site. For questions about the site, your account or Pay Small Small{swapOn(cfg) ? ', or Korrect Swap' : ''}. For a car, contact the dealer on its page.</li>
               {phones.map((p) => <li key={p}><a href={'tel:' + p.replace(/\s/g, '')}>{p}</a></li>)}

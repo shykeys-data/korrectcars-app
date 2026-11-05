@@ -1,5 +1,6 @@
 // One car's page: photos, price, Pay Small Small estimate, inspection notes, enquiry form and similar cars.
 import React, { useState, useEffect } from 'react';
+import { placeOf } from '../../../server/lib/places.js';
 import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal } from '../components/Bits.jsx';
 
@@ -32,7 +33,7 @@ export function CarDetail({ slug }) {
   const saved = useLocalList('kc-saved');
   useEffect(() => { setI(0); setTab('overview'); }, [slug]);
   const car = data && data.car;
-  useTitle(car ? `${car.title} for Sale in Lagos${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars` : null);
+  useTitle(car ? `${car.title} for Sale in ${placeOf(car)}${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars` : null);
   if (loading && !car) return <Loading />;
   if (error) return error.status === 404 ? <NotFoundCar /> : <ErrorBox error={error} />;
   const photos = car.photos && car.photos.length ? car.photos : ['/img/hero.jpg'];

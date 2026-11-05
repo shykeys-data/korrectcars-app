@@ -30,11 +30,11 @@ app.use(helmet({
     directives: {
       'default-src': ["'self'"],
       'script-src': ["'self'", (_req, res) => `'nonce-${res.locals.nonce}'`, "'strict-dynamic'", 'https:'],
-      'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      'style-src': ["'self'", "'unsafe-inline'"],
+      'font-src': ["'self'", 'data:'],
       'img-src': ["'self'", 'data:', 'blob:', 'https:'],
       'connect-src': ["'self'", 'https://*.google.com', 'https://*.googlesyndication.com', 'https://*.doubleclick.net', 'https://*.adtrafficquality.google', 'https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://*.googletagmanager.com'],
-      'frame-src': ["'self'", 'https://*.google.com', 'https://*.googlesyndication.com', 'https://*.doubleclick.net', 'https://www.google.com'],
+      'frame-src': ["'self'", 'https://*.google.com', 'https://*.googlesyndication.com', 'https://*.doubleclick.net', 'https://*.adtrafficquality.google', 'https://www.google.com'],
       'frame-ancestors': ["'self'"],
       'object-src': ["'none'"],
       'base-uri': ["'self'"],
@@ -68,6 +68,7 @@ app.use((req, res, next) => {
 // ---------- Static files ----------
 app.use('/uploads', express.static(path.join(config.uploadsDir, 'public'), { maxAge: '30d', immutable: true, index: false, dotfiles: 'deny' }));
 app.use('/assets', express.static(path.join(config.distDir, 'assets'), { maxAge: '1y', immutable: true, index: false }));
+app.use('/fonts', express.static(path.join(config.distDir, 'fonts'), { maxAge: '1y', immutable: true, index: false }));
 app.use('/img', express.static(path.join(config.distDir, 'img'), { maxAge: '30d', index: false }));
 // Resized WebP photos (much lighter on phones)
 require('./lib/images').route(app);

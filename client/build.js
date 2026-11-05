@@ -26,7 +26,7 @@ esbuild.build({
   bundle: true, minify: true, format: 'esm', target: 'es2020',
   // The staff area is a separate file that only staff download
   splitting: true, chunkNames: 'chunks/[name]-[hash]',
-  outdir: next, jsx: 'automatic', loader: { '.jsx': 'jsx' },
+  outdir: next, jsx: 'automatic', loader: { '.jsx': 'jsx' }, external: ['/fonts/*', '/img/*'], // served as they are from client/public
   define: { 'process.env.NODE_ENV': '"production"' }, legalComments: 'none', logLevel: 'info',
   nodePaths: [path.join(root, 'node_modules')], metafile: true
 }).then((result) => {
@@ -42,5 +42,10 @@ esbuild.build({
     .map((i) => `<link rel="modulepreload" href="/assets/${path.relative(path.join(out, 'assets'), path.resolve(i.path)).split(path.sep).join('/')}">`).join('\n');
   fs.writeFileSync(path.join(out, 'index.html'), fs.readFileSync(path.join(root, 'index.html'), 'utf8').replace(/__BUILD__/g, v).replace('<!--PRELOAD-->', preload));
   fs.cpSync(path.join(root, 'public'), out, { recursive: true });
+  // Our own copies of the two web fonts (Latin), from the @fontsource packages (open font licence)
+  fs.mkdirSync(path.join(out, 'fonts'), { recursive: true });
+  for (const [pkg, weights] of [['barlow-condensed', [600, 700, 800]], ['source-sans-3', [400, 600, 700]]]) {
+    for (const w of weights) fs.copyFileSync(path.join(root, 'node_modules', '@fontsource', pkg, 'files', `${pkg}-latin-${w}-normal.woff2`), path.join(out, 'fonts', `${pkg}-latin-${w}-normal.woff2`));
+  }
   console.log('Built dist with version', v);
 }).catch((e) => { console.error(e); process.exit(1); });

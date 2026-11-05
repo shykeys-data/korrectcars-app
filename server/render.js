@@ -38,6 +38,7 @@ function ssrFrame(body, isAdmin) {
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
 const { hasPrice, priceText, priced } = require('./lib/price');
+const { placeOf } = require('./lib/places');
 const strip = (h) => String(h || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s);
 const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -262,7 +263,7 @@ async function renderPage(req, nonce) {
       const desc = sold
         ? clip(`Sold: this ${car.title} has been sold. See similar ${car.make} ${car.model} and ${car.body || 'other'} cars in stock in Lagos, with pay small small and delivery anywhere in Nigeria.`, 160)
         : clip(`${car.title} for sale in ${car.location || 'Lagos'} ${hasPrice(car) ? 'at ' + priceText(car) : '(call for price)'}${pss}. ${extra}`, 160);
-      meta = { ...meta, title: sold ? `Sold: ${car.title} — See Similar Cars in Lagos | Korrect Cars` : (car.seo_title || `${car.title} for Sale in Lagos${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars`), desc, image: (car.photos || [])[0] || DEFAULT.image };
+      meta = { ...meta, title: sold ? `Sold: ${car.title} — See Similar Cars in ${placeOf(car)} | Korrect Cars` : (car.seo_title || `${car.title} for Sale in ${placeOf(car)}${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars`), desc, image: (car.photos || [])[0] || DEFAULT.image };
       const similarHtml = (d.similar || []).length ? `<h2>${sold ? 'Similar cars in stock' : 'Similar cars'}</h2><ul>` + d.similar.map((x) => `<li><a href="/cars/${esc(x.slug)}">${esc(x.title)}</a> — ${esc(priceText(x))}</li>`).join('') + '</ul>' : '';
       body = `<h1>${esc(car.title)}</h1>${(car.photos || [])[0] ? `<img class="ssr-hero" src="${esc(rs(car.photos[0], 800))}" alt="${esc(car.title)}" width="800" height="600">` : ''}<p><strong>${esc(priceText(car))}</strong>${sold ? ' — SOLD' : ''}</p>`
         + (sold ? `<p>This car has been sold. See <a href="/cars/${slugify(car.make)}/${slugify(car.model)}">every ${esc(car.make)} ${esc(car.model)} for sale</a> or <a href="/cars">all cars in stock</a>.</p>` + similarHtml : '')
@@ -344,12 +345,20 @@ async function renderPage(req, nonce) {
     '<meta name="twitter:card" content="summary_large_image">',
     ...ld.map((x) => `<script type="application/ld+json">${json(x)}</script>`),
     config.adsenseClient ? `<meta name="google-adsense-account" content="${esc(config.adsenseClient)}">` : '',
-    config.gaId && !staff ? `<script async nonce="${nonce}" src="https://www.googletagmanager.com/gtag/js?id=${esc(config.gaId)}"></script><script nonce="${nonce}">window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(config.gaId)}');</script>` : '',
-    config.adsenseClient && !noindex ? `<script async nonce="${nonce}" src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${esc(config.adsenseClient)}" crossorigin="anonymous"></script>` : '',
+    // Analytics and ads load after the page has shown (first scroll, tap or key, or 3.5 s after load), so their
+    // ~400 KB of scripts never slow the first view. Page views are queued in dataLayer until gtag arrives.
+    config.gaId && !staff ? `<script nonce="${nonce}">window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(config.gaId)}');</script>` : '',
+    (config.gaId && !staff) || (config.adsenseClient && !noindex) ? `<script nonce="${nonce}">(function(){var done=false,urls=${json([config.gaId && !staff ? 'https://www.googletagmanager.com/gtag/js?id=' + config.gaId : null, config.adsenseClient && !noindex ? 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + config.adsenseClient : null].filter(Boolean))};
+function go(){if(done)return;done=true;urls.forEach(function(u){var s=document.createElement('script');s.async=true;s.src=u;if(/googlesyndication/.test(u))s.crossOrigin='anonymous';document.head.appendChild(s);});}
+['scroll','pointerdown','keydown','touchstart'].forEach(function(e){addEventListener(e,go,{once:true,passive:true});});
+addEventListener('load',function(){setTimeout(go,3500);});})();</script>` : '',
     `<script type="application/json" id="__boot">${json(boot)}</script>`
   ].filter(Boolean).join('\n');
 
-  const html = shell().replace('<!--HEAD-->', head).replace('<!--BODY-->', ssrFrame(body, isAdmin)).replace(/__NONCE__/g, nonce);
+  // <!--email_off--> stops Cloudflare's email hiding, whose script our security policy blocks (emails showed as
+  // "[email protected]" and the console logged errors). The site shows emails as plain links on purpose.
+  const html = shell().replace('<!--HEAD-->', head).replace('<!--BODY-->', ssrFrame(body, isAdmin)).replace(/__NONCE__/g, nonce)
+    .replace('<head>', '<head><!--email_off-->').replace(/<\/html>\s*$/, '<!--/email_off--></html>\n');
   return { status, html };
 }
 

@@ -213,4 +213,4 @@ export function rs(url, w) {
   const m = String(url || '').match(RS);
   return m ? `/r/${w}/${m[1] || m[2]}/${m[3]}.webp` : url;
 }
-export const srcset = (url, widths = [400, 800]) => (RS.test(String(url || '')) ? widths.map((w) => `${rs(url, w)} ${w}w`).join(', ') : undefined);
+export const srcset = (url, widths = [400, 600, 800]) => (RS.test(String(url || '')) ? widths.map((w) => `${rs(url, w)} ${w}w`).join(', ') : undefined);
