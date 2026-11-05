@@ -21,9 +21,11 @@ const CAR_STATUS = { pending: ['Waiting for approval', 'tag-warn'], available: [
 const Tag = ({ s, map }) => { const x = map[s] || [s, 'tag-grey']; return <span className={'tag ' + x[1]}>{x[0]}</span>; };
 const Err = ({ e }) => (e ? <div className="err" role="alert">{e}</div> : null);
 
-function Steps({ at }) {
-  const names = ['Email', 'Account', 'Phone', 'Business'];
-  return <ol className="signup-steps" aria-label="Sign-up steps">{names.map((n, i) => <li key={n} className={i < at ? 'done' : i === at ? 'on' : ''} aria-current={i === at ? 'step' : undefined}><span>{i + 1}</span>{n}</li>)}</ol>;
+function Steps({ at, phone = true }) {
+  // While phone texts are paused (no SMS sender yet) the Phone step is skipped: the email code is the check
+  const names = ['Email', 'Account', 'Phone', 'Business'].filter((n) => phone || n !== 'Phone');
+  const pos = !phone && at === 3 ? 2 : at;
+  return <ol className="signup-steps" aria-label="Sign-up steps">{names.map((n, i) => <li key={n} className={i < pos ? 'done' : i === pos ? 'on' : ''} aria-current={i === pos ? 'step' : undefined}><span>{i + 1}</span>{n}</li>)}</ol>;
 }
 
 // ---------- /dealers/join ----------
@@ -42,7 +44,7 @@ export function DealerJoin() {
     <div className="wrap sec-sm" style={{ maxWidth: 640 }}>
       <h1 style={{ fontSize: 44 }}>Sell your cars on Korrect Cars</h1>
       <p className="muted">Free to join. We check every dealer's CAC papers and phone before their cars go live, so buyers can trust every listing.</p>
-      <Steps at={at} />
+      <Steps at={at} phone={!me.data || me.data.user.phoneCheck !== false} />
       {!user && stage === 'email' && <EmailStep onSent={(e) => { setEmail(e); setStage('code'); }} />}
       {!user && stage === 'code' && <CodeStep email={email} onBack={() => setStage('email')} onOk={(p) => { setPass(p); setStage('account'); }} />}
       {!user && stage === 'account' && <AccountStep email={email} pass={pass} onRestart={() => setStage('email')} onDone={(u) => setUser(u)} />}

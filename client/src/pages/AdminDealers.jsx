@@ -53,7 +53,7 @@ function DealerReview({ id, onClose, onDone, isAdmin }) {
             <div><div className="f">CAC</div><b>{d.cac_type} {d.cac_number}</b><div className="small"><a href="https://search.cac.gov.ng/home" target="_blank" rel="noopener noreferrer">Check on the CAC public search ↗</a> (search the name and compare the number)</div></div>
             <div><div className="f">Address</div>{d.address}<div className="small muted">{[d.lga, d.state].filter(Boolean).join(', ')}</div></div>
             <div><div className="f">Contact</div>{d.email}<div className="small muted">Phone {d.phone} · WhatsApp {d.whatsapp}</div></div>
-            <div><div className="f">People</div>{data.members.map((m) => <div key={m.id}>{m.name} <span className="small muted">({m.role}) {m.phone_verified_at ? '· phone confirmed' : '· phone NOT confirmed'}</span></div>)}</div>
+            <div><div className="f">People</div>{data.members.map((m) => <div key={m.id}>{m.name} <span className="small muted">({m.role}) {m.phone ? `· ${m.phone} ` : ''}{m.phone_verified_at ? '· confirmed by text' : '· not confirmed by text (email confirmed): call them to check'}</span></div>)}</div>
           </div>
           {d.about && <p className="note">{d.about}</p>}
           <h3 style={{ marginTop: 18 }}>Papers</h3>

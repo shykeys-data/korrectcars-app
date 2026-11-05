@@ -15,7 +15,7 @@ const DBFILE = path.join(TMP, 'test.db');
 const PORT = 4200 + Math.floor(Math.random() * 400);
 const B = `http://127.0.0.1:${PORT}`;
 // A staging address switches the Partner dealers feature on and lets the phone step show test codes
-const ENV = { ...process.env, DB_DRIVER: 'sqlite', SQLITE_FILE: DBFILE, PORT: String(PORT), MAIL_DISABLED: '1', ADSENSE_CLIENT: '', GA_ID: '', ADMIN_PATH: 'staff-test-address-2', PRIVATE_DIR: path.join(TMP, 'private'), TOTP_KEY: 'c'.repeat(64), NODE_ENV: 'test', SITE_URL: 'http://staging.localhost', TERMII_API_KEY: '' };
+const ENV = { ...process.env, DB_DRIVER: 'sqlite', SQLITE_FILE: DBFILE, PORT: String(PORT), MAIL_DISABLED: '1', ADSENSE_CLIENT: '', GA_ID: '', ADMIN_PATH: 'staff-test-address-2', PRIVATE_DIR: path.join(TMP, 'private'), TOTP_KEY: 'c'.repeat(64), NODE_ENV: 'test', SITE_URL: 'http://staging.localhost', TERMII_API_KEY: '', SMS_OTP: 'on' };
 let app; let log = '';
 const sqlite = () => new (require('node:sqlite').DatabaseSync)(DBFILE);
 // A real-looking VIN with a correct check digit, different for each n

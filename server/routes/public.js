@@ -194,6 +194,7 @@ const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, o
   + ', (SELECT d.state FROM dealers d WHERE d.id = cars.dealer_id) AS state, (SELECT d.lga FROM dealers d WHERE d.id = cars.dealer_id) AS lga'
   // Who sells it, and how buyers reach them (their WhatsApp and phone from sign-up)
   + SELLER;
+const STOCK_MAX = 2000;
 async function listCars(query = {}) {
   const where = [`status IN ${PUBLIC_STATUSES}`]; const p = [];
   const add = (sql, v) => { where.push(sql); p.push(v); };
@@ -211,8 +212,10 @@ async function listCars(query = {}) {
   if (yearMax) add('year <= ?', Number(yearMax) || 9999);
   if (search) add('title LIKE ?', '%' + String(search).slice(0, 60).replace(/[%_\\]/g, '\\$&') + '%');
   const sorts = { 'price-asc': '(price = 0) ASC, price ASC', 'price-desc': 'price DESC', 'year-desc': 'year DESC, price DESC', newest: 'created_at DESC' };
-  const lim = Math.min(Math.max(Number(limit) || 60, 1), 100);
-  return (await q(`SELECT ${CAR_COLS} FROM cars WHERE ${where.join(' AND ')} ORDER BY (status = 'sold') ASC, ${sorts[sort] || 'price DESC'} LIMIT ${lim}`, p)).map(cleanCar);
+  // limit=all: the whole public stock for the cars pages, which filter it in the browser and show 24 at a time
+  // ("Show more"). Card fields only, so it stays small; past about 1,000 cars, move the filters to the server.
+  const lim = limit === 'all' ? STOCK_MAX : Math.min(Math.max(Number(limit) || 60, 1), 100);
+  return (await q(`SELECT ${CAR_COLS} FROM cars WHERE ${where.join(' AND ')} ORDER BY (status = 'sold') ASC, ${sorts[sort] || 'price DESC'} LIMIT ${lim}`, p)).map((c) => { const x = cleanCar(c); if (Array.isArray(x.photos) && x.photos.length > 8) x.photos = x.photos.slice(0, 8); return x; });
 }
 r.get('/cars', async (req, res) => res.json({ cars: await listCars(req.query) }));
 
@@ -295,7 +298,7 @@ r.get('/vin/:vin', limiter(10, 30, 'Too many VIN checks. Please wait a few minut
   if (!d.valid) return res.json({ ...d, inStock: [] });
   // Not in the US database (common for European, Gulf, Chinese or Japanese-market cars): what the VIN itself says
   if (!d.found) return res.json({ ...d, basics: require('../lib/vin-prefill').prefill(d.vin, {}), inStock: [] });
-  const inStock = (await listCars({ limit: 100 })).filter((c) => c.status === 'available' && c.make.toLowerCase() === d.make.toLowerCase() && (!d.model || c.model.toLowerCase() === d.model.toLowerCase())).slice(0, 4);
+  const inStock = (await listCars({ limit: 100, make: d.make })).filter((c) => c.status === 'available' && (!d.model || c.model.toLowerCase() === d.model.toLowerCase())).slice(0, 4);
   res.json({ ...d, inStock });
 });
 

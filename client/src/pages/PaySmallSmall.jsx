@@ -19,7 +19,7 @@ export function PaySmallSmall() {
   // One or more credit partners (banks or finance companies), set in admin Settings
   const names = String((cfg && cfg.bankPartner) || '').split(',').map((x) => x.trim()).filter(Boolean);
   const partner = names.length ? `our credit partners (${names.join(', ')})` : 'our credit partners';
-  const list = useApi('/cars?limit=100');
+  const list = useApi('/cars?limit=all');
   const cars = ((list.data && list.data.cars) || []).filter((c) => c.status === 'available');
   const [slug, setSlug] = useState(query.get('car') || '');
   const [custom, setCustom] = useState(Number(query.get('price')) || 10000000);

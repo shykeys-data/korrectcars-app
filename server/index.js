@@ -109,7 +109,7 @@ app.get('/sitemap.xml', async (_req, res, next) => {
     const mm = await db.q("SELECT DISTINCT make, model FROM cars WHERE status IN ('available','sold')");
     const makePages = [...new Set(mm.map((x) => '/cars/' + slugify(x.make)))].concat(mm.map((x) => `/cars/${slugify(x.make)}/${slugify(x.model)}`));
     // Category pages (/cars/suv…) that have at least one car in stock
-    const stock = await require('./routes/public').listCars({ limit: 100 });
+    const stock = await require('./routes/public').listCars({ limit: 'all' });
     const catLib = require('./lib/categories');
     const catPages = catLib.pages().filter((c) => stock.filter((x) => x.status === 'available' && c.test(x)).length >= catLib.MIN_INDEX).map((c) => '/cars/' + c.slug);
     const urls = ['/', '/cars', ...catPages, ...(settings.current().swap ? ['/swap'] : []), '/pay-small-small', '/vin-check', ...((await settings.market()).items.length >= settings.MARKET_MIN ? ['/car-market-today'] : []), '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)

@@ -238,3 +238,7 @@ Next: milestone 4 (ownership claims for a taken VIN, flags for near-identical VI
 
 - More tests for the React pages (the API is covered)
 - Optional: draw the React pages on the server too (full server-side rendering), so the switch from the light page is seamless
+
+- **Stock list and "Show more"** (Nov 2026): the cars pages load the whole public stock once (`/api/cars?limit=all`, card fields and up to 8 photos per car, capped at 2,000 cars) and filter it in the browser, showing 24 cars at a time with "Show more". With 120 cars the list is about 75 KB before compression and is built in a few milliseconds. Past about 1,000 cars, move the filters and paging to the server.
+- **Phone texts paused** (`SMS_OTP`): Nigerian sender IDs need CAC papers and a letter, so phone checks by text are off unless `SMS_OTP=on`. While off, the dealer's email (confirmed by code) is the check, the Phone step is skipped, and staff see "not confirmed by text" on the review screen.
+- **Staging tools**: `server/tools-demo-dealers.js add|remove` adds or removes 4 demo dealers with about 30 cars each (refuses to run on the live site); `server/tools-measure.js` times the busiest pages on the server.

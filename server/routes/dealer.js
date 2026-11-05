@@ -123,11 +123,12 @@ const dealerView = async (d) => (d ? {
 r.get('/me', async (req, res) => {
   if (!req.user) return res.json({ user: null, dealer: null });
   const u = await one('SELECT id, name, email, phone, role, phone_verified_at FROM users WHERE id = ?', [req.user.id]);
-  res.json({ user: { id: u.id, name: u.name, email: u.email, phone: u.phone, staff: isStaff(u), phoneVerified: !!u.phone_verified_at }, dealer: await dealerView(await membership(u.id)) });
+  res.json({ user: { id: u.id, name: u.name, email: u.email, phone: u.phone, staff: isStaff(u), phoneVerified: !!u.phone_verified_at || (!sms.otpOn() && !!u.phone), phoneCheck: sms.otpOn() }, dealer: await dealerView(await membership(u.id)) });
 });
 
 // ---------- 4: phone ----------
 r.post('/phone/send', requireAuth, limiter(60, 10, 'Too many codes requested. Please wait an hour.'), async (req, res) => {
+  if (!sms.otpOn()) return res.status(400).json({ error: 'Phone texts are not needed right now: your email is confirmed.', skip: true });
   if (isStaff(req.user)) return res.status(403).json({ error: 'Staff accounts cannot be dealer accounts. Sign up with a different email.' });
   const phone = sms.toE164(req.body.phone || req.user.phone);
   if (!phone) return res.status(400).json({ error: 'Enter a Nigerian mobile number, e.g. 0803 123 4567.', field: 'phone' });
@@ -169,7 +170,8 @@ function cacNumber(type, raw) {
 r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount: 1 }, { name: 'extra', maxCount: 3 }]), async (req, res) => {
   if (isStaff(req.user)) return res.status(403).json({ error: 'Staff accounts cannot be dealer accounts. Sign up with a different email.' });
   const u = await one('SELECT id, name, email, phone, phone_verified_at FROM users WHERE id = ?', [req.user.id]);
-  if (!u.phone_verified_at) return res.status(403).json({ error: 'Please confirm your phone number first.', step: 'phone' });
+  if (!u.phone_verified_at && sms.otpOn()) return res.status(403).json({ error: 'Please confirm your phone number first.', step: 'phone' });
+  if (!u.phone) return res.status(400).json({ error: 'Add your mobile number to your account first.', step: 'phone' });
   const existing = await membership(u.id);
   const b = req.body || {};
   const business = String(b.businessName || '').trim().replace(/\s+/g, ' ');

@@ -65,7 +65,7 @@ export default function Home() {
   const { go } = useRouter();
   const { cfg } = useApp();
   const swap = !!(cfg && cfg.swap);
-  const stock = useApi('/cars?limit=100');
+  const stock = useApi('/cars?limit=all');
   const posts = useApi('/posts?limit=3');
   const [s, setS] = useState({ make: '', model: '', yearMin: '', body: '', state: '', lga: '' });
   const [budget, setBudget] = useState('');

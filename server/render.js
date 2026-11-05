@@ -187,8 +187,8 @@ async function renderPage(req, nonce) {
   const needsCars = p === '/' || p === '/cars' || p === '/pay-small-small' || p === '/compare' || /^\/cars\/[a-z0-9-]+(\/[a-z0-9-]+)?$/.test(p);
   let allCars = null;
   if (needsCars) {
-    allCars = await pub.listCars({ limit: 100 });
-    boot['/cars?limit=100'] = { cars: allCars };
+    allCars = await pub.listCars({ limit: 'all' });
+    boot['/cars?limit=all'] = { cars: allCars };
     boot['/cars/facets'] = await pub.facets();
   }
 
@@ -200,7 +200,7 @@ async function renderPage(req, nonce) {
   }
   if (p === '/' || p === '/cars') {
     const avail = allCars.filter((c) => c.status === 'available');
-    body += '<ul class="ssr-cars">' + avail.map((c) => `<li><a href="/cars/${esc(c.slug)}">${(c.photos || [])[0] ? `<img src="${esc(rs(c.photos[0], 400))}" alt="" width="400" height="300" loading="lazy" decoding="async">` : ''}<span>${esc(c.title)}</span></a> <b>${esc(priceText(c))}</b></li>`).join('') + '</ul>';
+    body += '<ul class="ssr-cars">' + avail.map((c, i) => `<li><a href="/cars/${esc(c.slug)}">${i < 24 && (c.photos || [])[0] ? `<img src="${esc(rs(c.photos[0], 400))}" alt="" width="400" height="300" loading="lazy" decoding="async">` : ''}<span>${esc(c.title)}</span></a> <b>${esc(priceText(c))}</b></li>`).join('') + '</ul>';
     const catLinks = cats.pages().map((c) => [c, avail.filter(c.test).length]).filter(([, n]) => n > 0);
     if (catLinks.length) body += '<h2>Browse by category</h2><ul>' + catLinks.filter(([c]) => !c.budget).map(([c, n]) => `<li><a href="/cars/${c.slug}">${esc(c.name)}</a> (${n} in stock)</li>`).join('') + '</ul>';
     body += budgetLinksHtml(allCars);

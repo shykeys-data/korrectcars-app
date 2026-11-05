@@ -25,7 +25,7 @@ import { QuickViewProvider } from './components/QuickView.jsx';
 
 // /cars/toyota is a make page; /cars/2018-toyota-camry-se is a single car
 function CarOrMake({ slug }) {
-  const list = useApi('/cars?limit=100');
+  const list = useApi('/cars?limit=all');
   const cars = (list.data && list.data.cars) || [];
   if (list.loading && !cars.length) return <div className="loading">Loading…</div>;
   return cars.some((c) => slugify(c.make) === slug) ? <Inventory makeSlug={slug} /> : <CarDetail slug={slug} />;

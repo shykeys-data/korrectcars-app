@@ -6,6 +6,7 @@ import { CarCard, Loading } from '../components/Bits.jsx';
 import { pages as categoryPages } from '../../../server/lib/categories.js';
 import { recommended } from '../lib/rank.js';
 
+const PAGE = 24;
 const BUDGETS = [['', 'Any budget'], ['20000000', 'Under ₦20m'], ['30000000', 'Under ₦30m'], ['50000000', 'Under ₦50m'], ['100000000', 'Under ₦100m']];
 const SORTS = [['recommended', 'Recommended'], ['price-desc', 'Price: high to low'], ['price-asc', 'Price: low to high'], ['year-desc', 'Newest year first'], ['newest', 'Recently added']];
 const YEAR_QUICK = [['2018', '', '2018 and newer'], ['2015', '2017', '2015–2017'], ['', '2014', '2014 and older']];
@@ -27,7 +28,7 @@ function applyFilters(all, f, cat) {
 export function Inventory({ makeSlug, modelSlug, category }) {
   const { query, go } = useRouter();
   const { cfg } = useApp();
-  const list = useApi('/cars?limit=100');
+  const list = useApi('/cars?limit=all');
   const all = (list.data && list.data.cars) || [];
   const cmp = useLocalList('kc-compare', 3);
   const [open, setOpen] = useState(false);
@@ -54,6 +55,9 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   // Re-shuffle only when the stock or the filters change, not on every redraw
   const fKey = JSON.stringify(f);
   const cars = useMemo(() => applyFilters(all, f, category), [all, fKey, category]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 24 cars at a time; "Show more" adds 24. Back to 24 when the filters change.
+  const [shown, setShown] = useState(PAGE);
+  useEffect(() => setShown(PAGE), [fKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const subject = f.model ? `${f.make} ${f.model}` : f.make;
   const place = f.lga ? `${f.lga}, ${f.state}` : f.state || 'Lagos';
   const heading = category ? (subject ? `${subject}: ${category.h1.replace(/ in Lagos$/, '')}` : category.h1) : subject ? `${subject} for sale in ${place}` : `Cars for sale in ${place}`;
@@ -160,7 +164,8 @@ export function Inventory({ makeSlug, modelSlug, category }) {
             {chips.length > 0 && <div className="chips">{chips.map(([l, patch]) => <button key={l} className="chip" onClick={() => setF(patch)} aria-label={`Remove filter ${l}`}>{l} ✕</button>)}<button className="chip" style={{ background: 'none', color: 'var(--muted)' }} onClick={reset}>Clear all</button></div>}
             {list.error ? <div className="err">{list.error.message}</div> : !list.loading && !cars.length
               ? <div className="empty box center"><h3>No cars match right now</h3><p className="muted">Save this search and we will email you as soon as one arrives.</p><div style={{ maxWidth: 340, margin: '0 auto 10px' }}><SaveSearch filters={f} /></div><div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}><button className="btn btn-line" onClick={reset}>Clear filters</button></div></div>
-              : <div className="cards">{cars.map((c) => <CarCard key={c.id} car={c} />)}</div>}
+              : <><div className="cards">{cars.slice(0, shown).map((c) => <CarCard key={c.id} car={c} />)}</div>
+                {cars.length > shown && <div className="center" style={{ marginTop: 24 }}><p className="small muted">Showing {shown} of {cars.length} cars</p><button type="button" className="btn btn-dark" onClick={() => setShown(shown + PAGE)}>Show {Math.min(PAGE, cars.length - shown)} more cars</button></div>}</>}
             {avail.length > 0 && (
               <section className="box faq-box">
                 <h2 style={{ fontSize: 26 }}>{subject ? `How much is a ${subject} in Nigeria?` : category ? category.faq : 'How much are the cars at Korrect Cars in Nigeria?'}</h2>
@@ -215,7 +220,7 @@ export function Compare() {
   const { query } = useRouter();
   const { cfg } = useApp();
   const cmp = useLocalList('kc-compare', 3);
-  const list = useApi('/cars?limit=100');
+  const list = useApi('/cars?limit=all');
   const ids = (query.get('ids') || cmp.list.join(',')).split(',').map(Number).filter(Boolean);
   const cars = ((list.data && list.data.cars) || []).filter((c) => ids.includes(c.id));
   const rows = [['Price', (c) => priceText(c)], ['Pay small small (estimate)', (c) => (hasPrice(c) ? `about ${naira(bnpl(Number(c.price), 40, 24, cfg).monthly)}/mo` : 'Ask us')], ['Year', (c) => c.year], ['Body type', (c) => c.body], ['Mileage', (c) => c.mileage], ['Engine', (c) => c.engine], ['Transmission', (c) => c.transmission], ['Fuel', (c) => c.fuel], ['Colour', (c) => c.color], ['Status', (c) => (c.status === 'sold' ? 'Sold' : 'Available')]];

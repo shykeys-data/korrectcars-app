@@ -6,6 +6,10 @@ const config = require('../config');
 const KEY = process.env.TERMII_API_KEY || '';
 const SENDER = process.env.TERMII_SENDER_ID || 'N-Alert';
 const CHANNEL = process.env.TERMII_CHANNEL || 'dnd'; // dnd reaches numbers on the do-not-disturb list
+// Phone checks by text are paused (Nov 2026) until the sender ID is registered (needs CAC papers and a letter).
+// Switch them on with SMS_OTP=on. While off, the dealer's email (checked by code at sign-up) is the check, and
+// staff see that the phone was not confirmed by text when they review the dealer.
+const otpOn = () => process.env.SMS_OTP === 'on';
 const testMode = () => !KEY && (/staging/.test(config.siteUrl) || process.env.NODE_ENV === 'test');
 
 // Nigerian numbers only, written as +234XXXXXXXXXX. Accepts 0803..., 234803..., +234 803 ...
@@ -36,4 +40,4 @@ async function send(to, text) {
   } finally { clearTimeout(t); }
 }
 
-module.exports = { send, toE164, testMode };
+module.exports = { send, toE164, testMode, otpOn };
