@@ -21,7 +21,6 @@ export function Header() {
         <nav className={'nav' + (open ? ' open' : '')} aria-label="Main">
           {NAV.filter(([to]) => to !== '/swap' || swapOn(cfg)).map(([to, label, cls]) => <Link key={to} to={to} className={[path.startsWith(to) ? 'on' : '', cls || ''].join(' ').trim()}>{label}</Link>)}
           {user && user.dealer ? <Link to="/dealer" className="m-only">My dealer page</Link> : dealersOn(cfg) && <Link to="/dealers/join" className="m-only">For dealers: sell your cars here</Link>}
-          {swapOn(cfg) && <Link to="/swap/new" className="m-only">List my car</Link>}
           {user ? <><Link to="/account" className="m-only">My account</Link><a href="/" className="m-only" onClick={signOut}>Sign out</a></> : <Link to="/login" className="m-only">Sign in</Link>}
         </nav>
         <div className="right">
