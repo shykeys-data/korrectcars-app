@@ -47,7 +47,8 @@ const schemas = {
   message: z.object({ text: z.string().trim().min(1).max(1000) }),
   car: z.object({
     title: shortText(140).min(3), make: shortText(40).min(1), model: shortText(60).min(1), body: shortText(30).min(1),
-    year: z.coerce.number().int().min(1950).max(2100).optional(), price: money, oldPrice: money.optional().or(z.literal('')),
+    year: z.coerce.number().int().min(1950).max(2100).optional(), price: money.optional().or(z.literal('')), oldPrice: money.optional().or(z.literal('')),
+    callForPrice: z.union([z.boolean(), z.enum(['true', 'false', '1', '0', 'on'])]).optional(),
     mileage: shortText(40).optional(), engine: shortText(80).optional(), transmission: shortText(40).optional(),
     drivetrain: shortText(40).optional(), fuel: shortText(30).optional(), color: shortText(40).optional(),
     interior: shortText(60).optional(), condition: shortText(40).optional(), location: shortText(60).optional(),

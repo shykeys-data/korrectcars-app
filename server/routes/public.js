@@ -183,7 +183,7 @@ async function facets() {
   const rows = await q(`SELECT DISTINCT make, model, body FROM cars WHERE status IN ${PUBLIC_STATUSES} ORDER BY make, model, body`);
   const makes = {};
   for (const x of rows) { ((makes[x.make] = makes[x.make] || {})[x.model] = makes[x.make][x.model] || []).push(x.body); }
-  const p = await one(`SELECT MIN(price) AS min, MAX(price) AS max, MIN(year) AS ymin, MAX(year) AS ymax FROM cars WHERE status IN ${PUBLIC_STATUSES}`);
+  const p = await one(`SELECT MIN(CASE WHEN price > 0 THEN price END) AS min, MAX(price) AS max, MIN(year) AS ymin, MAX(year) AS ymax FROM cars WHERE status IN ${PUBLIC_STATUSES}`);
   return { makes, price: { min: Number(p && p.min) || 0, max: Number(p && p.max) || 0 }, year: { min: Number(p && p.ymin) || 0, max: Number(p && p.ymax) || 0 } };
 }
 r.get('/cars/facets', async (_req, res) => res.json(await facets()));
@@ -202,12 +202,12 @@ async function listCars(query = {}) {
   if (state) add('dealer_id IN (SELECT id FROM dealers WHERE state = ?)', String(state));
   if (lga) add('dealer_id IN (SELECT id FROM dealers WHERE lga = ?)', String(lga));
   if (featured === '1') where.push("featured = 1 AND status = 'available'");
-  if (minPrice) add('price >= ?', Number(minPrice) || 0);
-  if (maxPrice) add('price <= ?', Number(maxPrice) || 1e12);
+  if (minPrice) add('price >= ?', Math.max(1, Number(minPrice) || 0));
+  if (maxPrice) add('price > 0 AND price <= ?', Number(maxPrice) || 1e12);
   if (yearMin) add('year >= ?', Number(yearMin) || 0);
   if (yearMax) add('year <= ?', Number(yearMax) || 9999);
   if (search) add('title LIKE ?', '%' + String(search).slice(0, 60).replace(/[%_\\]/g, '\\$&') + '%');
-  const sorts = { 'price-asc': 'price ASC', 'price-desc': 'price DESC', 'year-desc': 'year DESC, price DESC', newest: 'created_at DESC' };
+  const sorts = { 'price-asc': '(price = 0) ASC, price ASC', 'price-desc': 'price DESC', 'year-desc': 'year DESC, price DESC', newest: 'created_at DESC' };
   const lim = Math.min(Math.max(Number(limit) || 60, 1), 100);
   return (await q(`SELECT ${CAR_COLS} FROM cars WHERE ${where.join(' AND ')} ORDER BY (status = 'sold') ASC, ${sorts[sort] || 'price DESC'} LIMIT ${lim}`, p)).map(cleanCar);
 }
@@ -241,7 +241,7 @@ r.post('/enquiries', limiter(60, 8, 'Too many messages sent. Please call or What
     const car = await one('SELECT id, price FROM cars WHERE id = ?', [v.car]);
     if (!car) return res.status(400).json({ error: 'Car not found' });
     carId = car.id;
-    if (v.type === 'bnpl') {
+    if (v.type === 'bnpl' && Number(car.price) > 0) {
       const plan = bnplPlan(Number(car.price), v.deposit, v.months);
       bnpl = [plan.deposit, plan.months, plan.monthly];
     }
@@ -277,8 +277,12 @@ const PUBLIC_POST_COLS = 'id, slug, title, excerpt, content, image, category, pu
 r.get('/vin/:vin', limiter(10, 30, 'Too many VIN checks. Please wait a few minutes.'), async (req, res) => {
   // Japanese home-market cars carry a chassis (frame) number instead of a 17-character VIN
   const id = require('../lib/vehicle-id').check(req.params.vin);
-  if (id.type === 'chassis') return res.json({ vin: id.value, valid: false, chassis: true, inStock: [],
-    message: 'This looks like a Japanese chassis (frame) number, not a 17-character VIN. Japanese home-market cars use these, and there is no free online record for them. Send it to us on WhatsApp and we will check it for you.' });
+  if (id.type === 'chassis') {
+    const basics = require('../lib/vin-prefill').prefill(id.value, {}, { chassis: true });
+    return res.json({ vin: id.value, valid: false, chassis: true, inStock: [], basics: basics.model ? basics : undefined,
+      message: basics.model ? 'This is a Japanese chassis (frame) number. Its model code tells us the model and engine below. There is no free online record of the year or history for these: send it to us on WhatsApp and we will check it for you.'
+        : 'This looks like a Japanese chassis (frame) number, not a 17-character VIN. Japanese home-market cars use these, and there is no free online record for them. Send it to us on WhatsApp and we will check it for you.' });
+  }
   const d = await require('../lib/vin').decode(req.params.vin);
   if (!d.valid) return res.json({ ...d, inStock: [] });
   // Not in the US database (common for European, Gulf, Chinese or Japanese-market cars): what the VIN itself says

@@ -1,7 +1,7 @@
 // Small shared pieces: CarCard (car tile in every list), BnplCalc (Pay Small Small estimate), EnquiryForm,
 // Loading (skeleton cards), ErrorBox and Modal.
 import React, { useState } from 'react';
-import { Link, naira, bnpl, useApp, api, firstPhoto, waLink, useLocalList, rs, srcset } from '../lib/core.jsx';
+import { Link, naira, hasPrice, priceText, bnpl, useApp, api, firstPhoto, waLink, useLocalList, rs, srcset } from '../lib/core.jsx';
 import { useQV } from './QuickView.jsx';
 
 export function CarCard({ car }) {
@@ -19,14 +19,14 @@ export function CarCard({ car }) {
       <Link to={url} className="card-link">
         <div className="ph" onMouseEnter={qv ? () => qv.hoverIn(car, cardRef.current) : undefined} onMouseLeave={qv ? qv.hoverOut : undefined}>
           <img src={rs(firstPhoto(car), 800)} srcSet={srcset(firstPhoto(car))} sizes="(max-width: 640px) 92vw, 400px" alt={car.title} loading="lazy" decoding="async" width="400" height="300" />
-          {car.old_price && !sold ? <span className="badge">Price drop</span> : null}
+          {hasPrice(car) && car.old_price && !sold ? <span className="badge">Price drop</span> : null}
           {sold && <div className="sold-ov">SOLD</div>}
         </div>
         <div className="bd">
           <div className="ttl">{car.title}</div>
           <div className="meta">{[car.body, car.mileage, car.transmission && car.transmission.replace(/-Speed/i, '-spd'), car.location].filter(Boolean).slice(0, 3).map((m) => <span key={m}>{m}</span>)}</div>
-          <div className="price">{naira(car.price)}{car.old_price && !sold ? <span className="old">{naira(car.old_price)}</span> : null}</div>
-          {!sold && <div className="monthly">Pay small small from about <b>{naira(plan.monthly)}/mo</b></div>}
+          <div className="price">{priceText(car)}{hasPrice(car) && car.old_price && !sold ? <span className="old">{naira(car.old_price)}</span> : null}</div>
+          {!sold && hasPrice(car) && <div className="monthly">Pay small small from about <b>{naira(plan.monthly)}/mo</b></div>}
         </div>
       </Link>
       {qv && <button type="button" className="qv-btn" aria-label={`Quick view ${car.title}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); qv.open(car, cardRef.current, window.matchMedia('(hover: hover) and (pointer: fine)').matches ? 'pop' : 'sheet'); }}>
@@ -34,7 +34,7 @@ export function CarCard({ car }) {
         <span>Quick view</span>
       </button>}
       <div className="card-actions">
-        {!sold && <a className="btn btn-wa btn-sm" href={waLink(cfg, `Hello Korrect Cars, I am interested in the ${car.title} (${naira(car.price)}). ${window.location.origin}${url}`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+        {!sold && <a className="btn btn-wa btn-sm" href={waLink(cfg, `Hello Korrect Cars, I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${window.location.origin}${url}`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
         <button type="button" className={'btn btn-sm ' + (isSaved ? 'btn-saved' : 'btn-line')} aria-pressed={isSaved} onClick={() => saved.toggle(car.id)}>{isSaved ? 'Saved ✓' : 'Save'}</button>
         <button type="button" className={'btn btn-sm ' + (isCmp ? 'btn-dark' : 'btn-line')} aria-pressed={isCmp} disabled={!isCmp && cmp.full} title={!isCmp && cmp.full ? 'You can compare up to 3 cars' : undefined} onClick={() => cmp.toggle(car.id)}>{isCmp ? 'Compare ✓' : 'Compare'}</button>
       </div>

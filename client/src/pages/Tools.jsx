@@ -1,7 +1,7 @@
 // Free tools for buyers: the VIN checker (/vin-check) and "Nigeria car market today" (/car-market-today).
 // Their written copy comes from server/lib/pagecopy.js so the server HTML and these pages match.
 import React, { useState, useRef } from 'react';
-import { Link, useApi, useApp, useTitle, useRouter, api, naira, waLink, firstPhoto, rs, date } from '../lib/core.jsx';
+import { Link, useApi, useApp, useTitle, useRouter, api, priceText, waLink, firstPhoto, rs, date } from '../lib/core.jsx';
 import { Loading } from '../components/Bits.jsx';
 import { CopySections } from '../components/Copy.jsx';
 import { VIN, MARKET } from '../../../server/lib/pagecopy.js';
@@ -58,7 +58,7 @@ export function VinCheck() {
 
       {res && <section className="sec-sm"><div className="wrap" style={{ maxWidth: 760 }}>
         <div className="box vin-result" ref={resultRef} tabIndex={-1} aria-live="polite">
-          {!res.valid ? <><p className={res.chassis ? '' : 'err-text'}>{res.message}</p>{res.chassis && <a className="btn btn-wa" href={waLink(cfg, `Hello Korrect Cars, can you check this chassis number for me: ${res.vin}`)} target="_blank" rel="noopener noreferrer">Send it on WhatsApp</a>}</> : !res.found ? <>
+          {!res.valid ? <>{res.chassis && res.basics && <><h2>{res.basics.title}</h2><dl className="vin-dl">{[['Make', res.basics.make], ['Model', res.basics.model], ['Engine', res.basics.engine], ['Fuel', res.basics.fuel], ['Drive', res.basics.drivetrain], ['Model code', ((res.basics.specs || []).find((x) => x[0] === 'Model code') || [])[1]]].filter(([, v]) => v).map(([k, v]) => <React.Fragment key={k}><dt>{k}</dt><dd>{v}</dd></React.Fragment>)}</dl></>}<p className={res.chassis ? '' : 'err-text'}>{res.message}</p>{res.chassis && <a className="btn btn-wa" href={waLink(cfg, `Hello Korrect Cars, can you check this chassis number for me: ${res.vin}`)} target="_blank" rel="noopener noreferrer">Send it on WhatsApp</a>}</> : !res.found ? <>
             <h2>{res.basics && res.basics.make ? `${res.basics.year ? res.basics.year + ' ' : ''}${res.basics.make}` : 'What this VIN tells us'}</h2>
             {res.basics && (res.basics.make || res.basics.region) && <dl className="vin-dl">
               {res.basics.make && <><dt>Make</dt><dd>{res.basics.make}</dd></>}
@@ -80,7 +80,7 @@ export function VinCheck() {
           {res.inStock.length > 0 && <div className="mini-cards">{res.inStock.map((c) => (
             <Link key={c.slug} to={'/cars/' + c.slug} className="mini-card">
               <div className="ph">{firstPhoto(c) && <img src={rs(firstPhoto(c), 400)} alt="" loading="lazy" />}</div>
-              <b>{c.title}</b><span>{naira(c.price)}</span>
+              <b>{c.title}</b><span>{priceText(c)}</span>
             </Link>
           ))}</div>}
           <a className="btn btn-wa" style={{ marginTop: 12 }} href={waLink(cfg, `Hello Korrect Cars, I checked VIN ${res.vin} (${res.title}). Can you help me?`)} target="_blank" rel="noopener noreferrer">Ask us about this car on WhatsApp</a>

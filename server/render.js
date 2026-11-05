@@ -37,6 +37,7 @@ function ssrFrame(body, isAdmin) {
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
+const { hasPrice, priceText, priced } = require('./lib/price');
 const strip = (h) => String(h || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s);
 const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -110,21 +111,21 @@ const crumbsLd = (items) => ({ '@context': 'https://schema.org', '@type': 'Bread
 const listLd = (cars) => ({ '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: cars.filter((c) => c.status === 'available').slice(0, 30).map((c, i) => ({ '@type': 'ListItem', position: i + 1, url: `${config.siteUrl}/cars/${c.slug}`, name: c.title })) });
 
 // Lowest Pay Small Small estimate (minimum deposit, 24 months) among cars in stock
-const monthlyFrom = (cars) => { const a = cars.filter((c) => c.status === 'available'); return a.length ? pub.bnplPlan(Math.min(...a.map((c) => Number(c.price))), 0, 24).monthly : 0; };
+const monthlyFrom = (cars) => { const a = priced(cars).filter((c) => c.status === 'available'); return a.length ? pub.bnplPlan(Math.min(...a.map((c) => Number(c.price))), 0, 24).monthly : 0; };
 // "Shop by budget" links with live counts, for search engines and AI assistants
 function budgetLinksHtml(allCars, skip) {
   const avail = allCars.filter((c) => c.status === 'available');
   const l = cats.budgets().filter((c) => c.slug !== skip).map((c) => [c, avail.filter(c.test)]).filter(([, x]) => x.length);
-  return l.length ? '<h2>Shop by budget</h2><ul>' + l.map(([c, x]) => { const pr = x.map((y) => Number(y.price)); const lo = Math.min(...pr); const hi = Math.max(...pr); return `<li><a href="/cars/${c.slug}">${esc(c.h1)}</a>: ${x.length} in stock, ${esc(lo === hi ? naira(lo) : `${naira(lo)} to ${naira(hi)}`)}</li>`; }).join('') + '</ul>' : '';
+  return l.length ? '<h2>Shop by budget</h2><ul>' + l.map(([c, x]) => { const pr = priced(x).map((y) => Number(y.price)); const lo = Math.min(...pr); const hi = Math.max(...pr); return `<li><a href="/cars/${c.slug}">${esc(c.h1)}</a>: ${x.length} in stock, ${esc(lo === hi ? naira(lo) : `${naira(lo)} to ${naira(hi)}`)}</li>`; }).join('') + '</ul>' : '';
 }
 
 // "How much is a Toyota Camry in Nigeria?" answer from the cars actually in stock
 function priceAnswer(subject, cars) {
   const avail = cars.filter((c) => c.status === 'available');
   if (!avail.length) return `We have no ${subject || 'cars'} in stock right now. Chat with us on WhatsApp and we will find one for you.`;
-  const prices = avail.map((c) => Number(c.price));
+  const prices = priced(avail).map((c) => Number(c.price));
   const lo = Math.min(...prices); const hi = Math.max(...prices);
-  const range = lo === hi ? `costs ${naira(lo)}` : `cost from ${naira(lo)} to ${naira(hi)}`;
+  const range = !prices.length ? 'are priced on request (call or WhatsApp us)' : (lo === hi ? `costs ${naira(lo)}` : `cost from ${naira(lo)} to ${naira(hi)}`) + (prices.length < avail.length ? ' (some are priced on request)' : '');
   return `The ${avail.length} ${subject ? subject + ' ' : ''}${avail.length === 1 ? 'car' : 'cars'} in stock at Korrect Cars in Lagos ${range}. Every car is inspected and VIN-verified, and you can pay small small through our credit partners.`;
 }
 
@@ -199,18 +200,18 @@ async function renderPage(req, nonce) {
   }
   if (p === '/' || p === '/cars') {
     const avail = allCars.filter((c) => c.status === 'available');
-    body += '<ul class="ssr-cars">' + avail.map((c) => `<li><a href="/cars/${esc(c.slug)}">${(c.photos || [])[0] ? `<img src="${esc(rs(c.photos[0], 400))}" alt="" width="400" height="300" loading="lazy" decoding="async">` : ''}<span>${esc(c.title)}</span></a> <b>${esc(naira(c.price))}</b></li>`).join('') + '</ul>';
+    body += '<ul class="ssr-cars">' + avail.map((c) => `<li><a href="/cars/${esc(c.slug)}">${(c.photos || [])[0] ? `<img src="${esc(rs(c.photos[0], 400))}" alt="" width="400" height="300" loading="lazy" decoding="async">` : ''}<span>${esc(c.title)}</span></a> <b>${esc(priceText(c))}</b></li>`).join('') + '</ul>';
     const catLinks = cats.pages().map((c) => [c, avail.filter(c.test).length]).filter(([, n]) => n > 0);
     if (catLinks.length) body += '<h2>Browse by category</h2><ul>' + catLinks.filter(([c]) => !c.budget).map(([c, n]) => `<li><a href="/cars/${c.slug}">${esc(c.name)}</a> (${n} in stock)</li>`).join('') + '</ul>';
     body += budgetLinksHtml(allCars);
     if (p === '/cars') { ld.push(listLd(allCars)); body += `<h2>How much are the cars at Korrect Cars?</h2><p>${esc(priceAnswer('', allCars))}</p>`; }
   }
   if (p === '/pay-small-small') {
-    const avail = allCars.filter((c) => c.status === 'available').sort((a, b) => a.price - b.price);
+    const avail = priced(allCars).filter((c) => c.status === 'available').sort((a, b) => a.price - b.price);
     const q = 'Which cars can I buy on Pay Small Small in Lagos?';
     const a = avail.length ? `Every one of the ${avail.length} cars in stock at Korrect Cars can be bought on Pay Small Small, from about ${naira(monthlyFrom(avail))} a month (estimate: ${pub.bnplPlan(Number(avail[0].price), 0, 24).months} months, minimum deposit). Credit partners confirm the final terms, and we deliver anywhere in Nigeria.` : 'Chat with us on WhatsApp and we will find a car for your budget.';
     ld.push(faqLd([[q, a], ...PSS_FAQ]), listLd(avail));
-    body += `<h2>${esc(q)}</h2><p>${esc(a)}</p><ul>` + avail.map((c) => { const pl = pub.bnplPlan(Number(c.price), 0, 24); return `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a>: ${esc(naira(c.price))}, about ${esc(naira(pl.deposit))} deposit then ${esc(naira(pl.monthly))}/month for ${pl.months} months</li>`; }).join('') + '</ul>'
+    body += `<h2>${esc(q)}</h2><p>${esc(a)}</p><ul>` + avail.map((c) => { const pl = pub.bnplPlan(Number(c.price), 0, 24); return `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a>: ${esc(priceText(c))}, about ${esc(naira(pl.deposit))} deposit then ${esc(naira(pl.monthly))}/month for ${pl.months} months</li>`; }).join('') + '</ul>'
       + budgetLinksHtml(allCars) + PSS_FAQ.map(([q2, a2]) => `<h2>${esc(q2)}</h2><p>${esc(a2)}</p>`).join('');
   }
 
@@ -223,7 +224,7 @@ async function renderPage(req, nonce) {
     const q = `How much is a ${subject} in Nigeria?`;
     const a = priceAnswer(subject, cars);
     meta = { ...meta, title: `${subject} for Sale in Lagos — Prices & Pay Small Small | Korrect Cars`, desc: clip(a, 160) };
-    body = `<h1>${esc(subject)} for sale in Lagos</h1><ul>` + cars.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(naira(c.price))}${c.status === 'sold' ? ' (sold)' : ''}</li>`).join('') + `</ul><h2>${esc(q)}</h2><p>${esc(a)}</p>`;
+    body = `<h1>${esc(subject)} for sale in Lagos</h1><ul>` + cars.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(priceText(c))}${c.status === 'sold' ? ' (sold)' : ''}</li>`).join('') + `</ul><h2>${esc(q)}</h2><p>${esc(a)}</p>`;
     const crumbs = [['Cars for sale', '/cars'], [rc.make, `/cars/${slugify(rc.make)}`]];
     if (rc.kind === 'model') crumbs.push([rc.model, `/cars/${slugify(rc.make)}/${slugify(rc.model)}`]);
     ld.push(crumbsLd(crumbs), listLd(cars), faqLd([[q, a]]));
@@ -233,13 +234,13 @@ async function renderPage(req, nonce) {
     const cat = rc.cat;
     const cars = allCars.filter(cat.test);
     const avail = cars.filter((c) => c.status === 'available');
-    const prices = avail.map((c) => Number(c.price)); const lo = Math.min(...prices); const hi = Math.max(...prices);
-    const a = avail.length ? `Korrect Cars has ${avail.length} ${avail.length === 1 ? 'car' : 'cars'} in "${cat.name}" in Lagos right now, ${lo === hi ? `at ${naira(lo)}` : `from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, you can pay small small from about ${naira(monthlyFrom(avail))} a month through our credit partners, and we deliver anywhere in Nigeria.`
+    const prices = priced(avail).map((c) => Number(c.price)); const lo = Math.min(...prices); const hi = Math.max(...prices);
+    const a = avail.length ? `Korrect Cars has ${avail.length} ${avail.length === 1 ? 'car' : 'cars'} in "${cat.name}" in Lagos right now${!prices.length ? ', priced on request' : lo === hi ? `, at ${naira(lo)}` : `, from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, you can pay small small${monthlyFrom(avail) ? ` from about ${naira(monthlyFrom(avail))} a month` : ''} through our credit partners, and we deliver anywhere in Nigeria.`
       : `We have no cars in "${cat.name}" in stock right now. Chat with us on WhatsApp and we will find one for you.`;
     meta = { ...meta, title: `${cat.h1} — Prices & Pay Small Small | Korrect Cars`, desc: clip(`${cat.intro} ${a}`, 160) };
     // A category with too few cars in stock (e.g. no electric cars yet) stays out of search results until it fills up
     if (avail.length < cats.MIN_INDEX) noindex = true;
-    body = `<h1>${esc(cat.h1)}</h1><p>${esc(cat.intro)}</p><ul>` + cars.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(naira(c.price))}${c.status === 'sold' ? ' (sold)' : ''}</li>`).join('') + `</ul><h2>${esc(cat.faq)}</h2><p>${esc(a)}</p>` + budgetLinksHtml(allCars, cat.slug);
+    body = `<h1>${esc(cat.h1)}</h1><p>${esc(cat.intro)}</p><ul>` + cars.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(priceText(c))}${c.status === 'sold' ? ' (sold)' : ''}</li>`).join('') + `</ul><h2>${esc(cat.faq)}</h2><p>${esc(a)}</p>` + budgetLinksHtml(allCars, cat.slug);
     ld.push(crumbsLd([['Cars for sale', '/cars'], [cat.name, `/cars/${cat.slug}`]]), listLd(cars), faqLd([[cat.faq, a]]));
   }
   if (rc && rc.kind === 'car') {
@@ -252,7 +253,7 @@ async function renderPage(req, nonce) {
       boot['/cars/' + rc.slug] = d;
       preload = preloadTag((car.photos || [])[0], '(max-width: 980px) 100vw, 62vw');
       // Pay Small Small estimate (same figures the car card shows: minimum deposit, 24 months)
-      const plan = car.status === 'sold' ? null : pub.bnplPlan(Number(car.price), 0, 24);
+      const plan = car.status === 'sold' || !hasPrice(car) ? null : pub.bnplPlan(Number(car.price), 0, 24);
       const pss = plan ? ` or pay small small from about ${naira(plan.monthly)}/month` : '';
       // Every car's search description leads with its price and Pay Small Small figure; old imported wording ("BNPL") is updated
       const extra = strip(car.seo_desc || car.description).replace(/\bBNPL\b/g, 'pay small small');
@@ -260,10 +261,10 @@ async function renderPage(req, nonce) {
       // A sold car keeps its page (it still gets found on Google), but sends the visitor on to similar cars in stock
       const desc = sold
         ? clip(`Sold: this ${car.title} has been sold. See similar ${car.make} ${car.model} and ${car.body || 'other'} cars in stock in Lagos, with pay small small and delivery anywhere in Nigeria.`, 160)
-        : clip(`${car.title} for sale in ${car.location || 'Lagos'} at ${naira(car.price)}${pss}. ${extra}`, 160);
-      meta = { ...meta, title: sold ? `Sold: ${car.title} — See Similar Cars in Lagos | Korrect Cars` : (car.seo_title || `${car.title} for Sale in Lagos — ${naira(car.price)} | Korrect Cars`), desc, image: (car.photos || [])[0] || DEFAULT.image };
-      const similarHtml = (d.similar || []).length ? `<h2>${sold ? 'Similar cars in stock' : 'Similar cars'}</h2><ul>` + d.similar.map((x) => `<li><a href="/cars/${esc(x.slug)}">${esc(x.title)}</a> — ${esc(naira(x.price))}</li>`).join('') + '</ul>' : '';
-      body = `<h1>${esc(car.title)}</h1>${(car.photos || [])[0] ? `<img class="ssr-hero" src="${esc(rs(car.photos[0], 800))}" alt="${esc(car.title)}" width="800" height="600">` : ''}<p><strong>${esc(naira(car.price))}</strong>${sold ? ' — SOLD' : ''}</p>`
+        : clip(`${car.title} for sale in ${car.location || 'Lagos'} ${hasPrice(car) ? 'at ' + priceText(car) : '(call for price)'}${pss}. ${extra}`, 160);
+      meta = { ...meta, title: sold ? `Sold: ${car.title} — See Similar Cars in Lagos | Korrect Cars` : (car.seo_title || `${car.title} for Sale in Lagos${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars`), desc, image: (car.photos || [])[0] || DEFAULT.image };
+      const similarHtml = (d.similar || []).length ? `<h2>${sold ? 'Similar cars in stock' : 'Similar cars'}</h2><ul>` + d.similar.map((x) => `<li><a href="/cars/${esc(x.slug)}">${esc(x.title)}</a> — ${esc(priceText(x))}</li>`).join('') + '</ul>' : '';
+      body = `<h1>${esc(car.title)}</h1>${(car.photos || [])[0] ? `<img class="ssr-hero" src="${esc(rs(car.photos[0], 800))}" alt="${esc(car.title)}" width="800" height="600">` : ''}<p><strong>${esc(priceText(car))}</strong>${sold ? ' — SOLD' : ''}</p>`
         + (sold ? `<p>This car has been sold. See <a href="/cars/${slugify(car.make)}/${slugify(car.model)}">every ${esc(car.make)} ${esc(car.model)} for sale</a> or <a href="/cars">all cars in stock</a>.</p>` + similarHtml : '')
         + String(car.description || '').split(/\n\n+/).map((x) => `<p>${esc(x)}</p>`).join('')
         + (car.features && car.features.length ? '<ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
@@ -274,7 +275,7 @@ async function renderPage(req, nonce) {
         vehicleModelDate: String(car.year || ''), bodyType: car.body, color: car.color || undefined, vehicleTransmission: car.transmission || undefined,
         fuelType: car.fuel || undefined, mileageFromOdometer: car.mileage || undefined,
         image: (car.photos || []).slice(0, 5).map((u) => config.siteUrl + u), description: desc, itemCondition: 'https://schema.org/UsedCondition',
-        offers: { '@type': 'Offer', price: Number(car.price), priceCurrency: 'NGN', availability: car.status === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock', url: meta.url, seller: { '@id': config.siteUrl + '/#dealer' } } });
+        offers: !hasPrice(car) ? undefined : { '@type': 'Offer', price: Number(car.price), priceCurrency: 'NGN', availability: car.status === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock', url: meta.url, seller: { '@id': config.siteUrl + '/#dealer' } } });
       ld.push(crumbsLd([['Cars for sale', '/cars'], [car.make, `/cars/${slugify(car.make)}`], [car.model, `/cars/${slugify(car.make)}/${slugify(car.model)}`], [car.title, `/cars/${car.slug}`]]));
     }
   }

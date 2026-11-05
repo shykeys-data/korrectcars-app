@@ -125,30 +125,87 @@ function features(r) {
 }
 const title = (x) => s(x).toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\bUsa\b/g, 'USA').replace(/\bBmw\b/g, 'BMW').replace(/\bGmc\b/g, 'GMC');
 
-// row: the raw vPIC result (may be empty when the service is down or does not know the VIN)
-function prefill(vin, row = {}) {
-  const fromWmi = maker(vin);
-  const make = has(row.Make) ? title(row.Make) : (fromWmi ? fromWmi.make : '');
-  const model = has(row.Model) ? s(row.Model) : '';
-  const year = Number(row.ModelYear) || modelYear(vin) || null;
-  let trim = has(row.Trim) ? s(row.Trim) : has(row.Series) && !/^\d+$/.test(s(row.Series)) ? s(row.Series) : '';
+const facts = require('./model-facts');
+const uniq = (a) => [...new Set(a.filter(Boolean))];
+// Factory codes in the record's Series ("ASV50L/GSV50L/AVV50L") are not trims
+const FRAME_LIKE = /^[A-Z]{2,5}\d{2,3}[A-Z]{0,2}(\s*\/\s*[A-Z]{2,5}\d{2,3}[A-Z]{0,2})*$/;
+const capFuel = (e) => (/hybrid/i.test(e) ? 'Hybrid' : /diesel/i.test(e) ? 'Diesel' : /electric/i.test(e) ? 'Electric' : 'Petrol');
+
+// row: the raw vPIC result (may be empty when the service is down or does not know the VIN).
+// opts.chassis: the value is a Japanese chassis (frame) number, not a VIN.
+function prefill(vin, row = {}, opts = {}) {
+  const chassis = !!opts.chassis;
+  const fromWmi = chassis ? null : maker(vin);
+  const series = has(row.Series) ? s(row.Series) : '';
+  let frames = chassis ? facts.frameCodes(vin) : FRAME_LIKE.test(series) ? facts.frameCodes(series, has(row.Make) ? title(row.Make) : fromWmi && fromWmi.make) : [];
+  const make = has(row.Make) ? title(row.Make) : fromWmi ? fromWmi.make : frames.length ? frames[0].make : '';
+  const model = has(row.Model) ? s(row.Model) : uniq(frames.map((f) => f.model)).length === 1 ? frames[0].model : '';
+  const year = Number(row.ModelYear) || (chassis ? null : modelYear(vin)) || null;
+  let trim = has(row.Trim) && !/^(standard|base)$/i.test(s(row.Trim)) ? s(row.Trim) : series && !FRAME_LIKE.test(series) && !/^\d+$/.test(series) ? series : '';
   // Several trims share one VIN pattern ("L/LE/SE/XLE"): the seller picks one, so nothing goes in the title
   let trimChoices = [];
   if (/\s*\/\s*/.test(trim)) { trimChoices = trim.split(/\s*\/\s*/).map((x) => x.trim()).filter(Boolean); trim = ''; }
   // Lexus and others repeat the model in the trim ("RX" + "RX 350"): keep the fuller one once
   const showModel = model && trim.toLowerCase().startsWith(model.toLowerCase() + ' ') ? '' : model;
   const country = has(row.PlantCountry) ? title(s(row.PlantCountry).replace(/\s*\(.*\)$/, '')).replace(/^United States Of America$/, 'United States') : (fromWmi ? fromWmi.country : '');
-  const where = country || region(vin); // shown on the VIN check page; not put on the car form unless it is a real country
+  const where = country || (chassis ? 'Japan' : region(vin)); // shown on the VIN check page; not put on the car form unless it is a real country
   const out = {
     make, model, year, trim,
     body: body(row.BodyClass, row.Doors), engine: engine(row), transmission: gearbox(row), drivetrain: drive(row.DriveType), fuel: fuel(row)
   };
+  let seats = Number(row.Seats) > 0 ? Number(row.Seats) : 0;
+
+  // Fill the gaps from the factory codes and what every car of this model generation shares
+  const gen = facts.generation(make, model, year);
+  if (gen && frames.length) { const known = frames.filter((f) => gen.engines.some((e) => e.engine === f.engine)); if (known.length) frames = known; }
+  const twoWd = /4x2|2wd/i.test(s(row.DriveType));
+  const choices = {};
+  if (!out.engine) {
+    const opts2 = frames.length ? uniq(frames.map((f) => f.engine)) : gen ? uniq(gen.engines.map((e) => e.engine)) : [];
+    if (opts2.length === 1) out.engine = opts2[0]; else if (opts2.length > 1) choices.engine = opts2;
+  }
+  // The US record sometimes misses that a car is a hybrid or diesel (2009 Prius: "1.5L, gasoline"); the factory code says
+  if (out.engine && frames.length === 1 && frames[0].fuel !== 'Petrol' && !/hybrid|diesel/i.test(out.engine) && out.engine.startsWith(frames[0].engine.slice(0, 4))) {
+    out.engine = frames[0].engine; out.fuel = frames[0].fuel;
+  }
+  const engines = gen ? (out.engine ? facts.matchEngine(gen.engines, out.engine) : gen.engines) : [];
+  if (!has(row.FuelTypePrimary) || /gasoline/i.test(s(row.FuelTypePrimary)) && !/hev|hybrid/i.test(s(row.ElectrificationLevel)) && out.engine && /hybrid|diesel/i.test(out.engine)) {
+    if (out.engine) out.fuel = capFuel(out.engine);
+    else { const f = uniq((frames.length ? frames : engines).map((e) => e.fuel)); if (f.length === 1) out.fuel = f[0]; }
+  }
+  if (!out.transmission && engines.length) {
+    const g = uniq(engines.map((e) => e.gearbox));
+    if (g.length === 1 && engines.every((e) => e.gearbox)) out.transmission = g[0]; else if (out.engine && g.length > 1) choices.transmission = g;
+  }
+  if (!out.drivetrain) {
+    const fd = uniq(frames.map((f) => f.drive));
+    let opts3 = fd.length === 1 && frames.every((f) => f.drive) ? fd : gen ? gen.drives : [];
+    if (twoWd) opts3 = opts3.filter((d) => d === 'FWD' || d === 'RWD');
+    else if (/awd|4wd|4x4|all/i.test(s(row.DriveType))) opts3 = opts3.filter((d) => d === 'AWD' || d === '4WD');
+    if (opts3.length === 1) out.drivetrain = opts3[0]; else if (opts3.length > 1) choices.drivetrain = opts3;
+  }
+  // For each engine the seller can pick: the gearbox and fuel that come with it
+  if (choices.engine && gen) {
+    choices.withEngine = {};
+    for (const e of choices.engine) {
+      const m = facts.matchEngine(gen.engines, e); const g = uniq(m.map((x) => x.gearbox));
+      choices.withEngine[e] = { fuel: capFuel(e), ...(g.length === 1 && m.every((x) => x.gearbox) ? { transmission: g[0] } : {}) };
+    }
+  }
+  // The record says "4WD" where the maker says AWD (Mercedes 4MATIC) or the other way round: use the maker's word
+  if (gen && /^(AWD|4WD)$/.test(out.drivetrain || '') && !gen.drives.includes(out.drivetrain)) { const o = gen.drives.filter((d) => d === 'AWD' || d === '4WD'); if (o.length === 1) out.drivetrain = o[0]; }
+  if (!out.body && gen && gen.body) out.body = gen.body;
+  if (!seats && gen && gen.seats) seats = gen.seats;
+
   const specs = [];
   if (out.engine) specs.push(['Engine', out.engine]);
   if (out.transmission) specs.push(['Transmission', out.transmission]);
   if (out.drivetrain) specs.push(['Drive', out.drivetrain]);
+  if (out.fuel) specs.push(['Fuel', out.fuel]);
   if (Number(row.Doors) > 0) specs.push(['Doors', String(Number(row.Doors))]);
-  if (Number(row.Seats) > 0) specs.push(['Seats', String(Number(row.Seats))]);
+  if (seats) specs.push(['Seats', String(seats)]);
+  if (has(row.EngineModel)) specs.push(['Engine code', s(row.EngineModel)]);
+  else if (frames.length === 1) specs.push(['Model code', frames[0].code]);
   if (country) specs.push(['Built in', country]);
   out.specs = specs;
   out.features = features(row);
@@ -159,9 +216,10 @@ function prefill(vin, row = {}) {
   const bits = [out.engine && `${an(out.engine)} ${out.engine} engine`, out.transmission && `${an(out.transmission)} ${out.transmission.toLowerCase()} gearbox`, out.drivetrain && DRIVE[out.drivetrain]].filter(Boolean);
   const place = /^(United States|United Kingdom|Czech Republic)$/.test(country) ? `the ${country}` : country;
   out.description = model && bits.length ? `This ${out.title} comes with ${bits.join(', ').replace(/, ([^,]*)$/, ' and $1')}.${country ? ` Built in ${place}.` : ''}` : '';
-  out.source = has(row.Make) ? 'factory' : fromWmi ? 'maker-code' : 'none';
+  out.source = has(row.Make) ? 'factory' : frames.length ? 'model-code' : fromWmi ? 'maker-code' : 'none';
   out.region = where;
   if (trimChoices.length > 1) out.trimChoices = trimChoices;
+  if (Object.keys(choices).length) out.choices = choices;
   for (const k of Object.keys(out)) if (out[k] === '' || out[k] == null || (Array.isArray(out[k]) && !out[k].length)) delete out[k];
   return out;
 }

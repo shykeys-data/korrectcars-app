@@ -2,11 +2,12 @@
 // -> business papers), the dealer's home page with their cars, and the add / edit car form, which starts with the VIN.
 // Everything is checked again on the server; the VIN rules come from the same file the server uses.
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto, rs, shrinkPhoto, waLink, forgetBoot } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, priceText, date, api, firstPhoto, rs, shrinkPhoto, waLink, forgetBoot } from '../lib/core.jsx';
 import { Loading } from '../components/Bits.jsx';
 import { check as checkVin } from '../../../server/lib/vehicle-id.js';
 import { STATES, lgasOf } from '../../../server/lib/ng-lgas.js';
 import { applyPrefill } from '../lib/prefill.js';
+import { PriceField, MileageField, ColourFields, FeatureTicks, VinChoices, DescriptionField } from '../components/CarFields.jsx';
 
 const STATUS = {
   pending_review: ['Waiting for review', 'tag-warn', 'Our team is checking your CAC certificate and phone, usually within 2 working days. You can add cars now: they go live when you are approved.'],
@@ -235,7 +236,7 @@ export function DealerHome() {
           <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th>Views</th><th>Status</th><th /></tr></thead><tbody>
             {list.map((c) => <tr key={c.id}>
               <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">VIN …{String(c.vin || '').slice(-6)} · added {date(c.created_at)}</div></div></div></td>
-              <td>{naira(c.price)}</td><td>{c.views}</td><td><Tag s={c.status} map={CAR_STATUS} /></td>
+              <td>{priceText(c)}</td><td>{c.views}</td><td><Tag s={c.status} map={CAR_STATUS} /></td>
               <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {c.status === 'available' && <Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link>}{' '}
                 {canList && <Link to={'/dealer/cars/' + c.id} className="btn btn-dark btn-sm">Edit</Link>}{' '}
@@ -250,7 +251,7 @@ export function DealerHome() {
 }
 
 // ---------- /dealer/cars/new and /dealer/cars/:id ----------
-const EMPTY = { title: '', make: '', model: '', body: '', trim: '', year: '', price: '', mileage: '', engine: '', transmission: 'Automatic', drivetrain: '', fuel: 'Petrol', color: '', interior: '', condition: 'Foreign Used', location: 'Lagos', vin: '', description: '', features: '', specsText: '', status: 'available' };
+const EMPTY = { title: '', make: '', model: '', body: '', trim: '', year: '', price: '', callForPrice: false, mileage: '', engine: '', transmission: 'Automatic', drivetrain: '', fuel: 'Petrol', color: '', interior: '', condition: 'Foreign Used', location: 'Lagos', vin: '', description: '', features: '', specsText: '', status: 'available' };
 export function DealerCarForm({ id }) {
   const isNew = !id;
   useTitle((isNew ? 'Add a car' : 'Edit car') + ' | Korrect Cars');
@@ -263,9 +264,10 @@ export function DealerCarForm({ id }) {
   const [files, setFiles] = useState([]); const [plate, setPlate] = useState(null);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(''); const [checking, setChecking] = useState(false);
   const [filled, setFilled] = useState(0);
+  const [pick, setPick] = useState({ choices: {}, withEngine: {} });
   useEffect(() => {
     const c = existing.data && existing.data.car; if (!c) return;
-    setF({ ...EMPTY, title: c.title, make: c.make, model: c.model, body: c.body, trim: c.trim_level || '', year: c.year || '', price: c.price, mileage: c.mileage || '', engine: c.engine || '', transmission: c.transmission || '', drivetrain: c.drivetrain || '', fuel: c.fuel || '', color: c.color || '', interior: c.interior || '', condition: c.car_condition || '', location: c.location || '', vin: c.vin || '', description: c.description || '', features: (c.features || []).join('\n'), specsText: (c.specs || []).map((r) => `${r[0]}: ${r[1]}`).join('\n'), status: ['sold', 'hidden'].includes(c.status) ? c.status : 'available' });
+    setF({ ...EMPTY, title: c.title, make: c.make, model: c.model, body: c.body, trim: c.trim_level || '', year: c.year || '', price: Number(c.price) > 0 ? c.price : '', callForPrice: !(Number(c.price) > 0), mileage: c.mileage || '', engine: c.engine || '', transmission: c.transmission || '', drivetrain: c.drivetrain || '', fuel: c.fuel || '', color: c.color || '', interior: c.interior || '', condition: c.car_condition || '', location: c.location || '', vin: c.vin || '', description: c.description || '', features: (c.features || []).join('\n'), specsText: (c.specs || []).map((r) => `${r[0]}: ${r[1]}`).join('\n'), status: ['sold', 'hidden'].includes(c.status) ? c.status : 'available' });
     setKeep(c.photos || []);
   }, [existing.data]);
   if (!isNew && existing.error) return <Box title="Car not found"><p>This car is not on your list. <Link to="/dealer">Back to my cars</Link></p></Box>;
@@ -281,16 +283,18 @@ export function DealerCarForm({ id }) {
     try {
       const d = await api('/dealer/vin-check?vin=' + encodeURIComponent(local.value));
       setVinState(d);
-      if (d.state === 'free') { const r = applyPrefill(d.prefill); setFilled(r.n); setF((p) => ({ ...r.fill(p), vin: d.value })); } else setF((p) => ({ ...p, vin: d.value }));
+      if (d.state === 'free') { const r = applyPrefill(d.prefill); setFilled(r.n); setPick({ choices: r.choices, withEngine: r.withEngine }); setF((p) => ({ ...r.fill(p), vin: d.value })); } else setF((p) => ({ ...p, vin: d.value }));
     } catch (e2) { setErr(e2.message); } finally { setChecking(false); }
   };
   const save = async (e) => {
     e.preventDefault(); setErr('');
+    if (f.status === 'available' && !f.callForPrice && !(Number(String(f.price).replace(/[^0-9]/g, '')) > 0)) { setErr('Enter the price, or tick "Call for price".'); return; }
+    if (f.status === 'available' && !/\d/.test(f.mileage)) { setErr('Enter the mileage (as shown on the dashboard).'); return; }
     if (isNew && !files.length && f.status !== 'hidden') { setErr('Add at least one photo of the car.'); return; }
     if (files.length + keep.length > 30) { setErr('A car can have up to 30 photos.'); return; }
     setBusy('Preparing photos…');
     const fd = new FormData();
-    Object.entries({ ...f, price: String(f.price).replace(/[^0-9]/g, '') }).forEach(([k, v]) => { if (v !== '' && v !== null) fd.append(k, String(v)); });
+    Object.entries({ ...f, price: f.callForPrice ? '' : String(f.price).replace(/[^0-9]/g, ''), color: String(f.color || '').trim(), interior: String(f.interior || '').trim() }).forEach(([k, v]) => { if (v !== '' && v !== null) fd.append(k, String(v)); });
     if (!isNew) { if (!keep.length) fd.append('keepPhotos', ''); keep.forEach((p) => fd.append('keepPhotos', p)); }
     try {
       for (const x of [...files].slice(0, 20)) fd.append('photos', await shrinkPhoto(x));
@@ -323,7 +327,7 @@ export function DealerCarForm({ id }) {
           {f.vin && local.problems.length ? <span style={{ color: 'var(--bad)' }}>{local.problems[0]}</span> : f.vin && local.warnings.length ? local.warnings[0] : f.vin && local.type === 'vin17' ? 'Looks like a valid VIN.' : ''}
         </div>
         {vinState && vinState.state === 'free' && isNew && <p className="note" role="status">✓ This car is not listed yet. {filled > 0
-          ? <>We filled in <b>{filled} detail{filled === 1 ? '' : 's'}</b> from the {vinState.prefill && vinState.prefill.source === 'factory' ? 'factory record' : 'VIN'}{vinState.prefill && vinState.prefill.title ? <> (<b>{vinState.prefill.title}</b>)</> : null}. Check them against the car, then add the price, mileage, colour and photos.{vinState.prefill && vinState.prefill.trimChoices ? <> This VIN fits several trims ({vinState.prefill.trimChoices.join(', ')}): pick the right one under Trim.</> : null}</>
+          ? <>We filled in <b>{filled} detail{filled === 1 ? '' : 's'}</b> from the {vinState.prefill && vinState.prefill.source === 'factory' ? 'factory record' : 'VIN'}{vinState.prefill && vinState.prefill.title ? <> (<b>{vinState.prefill.title}</b>)</> : null}. Check them against the car, then add the price, mileage, colour and photos. The colour is never in the VIN: pick it below.</>
           : 'Fill in the details below.'}</p>}
         {vinState && vinState.state === 'yours' && isNew && <p className="note" role="status">You already list this car. <Link to={'/dealer/cars/' + vinState.carId}>Edit it instead</Link>.</p>}
         {vinState && vinState.state === 'taken' && <div className="err" role="alert">This car is already listed on Korrect Cars by another seller. If it is yours (you have the papers), you can ask our team to check: ownership claims open soon. Meanwhile, <a href={'mailto:info@korrectcars.com?subject=' + encodeURIComponent('VIN already listed: ' + (vinState.value || local.value))}>email us</a>.</div>}
@@ -333,25 +337,23 @@ export function DealerCarForm({ id }) {
       {vinOk && <form className="box" onSubmit={save} style={{ marginTop: 18 }}>
         <h2>2. The car</h2>
         <Err e={err} />
+        <VinChoices choices={pick.choices} withEngine={pick.withEngine} f={f} setF={setF} />
         {inp('title', 'Title buyers see', { required: true, minLength: 3, maxLength: 140, placeholder: '2016 Toyota Camry SE' })}
         <div className="grid2">
           <div className="field"><label className="f" htmlFor="dc-make">Make</label><input id="dc-make" className="input" list="dc-makes" required value={f.make} onChange={set('make')} /><datalist id="dc-makes">{Object.keys(tree).map((m) => <option key={m} value={m} />)}</datalist></div>
           <div className="field"><label className="f" htmlFor="dc-model">Model</label><input id="dc-model" className="input" list="dc-models" required value={f.model} onChange={set('model')} /><datalist id="dc-models">{Object.keys(tree[f.make] || {}).map((m) => <option key={m} value={m} />)}</datalist></div>
           <div className="field"><label className="f" htmlFor="dc-body">Body type</label><select id="dc-body" className="input" required value={f.body} onChange={set('body')}><option value="">Choose</option>{['Sedan', 'SUV', 'SUV Coupe', 'Hatchback', 'Coupe', 'Pickup', 'Minivan', 'Wagon', 'Bus'].map((b) => <option key={b}>{b}</option>)}</select></div>
           {inp('year', 'Year', { inputMode: 'numeric', maxLength: 4 })}
-          {inp('price', 'Price (₦)', { required: true, inputMode: 'numeric' })}
-          {inp('mileage', 'Mileage', { placeholder: '68,000 miles' })}
-          {inp('trim', 'Trim', { list: 'dc-trims' })}<datalist id="dc-trims">{((vinState && vinState.prefill && vinState.prefill.trimChoices) || []).map((t) => <option key={t} value={t} />)}</datalist>{inp('engine', 'Engine')}{inp('transmission', 'Transmission')}{inp('drivetrain', 'Drivetrain')}{inp('fuel', 'Fuel')}
-          {inp('color', 'Exterior colour')}{inp('interior', 'Interior')}
+          <PriceField f={f} setF={setF} id="dc" />
+          <MileageField f={f} setF={setF} id="dc" />
+          {inp('trim', 'Trim', { list: 'dc-trims' })}<datalist id="dc-trims">{(pick.choices.trim || []).map((t) => <option key={t} value={t} />)}</datalist>{inp('engine', 'Engine')}{inp('transmission', 'Transmission')}{inp('drivetrain', 'Drivetrain')}{inp('fuel', 'Fuel')}
+          <ColourFields f={f} setF={setF} id="dc" />
           <div className="field"><label className="f" htmlFor="dc-cond">Condition</label><select id="dc-cond" className="input" value={f.condition} onChange={set('condition')}>{['Foreign Used', 'Nigerian Used', 'Brand New'].map((c) => <option key={c}>{c}</option>)}</select></div>
-          {inp('location', 'Where the car is')}
           <div className="field"><label className="f" htmlFor="dc-status">Show it</label><select id="dc-status" className="input" value={f.status} onChange={set('status')}><option value="available">For sale</option><option value="hidden">Hidden (draft)</option><option value="sold">Sold</option></select></div>
         </div>
-        <div className="field"><label className="f" htmlFor="dc-desc">Description (blank line between paragraphs)</label><textarea id="dc-desc" className="input" rows={6} maxLength={8000} value={f.description} onChange={set('description')} /></div>
-        <div className="grid2">
-          <div className="field"><label className="f" htmlFor="dc-feat">Features (one per line)</label><textarea id="dc-feat" className="input" rows={5} value={f.features} onChange={set('features')} /></div>
-          <div className="field"><label className="f" htmlFor="dc-specs">Specs (Label: value per line)</label><textarea id="dc-specs" className="input" rows={5} value={f.specsText} onChange={set('specsText')} /></div>
-        </div>
+        <FeatureTicks f={f} setF={setF} id="dc" />
+        <div className="field"><label className="f" htmlFor="dc-specs">Specs (Label: value per line)</label><textarea id="dc-specs" className="input" rows={5} value={f.specsText} onChange={set('specsText')} /></div>
+        <DescriptionField f={f} setF={setF} id="dc" />
         {!isNew && keep.length > 0 && <div className="field"><div className="f">Photos (first one is the cover)</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>{keep.map((p, i) => (
           <div key={p}><img src={rs(p, 400)} alt={`Photo ${i + 1}`} className="thumb" style={{ width: 120, height: 90 }} />
             <div><button type="button" className="btn btn-line btn-sm" onClick={() => setKeep(keep.filter((x) => x !== p))}>Remove</button></div></div>))}</div></div>}

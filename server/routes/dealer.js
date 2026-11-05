@@ -235,6 +235,8 @@ async function requireDealer(req, res, next) {
   req.dealer = d;
   next();
 }
+// A dealer's cars are where the dealer is (State and LGA from sign-up); branches come later
+const whereFrom = (d, fallback) => [d.lga, d.state].filter(Boolean).join(', ') || fallback;
 const CAR_COLS = 'id, slug, title, make, model, body, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, trim_level, vin, stock, description, features, specs, info, photos, status, views, created_at, updated_at';
 
 r.get('/vin-check', requireDealer, limiter(15, 120), async (req, res) => {
@@ -247,7 +249,7 @@ r.get('/vin-check', requireDealer, limiter(15, 120), async (req, res) => {
   let decoded = null;
   if (v.type === 'vin17' && req.query.decode !== '0') { try { decoded = await vin.decode(v.value); } catch (_e) { decoded = null; } }
   // What the form can fill in: the factory record, or at least the maker and year from the VIN itself
-  const prefill = v.type === 'vin17' ? ((decoded && decoded.prefill) || require('../lib/vin-prefill').prefill(v.value, {})) : {};
+  const prefill = v.type === 'vin17' ? ((decoded && decoded.prefill) || require('../lib/vin-prefill').prefill(v.value, {})) : require('../lib/vin-prefill').prefill(v.value, {}, { chassis: true });
   res.json({ value: v.value, type: v.type, warnings: v.warnings, state, carId: state === 'yours' ? found.live.id : undefined, canClaim: state === 'taken', decoded, prefill });
 });
 
@@ -284,6 +286,7 @@ const cleanForm = (req, _res, next) => { if (req.body) { delete req.body.feature
 r.post('/cars', requireDealer, limiter(60, 60, 'Too many cars added in an hour. Please wait a little.'), carForm, cleanForm, validate('car'), async (req, res) => {
   if (!req.valid.vin) return res.status(422).json({ code: 'VIN_INVALID', error: 'Enter the VIN (or chassis number) first.', field: 'vin' });
   const v = carValues(req.valid);
+  v.location = whereFrom(req.dealer, v.location);
   v.featured = 0;
   v.status = statusFor(req.valid.status, req.dealer);
   const reg = await registry.refFor(v.vin);
@@ -315,6 +318,7 @@ r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (re
   if (!car) return res.status(404).json({ error: 'Not found' });
   if (!req.valid.vin) return res.status(422).json({ code: 'VIN_INVALID', error: 'Enter the VIN (or chassis number).', field: 'vin' });
   const v = carValues(req.valid);
+  v.location = whereFrom(req.dealer, v.location);
   delete v.featured;
   v.status = car.status === 'reserved' ? 'reserved' : statusFor(req.valid.status, req.dealer);
   const reg = await registry.refFor(v.vin);
@@ -341,8 +345,9 @@ r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (re
 
 // Quick status change from the car list (sold / hidden / for sale)
 r.post('/cars/:id/status', requireDealer, async (req, res) => {
-  const car = isId(req.params.id) && await one('SELECT id, status FROM cars WHERE id = ? AND dealer_id = ?', [req.params.id, req.dealer.id]);
+  const car = isId(req.params.id) && await one('SELECT id, status, mileage FROM cars WHERE id = ? AND dealer_id = ?', [req.params.id, req.dealer.id]);
   if (!car) return res.status(404).json({ error: 'Not found' });
+  if (req.body.status === 'available' && !/\d/.test(String(car.mileage || ''))) return res.status(400).json({ error: 'Add the mileage first: open the car, fill it in and save.' });
   if (car.status === 'reserved') return res.status(409).json({ error: 'This car is reserved for a buyer. Contact us to change it.' });
   const status = statusFor(String(req.body.status || ''), req.dealer);
   if (!['pending', 'available'].includes(car.status)) await checkLimit(req.dealer, status, car.id);

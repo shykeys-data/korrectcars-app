@@ -59,7 +59,7 @@ async function signUp(email, { business = 'Ade Motors Ltd', cac = '1234567', pho
 }
 function carForm(vin, extra = {}) {
   const f = new FormData();
-  for (const [k, v] of Object.entries({ title: '2016 Toyota Camry SE', make: 'Toyota', model: 'Camry', body: 'Sedan', year: '2016', price: '9500000', vin, ...extra })) f.append(k, v);
+  for (const [k, v] of Object.entries({ title: '2016 Toyota Camry SE', make: 'Toyota', model: 'Camry', body: 'Sedan', year: '2016', price: '9500000', mileage: '68,000 miles', vin, ...extra })) f.append(k, v);
   f.append('photos', new Blob([PNG], { type: 'image/png' }), 'car.png');
   return f;
 }
@@ -274,13 +274,34 @@ test('ten saves of the same new VIN at the same moment: exactly one wins', async
   db.close();
 });
 
+test('a car for sale needs its mileage, and a price or "Call for price"; such cars stay out of price filters', async () => {
+  const noMiles = await call('POST', '/api/dealer/cars', { cookie: ade.cookie, form: carForm(makeVin(81), { mileage: '' }) });
+  assert.strictEqual(noMiles.status, 400); assert.match(noMiles.json.error, /mileage/i);
+  const noPrice = await call('POST', '/api/dealer/cars', { cookie: ade.cookie, form: carForm(makeVin(81), { price: '' }) });
+  assert.strictEqual(noPrice.status, 400); assert.match(noPrice.json.error, /Call for price/);
+  const draft = await call('POST', '/api/dealer/cars', { cookie: ade.cookie, form: carForm(makeVin(82), { price: '', mileage: '', status: 'hidden' }) });
+  assert.strictEqual(draft.status, 201, 'a hidden draft can wait for them');
+  const r = await call('POST', '/api/dealer/cars', { cookie: ade.cookie, form: carForm(makeVin(81), { title: '2015 Toyota Venza XLE', price: '12000000', callForPrice: 'true', location: 'Abuja' }) });
+  assert.strictEqual(r.status, 201, JSON.stringify(r.json));
+  assert.deepStrictEqual([Number(r.json.car.price), r.json.car.location], [0, 'Ikeja, Lagos'], 'price left out; the car is where the dealer is');
+  const all = (await call('GET', '/api/cars')).json.cars;
+  assert.ok(all.some((c) => c.title === '2015 Toyota Venza XLE'));
+  assert.ok(!(await call('GET', '/api/cars?maxPrice=15000000')).json.cars.some((c) => c.title === '2015 Toyota Venza XLE'), 'not "under ₦15m"');
+  const html = await (await fetch(`${B}/cars/${r.json.car.slug}`, { headers: { 'x-forwarded-for': '10.9.9.9' } })).text();
+  assert.match(html, /Call for price/);
+  assert.doesNotMatch(html, /"Offer","price":0/, 'no ₦0 offer for search engines');
+  // Quick status change cannot put a car without mileage on sale
+  const d = await call('POST', `/api/dealer/cars/${draft.json.car.id}/status`, { cookie: ade.cookie, body: { status: 'available' } });
+  assert.strictEqual(d.status, 400);
+});
+
 test('the staff car form uses the same register', async () => {
   const f = new FormData();
-  for (const [k, v] of Object.entries({ title: '2016 Toyota Camry SE BF', make: 'Toyota', model: 'Camry', body: 'Sedan', price: '9000000', vin: makeVin(77) })) f.append(k, v);
+  for (const [k, v] of Object.entries({ title: '2016 Toyota Camry SE BF', make: 'Toyota', model: 'Camry', body: 'Sedan', price: '9000000', mileage: '50,000 km', vin: makeVin(77) })) f.append(k, v);
   const r = await call('POST', '/api/admin/cars', { cookie: staffCookie, form: f });
   assert.deepStrictEqual([r.status, r.json.code], [409, 'VIN_TAKEN']);
   const g = new FormData();
-  for (const [k, v] of Object.entries({ title: 'Bad VIN car', make: 'Toyota', model: 'Camry', body: 'Sedan', price: '9000000', vin: 'ABC' })) g.append(k, v);
+  for (const [k, v] of Object.entries({ title: 'Bad VIN car', make: 'Toyota', model: 'Camry', body: 'Sedan', price: '9000000', mileage: '1 km', vin: 'ABC' })) g.append(k, v);
   assert.strictEqual((await call('POST', '/api/admin/cars', { cookie: staffCookie, form: g })).status, 422);
 });
 

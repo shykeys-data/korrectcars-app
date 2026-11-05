@@ -4,10 +4,21 @@ const { list, inspectionSchema } = require('./validate');
 
 const rowsFromText = (t) => String(t || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const i = l.indexOf(':'); return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : [l, '']; });
 
+const yes = (x) => x === true || x === 'true' || x === '1' || x === 'on';
+const bad = (message, field) => Object.assign(new Error(message), { status: 400, field });
+
+// A car shown for sale needs its mileage, and a price or "Call for price" (price 0). Hidden drafts and sold cars may
+// be saved without them.
 function carValues(v) {
+  const call = yes(v.callForPrice);
+  const price = call ? 0 : Number(v.price) || 0;
+  if ((v.status || 'available') === 'available') {
+    if (!call && !(price > 0)) throw bad('Enter the price, or tick "Call for price".', 'price');
+    if (!/\d/.test(String(v.mileage || ''))) throw bad('Enter the mileage (as shown on the dashboard).', 'mileage');
+  }
   return {
-    title: v.title, make: v.make, model: v.model, body: v.body, trim_level: v.trim || null, year: v.year || null, price: v.price,
-    old_price: v.oldPrice || null, mileage: v.mileage || null, engine: v.engine || null, transmission: v.transmission || null,
+    title: v.title, make: v.make, model: v.model, body: v.body, trim_level: v.trim || null, year: v.year || null, price,
+    old_price: call ? null : v.oldPrice || null, mileage: v.mileage || null, engine: v.engine || null, transmission: v.transmission || null,
     drivetrain: v.drivetrain || null, fuel: v.fuel || null, color: v.color || null, interior: v.interior || null,
     car_condition: v.condition || null, location: v.location || 'Lagos', vin: v.vin || null, stock: v.stock || null,
     description: v.description || null, features: J(list(String(v.features || '').includes('\n') ? String(v.features).split('\n') : v.features)),

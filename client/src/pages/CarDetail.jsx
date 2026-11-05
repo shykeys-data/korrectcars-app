@@ -1,6 +1,6 @@
 // One car's page: photos, price, Pay Small Small estimate, inspection notes, enquiry form and similar cars.
 import React, { useState, useEffect } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, slugify, useLocalList, bnpl, rs, srcset } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, bnpl, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal } from '../components/Bits.jsx';
 
 
@@ -32,14 +32,14 @@ export function CarDetail({ slug }) {
   const saved = useLocalList('kc-saved');
   useEffect(() => { setI(0); setTab('overview'); }, [slug]);
   const car = data && data.car;
-  useTitle(car ? `${car.title} for Sale in Lagos — ${naira(car.price)} | Korrect Cars` : null);
+  useTitle(car ? `${car.title} for Sale in Lagos${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars` : null);
   if (loading && !car) return <Loading />;
   if (error) return error.status === 404 ? <NotFoundCar /> : <ErrorBox error={error} />;
   const photos = car.photos && car.photos.length ? car.photos : ['/img/hero.jpg'];
   const sold = car.status === 'sold';
   const spec = [['Year', car.year], ['Make', car.make], ['Model', car.model], ['Trim', car.trim_level], ['Body type', car.body], ['Condition', car.car_condition], ['Mileage', car.mileage], ['Engine', car.engine], ['Transmission', car.transmission], ['Drivetrain', car.drivetrain], ['Fuel', car.fuel], ['Exterior colour', car.color], ['Interior', car.interior], ['Location', car.location], ['Stock number', car.stock]].filter(([, v]) => v);
   const tech = (car.specs || []).filter((r) => r && r[0]);
-  const wa = `Hello Korrect Cars, I am interested in the ${car.title} (${naira(car.price)}). ${window.location.href}`;
+  const wa = `Hello Korrect Cars, I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${window.location.href}`;
   return (
     <div className="wrap sec-sm">
       <nav className="small muted" aria-label="Breadcrumb" style={{ marginBottom: 14 }}><Link to="/">Home</Link> / <Link to="/cars">Cars for sale</Link> / <Link to={'/cars/' + slugify(car.make)}>{car.make}</Link> / <Link to={`/cars/${slugify(car.make)}/${slugify(car.model)}`}>{car.model}</Link></nav>
@@ -66,14 +66,14 @@ export function CarDetail({ slug }) {
             {car.info && car.info.length > 0 && <ul>{car.info.map((x) => <li key={x}>{x}</li>)}</ul>}</div>}
           {tab === 'specs' && <table className="specs"><tbody>{spec.concat(tech.filter((r) => !spec.some((s) => s[0].toLowerCase() === String(r[0]).toLowerCase()))).map(([k, v]) => <tr key={k}><td>{k}</td><td>{v}</td></tr>)}</tbody></table>}
           {tab === 'features' && (car.features && car.features.length ? <ul className="feat">{car.features.map((x) => <li key={x}>{x}</li>)}</ul> : <p className="muted">Ask us on WhatsApp for the full feature list.</p>)}
-          {tab === 'bnpl' && (sold ? <p className="muted">This car is sold. Pick another car to see Pay Small Small options.</p> : <BnplCalc price={Number(car.price)} carTitle={car.title} carSlug={car.slug} />)}
+          {tab === 'bnpl' && (!hasPrice(car) && !sold ? <p className="muted">The seller gives this car's price on request. Ask on WhatsApp, then we can work out Pay Small Small with you.</p> : sold ? <p className="muted">This car is sold. Pick another car to see Pay Small Small options.</p> : <BnplCalc price={Number(car.price)} carTitle={car.title} carSlug={car.slug} />)}
           <InspectionNotes ins={car.inspection} />
         </div>
         <aside className="side">
           <div className="box">
-            <div className="disp" style={{ fontSize: 46 }}>{naira(car.price)}</div>
-            {car.old_price && !sold ? <div className="muted">Was <s>{naira(car.old_price)}</s></div> : null}
-            {sold ? <div className="tag tag-grey" style={{ marginTop: 8 }}>Sold</div> : <div className="small" style={{ color: 'var(--ok)', fontWeight: 600, marginTop: 6 }}>Pay small small from about {naira(bnpl(Number(car.price), 40, 24, cfg).monthly)}/month (estimate)</div>}
+            <div className="disp" style={{ fontSize: hasPrice(car) ? 46 : 36 }}>{priceText(car)}</div>
+            {hasPrice(car) && car.old_price && !sold ? <div className="muted">Was <s>{naira(car.old_price)}</s></div> : null}
+            {sold ? <div className="tag tag-grey" style={{ marginTop: 8 }}>Sold</div> : !hasPrice(car) ? <div className="small muted" style={{ marginTop: 6 }}>Call or WhatsApp for the price</div> : <div className="small" style={{ color: 'var(--ok)', fontWeight: 600, marginTop: 6 }}>Pay small small from about {naira(bnpl(Number(car.price), 40, 24, cfg).monthly)}/month (estimate)</div>}
             <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
               <a className="btn btn-wa" href={waLink(cfg, wa)} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
               {!sold && <>

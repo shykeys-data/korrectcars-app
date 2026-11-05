@@ -1,14 +1,15 @@
 // Staff: dealer cars list and the add / edit form (photos, details, inspection notes).
 import React, { useState, useMemo } from 'react';
-import { Link, useApi, naira, date, api, firstPhoto, rs, shrinkPhoto } from '../lib/core.jsx';
+import { Link, useApi, naira, priceText, date, api, firstPhoto, rs, shrinkPhoto } from '../lib/core.jsx';
 import { INSPECTION_AREAS } from '../../../server/lib/inspection-areas.js';
 import { Loading, Modal } from '../components/Bits.jsx';
 import { T, norm, stTag } from './AdminShared.jsx';
 import { applyPrefill } from '../lib/prefill.js';
+import { PriceField, MileageField, ColourFields, FeatureTicks, VinChoices, DescriptionField } from '../components/CarFields.jsx';
 
 const MAX_PHOTOS = 20; // per save, matches the server limit
 
-const EMPTY_CAR = { title: '', make: '', model: '', body: '', trim: '', year: '', price: '', oldPrice: '', mileage: '', engine: '', transmission: '', drivetrain: '', fuel: 'Petrol', color: '', interior: '', condition: 'Foreign Used', location: 'Lagos', vin: '', stock: '', description: '', features: '', specsText: '', infoText: '', status: 'available', featured: true };
+const EMPTY_CAR = { title: '', make: '', model: '', body: '', trim: '', year: '', price: '', callForPrice: false, oldPrice: '', mileage: '', engine: '', transmission: '', drivetrain: '', fuel: 'Petrol', color: '', interior: '', condition: 'Foreign Used', location: 'Lagos', vin: '', stock: '', description: '', features: '', specsText: '', infoText: '', status: 'available', featured: true };
 export function Cars({ isAdmin }) {
   const { data, reload } = useApi('/admin/cars');
   const [edit, setEdit] = useState(null);
@@ -25,7 +26,7 @@ export function Cars({ isAdmin }) {
       {!data ? <Loading /> : <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th>Views</th><th>Status</th><th /></tr></thead><tbody>
         {cars.map((c) => <tr key={c.id}>
           <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">{c.dealer_id && c.dealer_id !== 1 ? <><span className="tag tag-info">{c.dealer_name}</span> · </> : null}{c.make} · {c.model} · {c.body}{c.featured ? ' · featured' : ''}{c.vin ? <> · VIN …{norm(c.vin).slice(-6)}</> : ' · no VIN'}{vinCount[norm(c.vin)] > 1 ? <> · <span className="tag tag-bad">same VIN on {vinCount[norm(c.vin)]} cars</span></> : null}</div></div></div></td>
-          <td>{naira(c.price)}{c.old_price ? <div className="small muted"><s>{naira(c.old_price)}</s></div> : null}</td><td>{c.views}</td>
+          <td>{priceText(c)}{c.old_price ? <div className="small muted"><s>{naira(c.old_price)}</s></div> : null}</td><td>{c.views}</td>
           <td><T c={stTag[c.status]}>{c.status === 'pending' ? 'waiting' : c.status}</T></td>
           <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}><Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link> <button className="btn btn-dark btn-sm" onClick={() => setEdit(c)}>Edit</button> {isAdmin && <button className="btn btn-line btn-sm" onClick={() => del(c)}>Delete</button>}</td>
         </tr>)}
@@ -39,7 +40,7 @@ function CarForm({ car, onClose, onSaved }) {
   const isNew = !car.id;
   const catalog = useApi('/catalog');
   const [f, setF] = useState(isNew ? EMPTY_CAR : {
-    ...EMPTY_CAR, title: car.title, make: car.make, model: car.model, body: car.body, trim: car.trim_level || '', year: car.year || '', price: car.price, oldPrice: car.old_price || '',
+    ...EMPTY_CAR, title: car.title, make: car.make, model: car.model, body: car.body, trim: car.trim_level || '', year: car.year || '', price: Number(car.price) > 0 ? car.price : '', callForPrice: !(Number(car.price) > 0), oldPrice: car.old_price || '',
     mileage: car.mileage || '', engine: car.engine || '', transmission: car.transmission || '', drivetrain: car.drivetrain || '', fuel: car.fuel || '', color: car.color || '', interior: car.interior || '',
     condition: car.car_condition || '', location: car.location || '', vin: car.vin || '', stock: car.stock || '', description: car.description || '',
     features: (car.features || []).join('\n'), specsText: (car.specs || []).map((r) => `${r[0]}: ${r[1]}`).join('\n'), infoText: (car.info || []).join('\n'), status: car.status, featured: !!car.featured
@@ -53,16 +54,18 @@ function CarForm({ car, onClose, onSaved }) {
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   // "Fill from VIN": empty fields are filled from the factory record (or at least the maker and year)
   const [vinNote, setVinNote] = useState('');
+  const [pick, setPick] = useState({ choices: {}, withEngine: {} });
   const fillFromVin = async () => {
     const v = String(f.vin || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (v.length !== 17) { setVinNote('Type the full 17-character VIN first.'); return; }
+    if (v.length !== 17 && !(v.length >= 8 && v.length <= 14 && /[A-Z]/.test(v) && /\d{4,}$/.test(v))) { setVinNote('Type the full 17-character VIN (or the chassis number) first.'); return; }
     setVinNote('Looking up…');
     try {
       const r = await api('/vin/' + v);
       const x = r.prefill || r.basics || {};
-      const res = applyPrefill(x); setF((p) => res.fill(p));
+      const res = applyPrefill(x); setF((p) => res.fill(p)); setPick({ choices: res.choices, withEngine: res.withEngine });
       setVinNote((res.n ? `Filled ${res.n} empty field${res.n === 1 ? '' : 's'} from the ${x.source === 'factory' ? 'factory record' : 'VIN'}. Check them against the car.` : 'The VIN gave nothing new to fill in.')
-        + (res.trimChoices.length ? ` This VIN fits several trims (${res.trimChoices.join(', ')}): type the right one in Trim and the title.` : ''));
+       
+        + (Object.keys(res.choices).length ? ' The VIN fits more than one version: tap the right one under the form fields.' : ''));
     } catch (e2) { setVinNote(e2.message); }
   };
   // Allow models not in the catalogue by merging the current value in
@@ -73,7 +76,7 @@ function CarForm({ car, onClose, onSaved }) {
     if (files.length > MAX_PHOTOS) { setErr(`You picked ${files.length} photos. Add up to ${MAX_PHOTOS} per save, then edit the car to add the rest.`); return; }
     setBusy(true);
     const fd = new FormData();
-    Object.entries({ ...f, price: String(f.price).replace(/[^0-9]/g, ''), oldPrice: String(f.oldPrice || '').replace(/[^0-9]/g, '') }).forEach(([k, v]) => { if (v !== '' && v !== null) fd.append(k, String(v)); });
+    Object.entries({ ...f, price: f.callForPrice ? '' : String(f.price).replace(/[^0-9]/g, ''), color: String(f.color || '').trim(), interior: String(f.interior || '').trim(), oldPrice: String(f.oldPrice || '').replace(/[^0-9]/g, '') }).forEach(([k, v]) => { if (v !== '' && v !== null) fd.append(k, String(v)); });
     if (!isNew) { if (!keep.length) fd.append('keepPhotos', ''); keep.forEach((p) => fd.append('keepPhotos', p)); }
     fd.append('inspection', JSON.stringify({ by: ins.by.trim(), date: ins.date, items: ins.items.filter((x) => x.status || x.note.trim()) }));
     try {
@@ -95,18 +98,17 @@ function CarForm({ car, onClose, onSaved }) {
           <div className="field"><label className="f" htmlFor="cf-model">Model</label><input id="cf-model" className="input" list="cf-models" required value={f.model} onChange={(e) => { const b = (tree[f.make] || {})[e.target.value]; setF({ ...f, model: e.target.value, body: b && b.length === 1 ? b[0] : f.body }); }} /><datalist id="cf-models">{Object.keys(tree[f.make] || {}).map((m) => <option key={m} value={m} />)}</datalist></div>
           <div className="field"><label className="f" htmlFor="cf-body">Body type</label><select id="cf-body" className="input" required value={f.body} onChange={set('body')}><option value="">Choose</option>{['Sedan', 'SUV', 'SUV Coupe', 'Hatchback', 'Coupe', 'Pickup', 'Minivan', 'Wagon', 'Bus'].map((b) => <option key={b}>{b}</option>)}</select></div>
           {inp('year', 'Year', { inputMode: 'numeric' })}
-          {inp('price', 'Price (₦)', { required: true, inputMode: 'numeric' })}
+          <PriceField f={f} setF={setF} id="cf" />
           {inp('oldPrice', 'Old price (₦), shows "price drop"', { inputMode: 'numeric' })}
-          {inp('trim', 'Trim')}{inp('mileage', 'Mileage')}{inp('engine', 'Engine')}{inp('transmission', 'Transmission')}{inp('drivetrain', 'Drivetrain')}{inp('fuel', 'Fuel')}
-          {inp('color', 'Exterior colour')}{inp('interior', 'Interior')}{inp('condition', 'Condition')}{inp('location', 'Location')}<div className="field"><label className="f" htmlFor="cf-vin">VIN</label><div style={{ display: 'flex', gap: 8 }}><input id="cf-vin" className="input" value={f.vin} onChange={set('vin')} autoCapitalize="characters" spellCheck={false} /><button type="button" className="btn btn-dark btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={fillFromVin}>Fill from VIN</button></div>{vinNote && <div className="hint" role="status">{vinNote}</div>}</div>{inp('stock', 'Stock number')}
+          {inp('trim', 'Trim', { list: 'cf-trims' })}<datalist id="cf-trims">{(pick.choices.trim || []).map((t) => <option key={t} value={t} />)}</datalist><MileageField f={f} setF={setF} id="cf" />{inp('engine', 'Engine')}{inp('transmission', 'Transmission')}{inp('drivetrain', 'Drivetrain')}{inp('fuel', 'Fuel')}
+          <ColourFields f={f} setF={setF} id="cf" />{inp('condition', 'Condition')}{inp('location', 'Location')}<div className="field"><label className="f" htmlFor="cf-vin">VIN</label><div style={{ display: 'flex', gap: 8 }}><input id="cf-vin" className="input" value={f.vin} onChange={set('vin')} autoCapitalize="characters" spellCheck={false} /><button type="button" className="btn btn-dark btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={fillFromVin}>Fill from VIN</button></div>{vinNote && <div className="hint" role="status">{vinNote}</div>}</div>{inp('stock', 'Stock number')}
           <div className="field"><label className="f" htmlFor="cf-status">Status</label><select id="cf-status" className="input" value={f.status} onChange={set('status')}><option value="available">Available</option><option value="sold">Sold</option><option value="hidden">Hidden</option></select></div>
           <label className="check field" style={{ alignItems: 'center' }}><input type="checkbox" checked={f.featured} onChange={set('featured')} /> Show on the home page</label>
         </div>
-        <div className="field"><label className="f" htmlFor="cf-desc">Description (blank line between paragraphs)</label><textarea id="cf-desc" className="input" rows={6} value={f.description} onChange={set('description')} /></div>
-        <div className="grid2">
-          <div className="field"><label className="f" htmlFor="cf-feat">Features (one per line)</label><textarea id="cf-feat" className="input" rows={6} value={f.features} onChange={set('features')} /></div>
-          <div className="field"><label className="f" htmlFor="cf-specs">Technical specs (Label: value per line)</label><textarea id="cf-specs" className="input" rows={6} value={f.specsText} onChange={set('specsText')} /></div>
-        </div>
+        <VinChoices choices={pick.choices} withEngine={pick.withEngine} f={f} setF={setF} />
+        <FeatureTicks f={f} setF={setF} id="cf" />
+        <div className="field"><label className="f" htmlFor="cf-specs">Technical specs (Label: value per line)</label><textarea id="cf-specs" className="input" rows={6} value={f.specsText} onChange={set('specsText')} /></div>
+        <DescriptionField f={f} setF={setF} id="cf" />
         <fieldset className="field inspect-edit">
           <legend className="f">Inspection notes <span className="hint">shown on the car page under "Korrect Cars inspection notes". Write only what the inspector actually found.</span></legend>
           <div className="grid2">

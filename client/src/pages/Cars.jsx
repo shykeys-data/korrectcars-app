@@ -1,7 +1,7 @@
 // Cars for sale: the stock list with filters (make, model, year, body, budget, sort), saved searches and Compare.
 // The car page is in CarDetail.jsx and the Pay Small Small page in PaySmallSmall.jsx (re-exported below).
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, slugify, useLocalList, bnpl, firstPhoto, api, rs } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, priced, waLink, slugify, useLocalList, bnpl, firstPhoto, api, rs } from '../lib/core.jsx';
 import { CarCard, Loading } from '../components/Bits.jsx';
 import { pages as categoryPages } from '../../../server/lib/categories.js';
 import { recommended } from '../lib/rank.js';
@@ -14,11 +14,11 @@ const YEAR_QUICK = [['2018', '', '2018 and newer'], ['2015', '2017', '2015–201
 // "Recommended" (the default) is a per-visitor daily shuffle, see lib/rank.js. Sold cars always go last.
 function applyFilters(all, f, cat) {
   let cars = all.filter((c) => (!cat || cat.test(c)) && (!f.make || c.make === f.make) && (!f.model || c.model === f.model) && (!f.body || c.body === f.body)
-    && (!f.condition || c.car_condition === f.condition) && (!f.maxPrice || Number(c.price) <= Number(f.maxPrice))
+    && (!f.condition || c.car_condition === f.condition) && (!f.maxPrice || (Number(c.price) > 0 && Number(c.price) <= Number(f.maxPrice)))
     && (!f.yearMin || Number(c.year) >= Number(f.yearMin)) && (!f.yearMax || Number(c.year) <= Number(f.yearMax))
     && (!f.state || c.state === f.state) && (!f.lga || c.lga === f.lga));
   const newest = (a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || b.id - a.id;
-  const by = { 'price-asc': (a, b) => a.price - b.price, 'price-desc': (a, b) => b.price - a.price, 'year-desc': (a, b) => (b.year - a.year) || (b.price - a.price), newest };
+  const by = { 'price-asc': (a, b) => (!hasPrice(a) - !hasPrice(b)) || (a.price - b.price), 'price-desc': (a, b) => b.price - a.price, 'year-desc': (a, b) => (b.year - a.year) || (b.price - a.price), newest };
   if (by[f.sort]) cars = cars.slice().sort(by[f.sort]);
   else cars = recommended(cars, 'inventory');
   return cars.filter((c) => c.status !== 'sold').concat(cars.filter((c) => c.status === 'sold'));
@@ -90,8 +90,9 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   const reset = () => go(category ? '/cars/' + category.slug : '/cars', { replace: true, keepScroll: true });
 
   const avail = cars.filter((c) => c.status === 'available');
-  const lo = avail.length ? Math.min(...avail.map((c) => Number(c.price))) : 0;
-  const hi = avail.length ? Math.max(...avail.map((c) => Number(c.price))) : 0;
+  const pricedAvail = priced(avail);
+  const lo = pricedAvail.length ? Math.min(...pricedAvail.map((c) => Number(c.price))) : 0;
+  const hi = pricedAvail.length ? Math.max(...pricedAvail.map((c) => Number(c.price))) : 0;
   const cmpCars = all.filter((c) => cmp.has(c.id));
   const alertMsg = `Hello Korrect Cars, please alert me when you have: ${chips.map((c) => c[0]).join(', ') || 'any car'}.`;
 
@@ -218,7 +219,7 @@ export function Compare() {
   const list = useApi('/cars?limit=100');
   const ids = (query.get('ids') || cmp.list.join(',')).split(',').map(Number).filter(Boolean);
   const cars = ((list.data && list.data.cars) || []).filter((c) => ids.includes(c.id));
-  const rows = [['Price', (c) => naira(c.price)], ['Pay small small (estimate)', (c) => `about ${naira(bnpl(Number(c.price), 40, 24, cfg).monthly)}/mo`], ['Year', (c) => c.year], ['Body type', (c) => c.body], ['Mileage', (c) => c.mileage], ['Engine', (c) => c.engine], ['Transmission', (c) => c.transmission], ['Fuel', (c) => c.fuel], ['Colour', (c) => c.color], ['Status', (c) => (c.status === 'sold' ? 'Sold' : 'Available')]];
+  const rows = [['Price', (c) => priceText(c)], ['Pay small small (estimate)', (c) => (hasPrice(c) ? `about ${naira(bnpl(Number(c.price), 40, 24, cfg).monthly)}/mo` : 'Ask us')], ['Year', (c) => c.year], ['Body type', (c) => c.body], ['Mileage', (c) => c.mileage], ['Engine', (c) => c.engine], ['Transmission', (c) => c.transmission], ['Fuel', (c) => c.fuel], ['Colour', (c) => c.color], ['Status', (c) => (c.status === 'sold' ? 'Sold' : 'Available')]];
   return (
     <div className="wrap sec-sm">
       <h1>Compare cars</h1>

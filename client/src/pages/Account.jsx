@@ -1,7 +1,7 @@
 // Customer account: sign in / register, email check, password reset, saved cars, saved searches,
 // their requests and swap chats.
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto, waLink, rs, srcset, useLocalList } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, priceText, date, api, firstPhoto, waLink, rs, srcset, useLocalList } from '../lib/core.jsx';
 import { Loading, CarCard } from '../components/Bits.jsx';
 
 export function AuthPage({ mode, adminGate = false }) {
@@ -201,7 +201,7 @@ function MyRequests({ user, cfg }) {
                 {e.car && e.car.photo && <img className="thumb" src={rs(e.car.photo, 400)} alt="" />}
                 <div style={{ minWidth: 0 }}><div className="small muted">{REQ_TYPE[e.type] || 'Request'} · #{e.id} · {date(e.created_at)}</div>
                   <b>{e.car ? <Link to={'/cars/' + e.car.slug}>{e.car.title}</Link> : e.type === 'bnpl' ? 'Car to be chosen' : 'General'}</b>
-                  {e.car && <div className="small">{naira(e.car.price)}{e.car.status === 'sold' ? ' · sold' : ''}</div>}</div>
+                  {e.car && <div className="small">{priceText(e.car)}{e.car.status === 'sold' ? ' · sold' : ''}</div>}</div>
               </div>
               <span className={'tag ' + st[1]}>{label}</span>
             </div>

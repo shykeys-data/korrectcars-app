@@ -556,3 +556,8 @@ details.faq p{margin:8px 0 0;color:var(--ink2)}
 .sidenav .grp{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#71717a;padding:14px 10px 4px;font-weight:700}
 .sidenav .grp:first-child{padding-top:4px}
 .req{color:var(--red);font-weight:700}
+/* Car form: tap-to-pick options (features, VIN choices) */
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opt{min-height:38px;padding:0 13px;border-radius:999px;border:1.5px solid var(--line2);background:#fff;color:var(--ink);font:600 14px var(--body);cursor:pointer}
+.opt:hover{border-color:var(--ink)}
+.opt.on{background:#fde8e9;border-color:var(--red);color:#9e1117}

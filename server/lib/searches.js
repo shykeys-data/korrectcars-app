@@ -6,6 +6,7 @@ const mail = require('./mail');
 
 const KEYS = ['make', 'model', 'body', 'condition', 'maxPrice', 'yearMin', 'yearMax', 'state', 'lga'];
 const naira = (n) => '₦' + Number(n).toLocaleString('en-NG');
+const { priceText } = require('./price');
 const short = (n) => (n >= 1e6 ? '₦' + (n / 1e6).toLocaleString('en-NG', { maximumFractionDigits: 1 }) + 'm' : naira(n));
 
 function clean(f = {}) {
@@ -42,7 +43,7 @@ function url(f) {
 
 function matches(car, f) {
   return (!f.make || car.make === f.make) && (!f.model || car.model === f.model) && (!f.body || car.body === f.body)
-    && (!f.condition || car.car_condition === f.condition) && (!f.maxPrice || Number(car.price) <= f.maxPrice)
+    && (!f.condition || car.car_condition === f.condition) && (!f.maxPrice || (Number(car.price) > 0 && Number(car.price) <= f.maxPrice))
     && (!f.yearMin || Number(car.year) >= f.yearMin) && (!f.yearMax || Number(car.year) <= f.yearMax)
     && (!f.state || car.state === f.state) && (!f.lga || car.lga === f.lga);
 }
@@ -68,10 +69,10 @@ async function notifyNewCar(car) {
     for (const [, u] of byUser) {
       const first = String(u.name || '').split(' ')[0] || 'there';
       const names = u.searches.map((s) => s.name).join(', ');
-      const subject = `New car for you: ${car.title} – ${naira(car.price)}`;
-      const text = `Hello ${first},\n\nA car matching your saved search (${names}) just arrived at Korrect Cars:\n\n${car.title}\n${naira(car.price)}${car.mileage ? ' · ' + car.mileage : ''}\n${link}\n\nYou can pay outright or pay small small through our credit partners.\n\nTo stop these emails, turn off alerts in your account: ${config.siteUrl}/account?tab=searches\n\nKorrect Cars`;
+      const subject = `New car for you: ${car.title} – ${priceText(car)}`;
+      const text = `Hello ${first},\n\nA car matching your saved search (${names}) just arrived at Korrect Cars:\n\n${car.title}\n${priceText(car)}${car.mileage ? ' · ' + car.mileage : ''}\n${link}\n\nYou can pay outright or pay small small through our credit partners.\n\nTo stop these emails, turn off alerts in your account: ${config.siteUrl}/account?tab=searches\n\nKorrect Cars`;
       const html = mail.layout('A car matching your search just arrived', `<p>Hello ${esc(first)},</p><p>A car matching your saved search <b>${esc(names)}</b> just arrived:</p>
-<p style="font-size:18px;margin:16px 0 4px"><b>${esc(car.title)}</b></p><p style="margin:0;font-size:16px;color:#c4161d"><b>${esc(naira(car.price))}</b>${car.mileage ? ' · ' + esc(car.mileage) : ''}</p>${mail.button(link, 'See the car')}
+<p style="font-size:18px;margin:16px 0 4px"><b>${esc(car.title)}</b></p><p style="margin:0;font-size:16px;color:#c4161d"><b>${esc(priceText(car))}</b>${car.mileage ? ' · ' + esc(car.mileage) : ''}</p>${mail.button(link, 'See the car')}
 <p style="font-size:13px;color:#71717a">To stop these emails, <a href="${config.siteUrl}/account?tab=searches" style="color:#c4161d">turn off alerts in your account</a>.</p>`);
       await mail.send({ to: u.email, subject, text, html }).then(() => { sent++; }).catch((e) => console.error('Alert email failed:', e.message));
       await q(`UPDATE saved_searches SET last_alert_at = NOW() WHERE id IN (${u.searches.map(() => '?').join(',')})`, u.searches.map((s) => s.id));

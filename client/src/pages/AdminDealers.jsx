@@ -1,7 +1,7 @@
 // Staff: "Dealers to review". Every staff role can review. Open a dealer, look at the CAC certificate (each view is
 // logged), check the CAC number on the CAC public search, then approve, ask for more, reject or pause.
 import React, { useState } from 'react';
-import { useApi, api, date, naira } from '../lib/core.jsx';
+import { useApi, api, date, priceText } from '../lib/core.jsx';
 import { Loading, Modal } from '../components/Bits.jsx';
 import { T } from './AdminShared.jsx';
 
@@ -62,7 +62,7 @@ function DealerReview({ id, onClose, onDone, isAdmin }) {
               {x.sameFileElsewhere > 0 && <> <span className="tag tag-bad">same file sent by {x.sameFileElsewhere} other dealer{x.sameFileElsewhere > 1 ? 's' : ''}</span></>}</div>
               <a className="btn btn-line btn-sm" href={`/api/admin/dealers/${id}/documents/${x.id}`} target="_blank" rel="noopener noreferrer">Open (logged)</a></div>))}
           {data.cars.length > 0 && <><h3 style={{ marginTop: 18 }}>Cars ({data.cars.length})</h3>
-            {data.cars.slice(0, 8).map((c) => <div className="row" key={c.id}><div>{c.title} <span className="small muted">VIN {c.vin} · {naira(c.price)}</span></div><span className="small">{c.status}</span></div>)}</>}
+            {data.cars.slice(0, 8).map((c) => <div className="row" key={c.id}><div>{c.title} <span className="small muted">VIN {c.vin} · {priceText(c)}</span></div><span className="small">{c.status}</span></div>)}</>}
           {isAdmin && d.status === 'approved' && (moving
             ? <MoveCars dealer={d} onClose={() => setMoving(false)} onDone={() => { setMoving(false); reload(); }} />
             : <p style={{ marginTop: 14 }}><button className="btn btn-dark btn-sm" onClick={() => setMoving(true)}>Move cars to this dealer</button></p>)}

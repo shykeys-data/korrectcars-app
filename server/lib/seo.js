@@ -25,7 +25,7 @@ async function llmsTxt() {
   const posts = await db.q("SELECT slug, title FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 30");
   const avail = cars.filter((c) => c.status === 'available');
   const models = {};
-  for (const c of avail) { const k = `${c.make}|${c.model}`; (models[k] = models[k] || []).push(Number(c.price)); }
+  for (const c of avail.filter((x) => Number(x.price) > 0)) { const k = `${c.make}|${c.model}`; (models[k] = models[k] || []).push(Number(c.price)); }
   const u = (p) => config.siteUrl + p;
   const today = new Date().toISOString().slice(0, 10);
   const lines = [
@@ -50,7 +50,8 @@ async function llmsTxt() {
     st.swap ? `- Korrect Swap: owner-to-owner swaps. Owners list their car and say what they want; Korrect Cars checks both owners and their papers, holds the inspection of both cars at a partner car lot, and charges a ${st.swapFeePct}% success fee only when the swap completes.` : null,
     '',
     `## Cars in stock (updated ${today})`,
-    ...avail.map((c) => { const pl = require('../routes/public').bnplPlan(Number(c.price), 0, 24);
+    ...avail.map((c) => { if (!(Number(c.price) > 0)) return `- [${c.title}](${u('/cars/' + c.slug)}): call for price${c.year ? `, ${c.year}` : ''}${c.body ? `, ${c.body}` : ''}${c.mileage ? `, ${c.mileage}` : ''}`;
+      const pl = require('../routes/public').bnplPlan(Number(c.price), 0, 24);
       return `- [${c.title}](${u('/cars/' + c.slug)}): ${naira(c.price)}${c.year ? `, ${c.year}` : ''}${c.body ? `, ${c.body}` : ''}${c.mileage ? `, ${c.mileage}` : ''}${c.transmission ? `, ${c.transmission}` : ''}; Pay Small Small from about ${naira(pl.monthly)}/month (${naira(pl.deposit)} deposit, ${pl.months} months, estimate)`; }),
     avail.length ? '' : '- No cars listed right now. Contact us on WhatsApp.',
     '## Prices by model',
@@ -61,7 +62,8 @@ async function llmsTxt() {
     '',
     '## Browse by category',
     ...require('./categories').pages().map((c) => [c, avail.filter(c.test)]).filter(([, l]) => l.length).map(([c, l]) => {
-      const pr = l.map((x) => Number(x.price)); const lo = Math.min(...pr); const hi = Math.max(...pr);
+      const pr = l.map((x) => Number(x.price)).filter((n) => n > 0); const lo = Math.min(...pr); const hi = Math.max(...pr);
+      if (!pr.length) return `- [${c.h1}](${u('/cars/' + c.slug)}): ${l.length} in stock, priced on request`;
       const pl = require('../routes/public').bnplPlan(lo, 0, 24);
       return `- [${c.h1}](${u('/cars/' + c.slug)}): ${l.length} in stock, ${lo === hi ? naira(lo) : `${naira(lo)} to ${naira(hi)}`}; Pay Small Small from about ${naira(pl.monthly)}/month`;
     }),

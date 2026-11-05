@@ -49,6 +49,7 @@ export function useApi(path, deps = []) {
 
 // ---------- Formatting ----------
 export const naira = (n) => '₦' + Math.round(Number(n) || 0).toLocaleString('en-NG');
+export { hasPrice, priceText, priced } from '../../../server/lib/price.js'; // "Call for price" cars have price 0
 export const short = (n) => { n = Number(n) || 0; return n >= 1e6 ? '₦' + (n / 1e6).toFixed(n % 1e6 ? 1 : 0).replace(/\.0$/, '') + 'm' : naira(n); };
 export const date = (s) => { if (!s) return ''; const d = new Date(String(s).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z')); return isNaN(d) ? '' : d.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }); };
 export const firstPhoto = (c) => (c && c.photos && c.photos[0]) || '/img/hero.jpg';

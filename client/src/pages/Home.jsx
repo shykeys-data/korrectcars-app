@@ -1,7 +1,7 @@
 // Home page: the banner with the search box, trust tiles, "Shop by budget" links and the category rows
 // (buildRows uses server/lib/categories.js; a row shows only with MIN_HOME cars and a car appears in at most 2 rows).
 import React, { useState, useMemo } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, date, waLink, slugify, rs, srcset } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, priced, date, waLink, slugify, rs, srcset } from '../lib/core.jsx';
 import { CarCard, BnplCalc } from '../components/Bits.jsx';
 import { CATEGORIES, MIN_HOME, budgets } from '../../../server/lib/categories.js';
 import { recommended, newestFirst } from '../lib/rank.js';
@@ -74,7 +74,7 @@ export default function Home() {
   const rows = useMemo(() => buildRows(everything), [everything]);
   const budgetLinks = budgets().map((c) => [c, all.filter(c.test).length]).filter(([, n]) => n > 0);
   // Calculator: every car in stock, cheapest first
-  const cars = useMemo(() => all.slice().sort((a, b) => a.price - b.price), [everything]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cars = useMemo(() => priced(all).sort((a, b) => a.price - b.price), [everything]); // eslint-disable-line react-hooks/exhaustive-deps
   const makes = [...new Set(all.map((c) => c.make))].sort();
   const models = [...new Set(all.filter((c) => !s.make || c.make === s.make).map((c) => c.model))].sort();
   const years = [...new Set(all.map((c) => Number(c.year)).filter(Boolean))].sort((a, b) => b - a);
