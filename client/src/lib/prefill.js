@@ -8,7 +8,7 @@ export function applyPrefill(x) {
     features: (x.features || []).join('\n'), specsText: (x.specs || []).map(([k, v]) => `${k}: ${v}`).join('\n'), description: x.description };
   const keys = Object.keys(take).filter((k) => take[k]);
   return {
-    n: keys.length,
+    n: keys.length, trimChoices: x.trimChoices || [],
     fill: (p) => { const out = { ...p }; for (const k of keys) if (!String(p[k] || '').trim() || (k === 'transmission' && p[k] === 'Automatic') || (k === 'fuel' && p[k] === 'Petrol')) out[k] = take[k]; return out; }
   };
 }

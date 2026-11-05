@@ -323,7 +323,7 @@ export function DealerCarForm({ id }) {
           {f.vin && local.problems.length ? <span style={{ color: 'var(--bad)' }}>{local.problems[0]}</span> : f.vin && local.warnings.length ? local.warnings[0] : f.vin && local.type === 'vin17' ? 'Looks like a valid VIN.' : ''}
         </div>
         {vinState && vinState.state === 'free' && isNew && <p className="note" role="status">✓ This car is not listed yet. {filled > 0
-          ? <>We filled in <b>{filled} detail{filled === 1 ? '' : 's'}</b> from the {vinState.prefill && vinState.prefill.source === 'factory' ? 'factory record' : 'VIN'}{vinState.prefill && vinState.prefill.title ? <> (<b>{vinState.prefill.title}</b>)</> : null}. Check them against the car, then add the price, mileage, colour and photos.</>
+          ? <>We filled in <b>{filled} detail{filled === 1 ? '' : 's'}</b> from the {vinState.prefill && vinState.prefill.source === 'factory' ? 'factory record' : 'VIN'}{vinState.prefill && vinState.prefill.title ? <> (<b>{vinState.prefill.title}</b>)</> : null}. Check them against the car, then add the price, mileage, colour and photos.{vinState.prefill && vinState.prefill.trimChoices ? <> This VIN fits several trims ({vinState.prefill.trimChoices.join(', ')}): pick the right one under Trim.</> : null}</>
           : 'Fill in the details below.'}</p>}
         {vinState && vinState.state === 'yours' && isNew && <p className="note" role="status">You already list this car. <Link to={'/dealer/cars/' + vinState.carId}>Edit it instead</Link>.</p>}
         {vinState && vinState.state === 'taken' && <div className="err" role="alert">This car is already listed on Korrect Cars by another seller. If it is yours (you have the papers), you can ask our team to check: ownership claims open soon. Meanwhile, <a href={'mailto:info@korrectcars.com?subject=' + encodeURIComponent('VIN already listed: ' + (vinState.value || local.value))}>email us</a>.</div>}
@@ -341,7 +341,7 @@ export function DealerCarForm({ id }) {
           {inp('year', 'Year', { inputMode: 'numeric', maxLength: 4 })}
           {inp('price', 'Price (₦)', { required: true, inputMode: 'numeric' })}
           {inp('mileage', 'Mileage', { placeholder: '68,000 miles' })}
-          {inp('trim', 'Trim')}{inp('engine', 'Engine')}{inp('transmission', 'Transmission')}{inp('drivetrain', 'Drivetrain')}{inp('fuel', 'Fuel')}
+          {inp('trim', 'Trim', { list: 'dc-trims' })}<datalist id="dc-trims">{((vinState && vinState.prefill && vinState.prefill.trimChoices) || []).map((t) => <option key={t} value={t} />)}</datalist>{inp('engine', 'Engine')}{inp('transmission', 'Transmission')}{inp('drivetrain', 'Drivetrain')}{inp('fuel', 'Fuel')}
           {inp('color', 'Exterior colour')}{inp('interior', 'Interior')}
           <div className="field"><label className="f" htmlFor="dc-cond">Condition</label><select id="dc-cond" className="input" value={f.condition} onChange={set('condition')}>{['Foreign Used', 'Nigerian Used', 'Brand New'].map((c) => <option key={c}>{c}</option>)}</select></div>
           {inp('location', 'Where the car is')}

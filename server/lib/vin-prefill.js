@@ -132,6 +132,9 @@ function prefill(vin, row = {}) {
   const model = has(row.Model) ? s(row.Model) : '';
   const year = Number(row.ModelYear) || modelYear(vin) || null;
   let trim = has(row.Trim) ? s(row.Trim) : has(row.Series) && !/^\d+$/.test(s(row.Series)) ? s(row.Series) : '';
+  // Several trims share one VIN pattern ("L/LE/SE/XLE"): the seller picks one, so nothing goes in the title
+  let trimChoices = [];
+  if (/\s*\/\s*/.test(trim)) { trimChoices = trim.split(/\s*\/\s*/).map((x) => x.trim()).filter(Boolean); trim = ''; }
   // Lexus and others repeat the model in the trim ("RX" + "RX 350"): keep the fuller one once
   const showModel = model && trim.toLowerCase().startsWith(model.toLowerCase() + ' ') ? '' : model;
   const country = has(row.PlantCountry) ? title(s(row.PlantCountry).replace(/\s*\(.*\)$/, '')).replace(/^United States Of America$/, 'United States') : (fromWmi ? fromWmi.country : '');
@@ -158,6 +161,7 @@ function prefill(vin, row = {}) {
   out.description = model && bits.length ? `This ${out.title} comes with ${bits.join(', ').replace(/, ([^,]*)$/, ' and $1')}.${country ? ` Built in ${place}.` : ''}` : '';
   out.source = has(row.Make) ? 'factory' : fromWmi ? 'maker-code' : 'none';
   out.region = where;
+  if (trimChoices.length > 1) out.trimChoices = trimChoices;
   for (const k of Object.keys(out)) if (out[k] === '' || out[k] == null || (Array.isArray(out[k]) && !out[k].length)) delete out[k];
   return out;
 }

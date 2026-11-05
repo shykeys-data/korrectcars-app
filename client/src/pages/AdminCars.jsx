@@ -61,7 +61,8 @@ function CarForm({ car, onClose, onSaved }) {
       const r = await api('/vin/' + v);
       const x = r.prefill || r.basics || {};
       const res = applyPrefill(x); setF((p) => res.fill(p));
-      setVinNote(res.n ? `Filled ${res.n} empty field${res.n === 1 ? '' : 's'} from the ${x.source === 'factory' ? 'factory record' : 'VIN'}. Check them against the car.` : 'The VIN gave nothing new to fill in.');
+      setVinNote((res.n ? `Filled ${res.n} empty field${res.n === 1 ? '' : 's'} from the ${x.source === 'factory' ? 'factory record' : 'VIN'}. Check them against the car.` : 'The VIN gave nothing new to fill in.')
+        + (res.trimChoices.length ? ` This VIN fits several trims (${res.trimChoices.join(', ')}): type the right one in Trim and the title.` : ''));
     } catch (e2) { setVinNote(e2.message); }
   };
   // Allow models not in the catalogue by merging the current value in

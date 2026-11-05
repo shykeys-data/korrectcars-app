@@ -31,3 +31,10 @@ test('VINs the US database does not know still give the maker, country and (wher
   const none = prefill('WDDZF4JB1HA123456', {});
   assert.ok(!none.model && !none.engine && !none.description, 'nothing invented');
 });
+
+test('a VIN that fits several trims leaves the choice to the seller', () => {
+  const p = prefill('4T1B11HK2JU020841', { Make: 'TOYOTA', Model: 'Camry', ModelYear: '2018', Trim: 'L/LE/SE/XLE' });
+  assert.strictEqual(p.title, '2018 Toyota Camry');
+  assert.deepStrictEqual(p.trimChoices, ['L', 'LE', 'SE', 'XLE']);
+  assert.strictEqual(p.trim, undefined);
+});
