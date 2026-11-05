@@ -7,16 +7,21 @@ const config = require('../config');
 
 const SENDMAIL = ['/usr/sbin/sendmail', '/usr/lib/sendmail'].find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return true; } catch (_e) { return false; } });
 const sent = []; // last messages, for tests
+// The Korrect Cars logo (white, for the dark header of every email), attached to each message
+const LOGO_CID = 'logo@korrectcars.com';
+const LOGO_SRC = `cid:${LOGO_CID}`;
+let LOGO = null;
+try { LOGO = fs.readFileSync(require('path').join(__dirname, '..', 'assets', 'email-logo.png')).toString('base64').replace(/.{76}/g, '$&\n'); } catch (_e) { /* falls back to the logo on the website */ }
 
 const clean = (s) => String(s).replace(/[\r\n]+/g, ' ').trim();
 const b64 = (s) => Buffer.from(s, 'utf8').toString('base64').replace(/.{76}/g, '$&\n');
 const encHeader = (s) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, 'utf8').toString('base64')}?=`);
 
-function send({ to, subject, text, html }) {
-  to = clean(to);
-  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(to)) return Promise.reject(new Error('Bad recipient'));
+// The full message as sendmail receives it (also used by the tests)
+function build({ to, subject, text, html }) {
   const from = clean(config.mailFrom);
   const boundary = 'kc' + crypto.randomBytes(12).toString('hex');
+  const outer = 'kr' + crypto.randomBytes(12).toString('hex');
   const domain = (from.match(/@([^>\s]+)/) || [, 'korrectcars.com'])[1];
   const msg = [
     `From: ${encHeader('Korrect Cars')} <${from}>`,
@@ -26,12 +31,26 @@ function send({ to, subject, text, html }) {
     `Date: ${new Date().toUTCString()}`,
     `Message-ID: <${crypto.randomBytes(16).toString('hex')}@${domain}>`,
     'MIME-Version: 1.0',
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    // The logo travels inside the email (multipart/related + Content-ID), so it shows even when the site
+    // cannot be reached (staging is behind a password) and does not depend on remote images being allowed
+    ...(LOGO ? [`Content-Type: multipart/related; boundary="${outer}"`, '', `--${outer}`, `Content-Type: multipart/alternative; boundary="${boundary}"`]
+      : [`Content-Type: multipart/alternative; boundary="${boundary}"`]),
     '',
     `--${boundary}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', b64(text),
-    `--${boundary}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', b64(html),
-    `--${boundary}--`, ''
+    `--${boundary}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', b64(LOGO ? html : html.replace(LOGO_SRC, `${config.siteUrl}/img/logo-white.svg`)),
+    `--${boundary}--`,
+    ...(LOGO ? ['', `--${outer}`, 'Content-Type: image/png; name="korrect-cars.png"', 'Content-Transfer-Encoding: base64', `Content-ID: <${LOGO_CID}>`,
+      'Content-Disposition: inline; filename="korrect-cars.png"', '', LOGO, `--${outer}--`] : []),
+    ''
   ].join('\n'); // sendmail expects local (LF) line endings
+  return msg;
+}
+
+function send({ to, subject, text, html }) {
+  to = clean(to);
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(to)) return Promise.reject(new Error('Bad recipient'));
+  const from = clean(config.mailFrom);
+  const msg = build({ to, subject, text, html });
   sent.push({ to, subject, text });
   if (sent.length > 20) sent.shift();
   if (!SENDMAIL || process.env.MAIL_DISABLED === '1') {
@@ -54,7 +73,7 @@ function layout(title, bodyHtml) {
   return `<!doctype html><html><body style="margin:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:24px 0"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden">
-<tr><td style="background:#0b0b0d;padding:20px 28px"><img src="${config.siteUrl}/img/logo.png" alt="Korrect Cars" height="34" style="display:block;height:34px"></td></tr>
+<tr><td style="background:#0b0b0d;padding:20px 28px"><img src="${LOGO_SRC}" alt="Korrect Cars" width="142" height="34" style="display:block;width:142px;height:34px;border:0;color:#ffffff;font-weight:bold;font-size:20px"></td></tr>
 <tr><td style="padding:28px">
 <h1 style="font-size:22px;margin:0 0 14px">${esc(title)}</h1>
 ${bodyHtml}
@@ -119,4 +138,4 @@ const templates = {
   })
 };
 
-module.exports = { send, templates, sent, layout, button, hasSendmail: !!SENDMAIL };
+module.exports = { send, build, templates, sent, layout, button, hasSendmail: !!SENDMAIL };
