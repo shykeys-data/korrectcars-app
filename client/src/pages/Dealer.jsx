@@ -6,6 +6,7 @@ import { Link, useRouter, useApi, useApp, useTitle, naira, date, api, firstPhoto
 import { Loading } from '../components/Bits.jsx';
 import { check as checkVin } from '../../../server/lib/vehicle-id.js';
 import { STATES, lgasOf } from '../../../server/lib/ng-lgas.js';
+import { applyPrefill } from '../lib/prefill.js';
 
 const STATUS = {
   pending_review: ['Waiting for review', 'tag-warn', 'Our team is checking your CAC certificate and phone, usually within 2 working days. You can add cars now: they go live when you are approved.'],
@@ -261,6 +262,7 @@ export function DealerCarForm({ id }) {
   const [vinState, setVinState] = useState(isNew ? null : { state: 'yours' });
   const [files, setFiles] = useState([]); const [plate, setPlate] = useState(null);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(''); const [checking, setChecking] = useState(false);
+  const [filled, setFilled] = useState(0);
   useEffect(() => {
     const c = existing.data && existing.data.car; if (!c) return;
     setF({ ...EMPTY, title: c.title, make: c.make, model: c.model, body: c.body, trim: c.trim_level || '', year: c.year || '', price: c.price, mileage: c.mileage || '', engine: c.engine || '', transmission: c.transmission || '', drivetrain: c.drivetrain || '', fuel: c.fuel || '', color: c.color || '', interior: c.interior || '', condition: c.car_condition || '', location: c.location || '', vin: c.vin || '', description: c.description || '', features: (c.features || []).join('\n'), specsText: (c.specs || []).map((r) => `${r[0]}: ${r[1]}`).join('\n'), status: ['sold', 'hidden'].includes(c.status) ? c.status : 'available' });
@@ -279,9 +281,7 @@ export function DealerCarForm({ id }) {
     try {
       const d = await api('/dealer/vin-check?vin=' + encodeURIComponent(local.value));
       setVinState(d);
-      const x = d.decoded;
-      if (d.state === 'free' && x && x.found) setF((p) => ({ ...p, vin: d.value, make: p.make || x.make || '', model: p.model || x.model || '', year: p.year || x.year || '', title: p.title || x.title || '' }));
-      else setF((p) => ({ ...p, vin: d.value }));
+      if (d.state === 'free') { const r = applyPrefill(d.prefill); setFilled(r.n); setF((p) => ({ ...r.fill(p), vin: d.value })); } else setF((p) => ({ ...p, vin: d.value }));
     } catch (e2) { setErr(e2.message); } finally { setChecking(false); }
   };
   const save = async (e) => {
@@ -322,7 +322,9 @@ export function DealerCarForm({ id }) {
         <div id="dc-vin-hint" className="hint" aria-live="polite">
           {f.vin && local.problems.length ? <span style={{ color: 'var(--bad)' }}>{local.problems[0]}</span> : f.vin && local.warnings.length ? local.warnings[0] : f.vin && local.type === 'vin17' ? 'Looks like a valid VIN.' : ''}
         </div>
-        {vinState && vinState.state === 'free' && isNew && <p className="note" role="status">✓ This car is not listed yet. {vinState.decoded && vinState.decoded.found ? <>Factory record: <b>{vinState.decoded.title}</b>. We filled in what we could; check it below.</> : 'Fill in the details below.'}</p>}
+        {vinState && vinState.state === 'free' && isNew && <p className="note" role="status">✓ This car is not listed yet. {filled > 0
+          ? <>We filled in <b>{filled} detail{filled === 1 ? '' : 's'}</b> from the {vinState.prefill && vinState.prefill.source === 'factory' ? 'factory record' : 'VIN'}{vinState.prefill && vinState.prefill.title ? <> (<b>{vinState.prefill.title}</b>)</> : null}. Check them against the car, then add the price, mileage, colour and photos.</>
+          : 'Fill in the details below.'}</p>}
         {vinState && vinState.state === 'yours' && isNew && <p className="note" role="status">You already list this car. <Link to={'/dealer/cars/' + vinState.carId}>Edit it instead</Link>.</p>}
         {vinState && vinState.state === 'taken' && <div className="err" role="alert">This car is already listed on Korrect Cars by another seller. If it is yours (you have the papers), you can ask our team to check: ownership claims open soon. Meanwhile, <a href={'mailto:info@korrectcars.com?subject=' + encodeURIComponent('VIN already listed: ' + (vinState.value || local.value))}>email us</a>.</div>}
         {vinState && vinState.state === 'locked' && <div className="err" role="alert">This VIN is on hold while our team checks it. Please contact us.</div>}

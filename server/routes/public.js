@@ -275,8 +275,14 @@ const PUBLIC_POST_COLS = 'id, slug, title, excerpt, content, image, category, pu
 
 // Free VIN checker: factory details from NHTSA, plus our cars of the same make and model
 r.get('/vin/:vin', limiter(10, 30, 'Too many VIN checks. Please wait a few minutes.'), async (req, res) => {
+  // Japanese home-market cars carry a chassis (frame) number instead of a 17-character VIN
+  const id = require('../lib/vehicle-id').check(req.params.vin);
+  if (id.type === 'chassis') return res.json({ vin: id.value, valid: false, chassis: true, inStock: [],
+    message: 'This looks like a Japanese chassis (frame) number, not a 17-character VIN. Japanese home-market cars use these, and there is no free online record for them. Send it to us on WhatsApp and we will check it for you.' });
   const d = await require('../lib/vin').decode(req.params.vin);
-  if (!d.valid || !d.found) return res.json({ ...d, inStock: [] });
+  if (!d.valid) return res.json({ ...d, inStock: [] });
+  // Not in the US database (common for European, Gulf, Chinese or Japanese-market cars): what the VIN itself says
+  if (!d.found) return res.json({ ...d, basics: require('../lib/vin-prefill').prefill(d.vin, {}), inStock: [] });
   const inStock = (await listCars({ limit: 100 })).filter((c) => c.status === 'available' && c.make.toLowerCase() === d.make.toLowerCase() && (!d.model || c.model.toLowerCase() === d.model.toLowerCase())).slice(0, 4);
   res.json({ ...d, inStock });
 });

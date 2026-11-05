@@ -69,7 +69,7 @@ const SWAP = {
 
 const VIN = {
   h1: 'Free VIN check',
-  lead: 'Type any 17-character VIN to see the car\'s year, make, model, engine and where it was built. Free, no sign-up.',
+  lead: 'Type any car\'s 17-character VIN to see its make, model year and where it was built. Cars made for the US and Canadian market, which is most tokunbo cars in Nigeria, also show the model, trim, engine, gearbox and safety equipment. Japanese chassis numbers are recognised too. Free, no sign-up.',
   sections: [
     { h2: 'Where to find the VIN', list: [
       'At the bottom of the windscreen on the driver\'s side, readable from outside',

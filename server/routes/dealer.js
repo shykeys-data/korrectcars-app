@@ -246,7 +246,9 @@ r.get('/vin-check', requireDealer, limiter(15, 120), async (req, res) => {
   else if (found.live) state = found.live.dealer_id === req.dealer.id ? 'yours' : 'taken';
   let decoded = null;
   if (v.type === 'vin17' && req.query.decode !== '0') { try { decoded = await vin.decode(v.value); } catch (_e) { decoded = null; } }
-  res.json({ value: v.value, type: v.type, warnings: v.warnings, state, carId: state === 'yours' ? found.live.id : undefined, canClaim: state === 'taken', decoded });
+  // What the form can fill in: the factory record, or at least the maker and year from the VIN itself
+  const prefill = v.type === 'vin17' ? ((decoded && decoded.prefill) || require('../lib/vin-prefill').prefill(v.value, {})) : {};
+  res.json({ value: v.value, type: v.type, warnings: v.warnings, state, carId: state === 'yours' ? found.live.id : undefined, canClaim: state === 'taken', decoded, prefill });
 });
 
 r.get('/cars', requireDealer, async (req, res) => {

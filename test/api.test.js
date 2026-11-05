@@ -136,3 +136,9 @@ test('partner dealer sign-up is closed while the Partner dealers switch is off (
   assert.strictEqual((await call('POST', '/api/dealer/signup/code', { body: { email: 'dealer@example.com' } })).status, 404);
   assert.strictEqual((await call('GET', '/api/dealer/me')).status, 404);
 });
+
+test('the VIN check explains Japanese chassis numbers instead of rejecting them', async () => {
+  const r = await call('GET', '/api/vin/NZE121-3123456');
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual([r.json.chassis, r.json.valid], [true, false]);
+});

@@ -9,6 +9,7 @@ import { VIN, MARKET } from '../../../server/lib/pagecopy.js';
 const cleanVin = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17);
 function vinHint(v, tried) {
   if (/[IOQ]/.test(v)) return { err: true, text: 'A VIN never uses I, O or Q. Try 1 (one) or 0 (zero).' };
+  if (v.length >= 8 && v.length <= 14 && /[A-Z]/.test(v) && /\d{4,}$/.test(v)) return { err: false, text: 'Looks like a Japanese chassis number' };
   if (tried && v.length !== 17) return { err: true, text: `A VIN has 17 characters. This one has ${v.length}.` };
   return { err: false, text: 'Letters and numbers only' };
 }
@@ -28,7 +29,8 @@ export function VinCheck() {
   const check = async (e) => {
     e.preventDefault();
     setTried(true); setErr('');
-    if (vin.length !== 17 || /[IOQ]/.test(vin)) return;
+    const chassis = vin.length >= 8 && vin.length <= 14 && /[A-Z]/.test(vin) && /\d{4,}$/.test(vin); // Japanese frame numbers
+    if ((vin.length !== 17 && !chassis) || (vin.length === 17 && /[IOQ]/.test(vin))) return;
     setBusy(true);
     try {
       const r = await api('/vin/' + vin);
@@ -47,7 +49,7 @@ export function VinCheck() {
         <form className="box vin-form" onSubmit={check} noValidate>
           <label htmlFor="vin">Vehicle identification number (VIN)</label>
           <input id="vin" className={'input vin-input' + (hint.err ? ' bad' : '')} value={vin} maxLength={17} autoComplete="off" autoCapitalize="characters" spellCheck="false" inputMode="text"
-            aria-describedby="vin-hint" aria-invalid={hint.err} placeholder="17 letters and numbers" onChange={(e) => { setVin(cleanVin(e.target.value)); setTried(false); }} />
+            aria-describedby="vin-hint" aria-invalid={hint.err} placeholder="17-character VIN or chassis number" onChange={(e) => { setVin(cleanVin(e.target.value)); setTried(false); }} />
           <div id="vin-hint" className={'small ' + (hint.err ? 'err-text' : 'muted')} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{hint.text}</span><span aria-hidden="true">{vin.length}/17</span></div>
           <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Checking…' : 'Check this VIN'}</button>
           {err && <div className="err-text small" role="alert">{err}</div>}
@@ -56,9 +58,14 @@ export function VinCheck() {
 
       {res && <section className="sec-sm"><div className="wrap" style={{ maxWidth: 760 }}>
         <div className="box vin-result" ref={resultRef} tabIndex={-1} aria-live="polite">
-          {!res.valid ? <p className="err-text">{res.message}</p> : !res.found ? <>
-            <h2>No details for this VIN</h2>
-            <p>The US database has nothing for <code>{res.vin}</code>. Cars built for Europe, Asia or the Middle East are often missing. {res.checkDigitOk ? '' : 'Its 9th character also fails the check, so look for a typo.'}</p>
+          {!res.valid ? <><p className={res.chassis ? '' : 'err-text'}>{res.message}</p>{res.chassis && <a className="btn btn-wa" href={waLink(cfg, `Hello Korrect Cars, can you check this chassis number for me: ${res.vin}`)} target="_blank" rel="noopener noreferrer">Send it on WhatsApp</a>}</> : !res.found ? <>
+            <h2>{res.basics && res.basics.make ? `${res.basics.year ? res.basics.year + ' ' : ''}${res.basics.make}` : 'What this VIN tells us'}</h2>
+            {res.basics && (res.basics.make || res.basics.region) && <dl className="vin-dl">
+              {res.basics.make && <><dt>Make</dt><dd>{res.basics.make}</dd></>}
+              {res.basics.year && <><dt>Model year</dt><dd>{res.basics.year}</dd></>}
+              {res.basics.region && <><dt>Made in</dt><dd>{res.basics.region}</dd></>}
+            </dl>}
+            <p>The full factory record (model, engine, trim) for <code>{res.vin}</code> is not in the free US database. That is normal for cars built for Europe, the Gulf, China or Japan's home market. {res.checkDigitOk ? '' : 'Its 9th character also fails the check digit, which on US and Chinese cars usually means a typo.'} We can look it up for you.</p>
             <a className="btn btn-wa" href={waLink(cfg, `Hello Korrect Cars, can you check this VIN for me: ${res.vin}`)} target="_blank" rel="noopener noreferrer">Ask us on WhatsApp</a>
           </> : <>
             <div className="small muted"><code>{res.vin}</code> · {res.checkDigitOk ? 'check digit OK' : 'check digit does not match: confirm the VIN on the car'}</div>

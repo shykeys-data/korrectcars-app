@@ -64,7 +64,8 @@ async function decode(vinIn) {
     found: !!(make && (model || year)),
     title: [year, make, model, s(row.Trim)].filter(Boolean).join(' '),
     make, model, year: Number(year) || null, details,
-    note: s(row.ErrorCode) && s(row.ErrorCode) !== '0' ? s(row.ErrorText).split(';')[0].replace(/^\d+\s*-\s*/, '') : ''
+    note: s(row.ErrorCode) && s(row.ErrorCode) !== '0' ? s(row.ErrorText).split(';')[0].replace(/^\d+\s*-\s*/, '') : '',
+    prefill: require('./vin-prefill').prefill(vin, row) // what the car form can fill in by itself
   };
   if (cache.size > 1000) cache.delete(cache.keys().next().value);
   cache.set(vin, { at: Date.now(), data });

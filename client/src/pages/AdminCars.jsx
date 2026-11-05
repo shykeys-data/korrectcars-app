@@ -4,6 +4,7 @@ import { Link, useApi, naira, date, api, firstPhoto, rs, shrinkPhoto } from '../
 import { INSPECTION_AREAS } from '../../../server/lib/inspection-areas.js';
 import { Loading, Modal } from '../components/Bits.jsx';
 import { T, norm, stTag } from './AdminShared.jsx';
+import { applyPrefill } from '../lib/prefill.js';
 
 const MAX_PHOTOS = 20; // per save, matches the server limit
 
@@ -50,6 +51,19 @@ function CarForm({ car, onClose, onSaved }) {
   const [files, setFiles] = useState([]);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [busyText, setBusyText] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  // "Fill from VIN": empty fields are filled from the factory record (or at least the maker and year)
+  const [vinNote, setVinNote] = useState('');
+  const fillFromVin = async () => {
+    const v = String(f.vin || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (v.length !== 17) { setVinNote('Type the full 17-character VIN first.'); return; }
+    setVinNote('Looking up…');
+    try {
+      const r = await api('/vin/' + v);
+      const x = r.prefill || r.basics || {};
+      const res = applyPrefill(x); setF((p) => res.fill(p));
+      setVinNote(res.n ? `Filled ${res.n} empty field${res.n === 1 ? '' : 's'} from the ${x.source === 'factory' ? 'factory record' : 'VIN'}. Check them against the car.` : 'The VIN gave nothing new to fill in.');
+    } catch (e2) { setVinNote(e2.message); }
+  };
   // Allow models not in the catalogue by merging the current value in
   const tree = { ...(catalog.data || {}) };
   if (f.make) { tree[f.make] = { ...(tree[f.make] || {}) }; if (f.model && !tree[f.make][f.model]) tree[f.make][f.model] = f.body ? [f.body] : ['Sedan', 'SUV', 'SUV Coupe', 'Hatchback', 'Coupe', 'Pickup', 'Minivan']; }
@@ -83,7 +97,7 @@ function CarForm({ car, onClose, onSaved }) {
           {inp('price', 'Price (₦)', { required: true, inputMode: 'numeric' })}
           {inp('oldPrice', 'Old price (₦), shows "price drop"', { inputMode: 'numeric' })}
           {inp('trim', 'Trim')}{inp('mileage', 'Mileage')}{inp('engine', 'Engine')}{inp('transmission', 'Transmission')}{inp('drivetrain', 'Drivetrain')}{inp('fuel', 'Fuel')}
-          {inp('color', 'Exterior colour')}{inp('interior', 'Interior')}{inp('condition', 'Condition')}{inp('location', 'Location')}{inp('vin', 'VIN')}{inp('stock', 'Stock number')}
+          {inp('color', 'Exterior colour')}{inp('interior', 'Interior')}{inp('condition', 'Condition')}{inp('location', 'Location')}<div className="field"><label className="f" htmlFor="cf-vin">VIN</label><div style={{ display: 'flex', gap: 8 }}><input id="cf-vin" className="input" value={f.vin} onChange={set('vin')} autoCapitalize="characters" spellCheck={false} /><button type="button" className="btn btn-dark btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={fillFromVin}>Fill from VIN</button></div>{vinNote && <div className="hint" role="status">{vinNote}</div>}</div>{inp('stock', 'Stock number')}
           <div className="field"><label className="f" htmlFor="cf-status">Status</label><select id="cf-status" className="input" value={f.status} onChange={set('status')}><option value="available">Available</option><option value="sold">Sold</option><option value="hidden">Hidden</option></select></div>
           <label className="check field" style={{ alignItems: 'center' }}><input type="checkbox" checked={f.featured} onChange={set('featured')} /> Show on the home page</label>
         </div>
