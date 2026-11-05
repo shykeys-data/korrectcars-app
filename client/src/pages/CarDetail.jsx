@@ -91,7 +91,7 @@ export function CarDetail({ slug }) {
             <p className="small muted">Swap it with a verified owner on Korrect Swap. We check both owners and their papers, and both cars are inspected at a partner car lot. {(cfg && cfg.swapFeePct) || 2}% fee, paid only after a successful swap.</p>
             <Link to="/swap/new" className="btn btn-line btn-sm">List my car</Link>
           </div>}
-          <div className="notice"><b>Stay safe:</b> only pay into the Korrect Cars company account, and only after you have seen the car and its papers.</div>
+          <div className="notice"><b>Stay safe:</b> see the car in person and check its papers <b>before</b> you pay anything. Then pay only into <b>{car.seller || 'the seller'}</b>'s business account, never a personal account.</div>
         </aside>
       </div>
       {data.similar && data.similar.length > 0 && (

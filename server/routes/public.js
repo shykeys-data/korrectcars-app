@@ -221,6 +221,9 @@ async function carDetail(slug) {
   if (!car) return null;
   const similar = await q(`SELECT id, slug, title, make, model, body, year, price, old_price, mileage, photos, status FROM cars
     WHERE id <> ? AND status = 'available' AND (body = ? OR make = ?) ORDER BY ABS(price - ?) LIMIT 3`, [car.id, car.body, car.make, car.price]);
+  // Who sells it: buyers pay this business, so the car page names it (the "Stay safe" note)
+  const seller = car.dealer_id ? await one('SELECT business_name FROM dealers WHERE id = ?', [car.dealer_id]) : null;
+  car.seller = (seller && seller.business_name) || 'Korrect Cars';
   for (const k of ['vin', 'old_slug', 'vin_photo', 'vehicle_id_ref', 'live_key', 'created_by']) delete car[k]; // staff only
   cleanCar(car); similar.forEach(cleanCar);
   return moved ? { car, similar, movedTo: car.slug } : { car, similar };
