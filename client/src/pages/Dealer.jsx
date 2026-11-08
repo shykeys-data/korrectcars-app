@@ -83,9 +83,9 @@ function KindStep({ onPick }) {
     <div className="box">
       <h2>Who is selling?</h2>
       <div className="opts" role="group" aria-label="Who is selling" style={{ display: 'grid', gap: 12 }}>
-        <button type="button" className="opt" style={{ textAlign: 'left', padding: 16 }} onClick={() => onPick('business')}>
+        <button type="button" className="opt" style={{ textAlign: 'center', padding: '16px 22px' }} onClick={() => onPick('business')}>
           <b>I'm a car dealer (a business)</b><div className="small muted">You have CAC papers (RC or BN). Once we check them, your cars show <SellerBadge type="dealer" />. Up to 50 cars in your first 3 months, then no limit.</div></button>
-        <button type="button" className="opt" style={{ textAlign: 'left', padding: 16 }} onClick={() => onPick('personal')}>
+        <button type="button" className="opt" style={{ textAlign: 'center', padding: '16px 22px' }} onClick={() => onPick('personal')}>
           <b>I'm selling my own car</b><div className="small muted">No CAC needed. Without an ID check you can list 1 car, shown as <SellerBadge type="private" />, and our team looks at it before it goes live. Send your ID to become a <SellerBadge type="verified" /> and list up to 5.</div></button>
       </div>
     </div>
