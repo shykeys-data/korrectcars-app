@@ -360,6 +360,19 @@ async function renderPage(req, nonce) {
       ld.push(listLd(avail));
     }
   }
+  // Boost plan fees: every plan for every length, as a table readable without scripts
+  if (dealersOn && p === '/boost-plans') {
+    known = true;
+    const bp = require('./lib/boost-plans');
+    const LEN = { 7: '7 days', 14: '14 days', 30: '30 days', 90: '3 months', 180: '6 months', 365: '1 year' };
+    meta = { ...meta, title: 'Boost plan fees: 7 days to 1 year | Korrect Cars', desc: clip(`Boost your cars on Korrect Cars from ${naira(bp.quote('basic', 7).amount)} for 7 days. Featured badge, first place on the cars pages. Plans for 1 car to all your cars, 7 days to 1 year; VAT added at checkout.`, 160) };
+    body = `<h1>${esc(copy.BOOSTS.h1)}</h1><p>${esc(copy.BOOSTS.lead)}</p>`
+      + bp.DURATIONS.map(([d]) => `<h2>${LEN[d]}</h2><table><thead><tr><th>Plan</th><th>Cars boosted at once</th><th>Price</th><th>With VAT (${bp.VAT_PCT}%)</th></tr></thead><tbody>`
+        + bp.priceList().map((pl) => { const q = pl.prices.find((x) => x.days === d); return `<tr><td>${esc(pl.name)}</td><td>${pl.cars == null ? 'All' : pl.cars}</td><td>${naira(q.amount)}</td><td>${naira(q.total)}</td></tr>`; }).join('') + '</tbody></table>').join('')
+      + copyHtml(copy.BOOSTS, { h1: false }).replace(/^<p>.*?<\/p>/, '');
+    const f = copyFaq(copy.BOOSTS); if (f.length) ld.push(faqLd(f));
+    ld.push(crumbsLd([['Boost plan fees', p]]));
+  }
   if (dealersOn && p === '/how-we-check-sellers') {
     known = true;
     meta = { ...meta, title: 'How Korrect Cars checks car sellers | Verified Dealers and Sellers', desc: clip(copy.SELLERS.lead, 160) };

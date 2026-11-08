@@ -643,3 +643,11 @@ test('the Paystack webhook refuses anything without a valid signature', async ()
   assert.ok(!b.signatureOk(raw, sig.replace(/^./, (c) => (c === 'a' ? 'b' : 'a'))));
   delete process.env.PAYSTACK_SECRET_KEY;
 });
+
+test('the boost plan fees page lists every plan for 7 days to 1 year (readable without scripts) and is in the sitemap', async () => {
+  const r = await fetch(B + '/boost-plans');
+  assert.strictEqual(r.status, 200);
+  const html = await r.text();
+  for (const s of ['7 days', '14 days', '30 days', '3 months', '6 months', '1 year', 'Enterprise Lux', '₦12,799', '₦4,499', '"@type":"FAQPage"']) assert.ok(html.includes(s), s);
+  assert.match(await (await fetch(B + '/sitemap.xml')).text(), /\/boost-plans</);
+});

@@ -15,6 +15,7 @@ import { SwapHome, SwapListing, SwapNew } from './pages/Swap.jsx';
 import { Account, AuthPage, VerifyEmail, ForgotPassword, ResetPassword } from './pages/Account.jsx';
 import { Blog, Post, Page, Faqs, Contact, NotFound, HowWeCheckSellers } from './pages/Content.jsx';
 import { SellerPage } from './pages/Seller.jsx';
+import { BoostPlans } from './pages/BoostPlans.jsx';
 import { VinCheck, Market } from './pages/Tools.jsx';
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 // Partner dealer pages: their own bundle, loaded only when a dealer opens them
@@ -52,6 +53,7 @@ function Routes() {
   if (path === '/dealers/join') return <Lazy><DealerJoin /></Lazy>;
   if (path === '/dealers/invite') return <Lazy><DealerInvite /></Lazy>;
   if (path === '/how-we-check-sellers') return <HowWeCheckSellers />;
+  if (path === '/boost-plans') return <BoostPlans />;
   if ((m = match('/dealers/:slug', path))) return <SellerPage key={m.slug} slug={m.slug} />;
   if (path === '/dealer') return <Lazy><DealerHome /></Lazy>;
   if (path === '/dealer/cars/new') return <Lazy><DealerCarForm /></Lazy>;

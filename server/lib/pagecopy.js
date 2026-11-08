@@ -141,4 +141,25 @@ const PRIVACY_MARKETPLACE = {
   ]
 };
 
-module.exports = { GUIDES, CONTACT, SWAP, VIN, MARKET, SELLERS, PRIVACY_MARKETPLACE };
+// Boost plans page (/boost-plans, Nov 2026). Prices come from boost-plans.js; keep these words true to boosts.js.
+const BOOSTS = {
+  h1: 'Boost your cars on Korrect Cars',
+  lead: 'A boost puts your cars in front of more buyers. Boosted cars show a Featured badge, come first on the cars pages and appear in the home page\'s featured row. Pick how many cars to boost at once and for how long: 7 days, 14 days, 30 days, 3 months, 6 months or a year. Longer plans cost less per day.',
+  sections: [
+    { h2: 'How boosting works', steps: [
+      ['Pick a plan and how long', 'The plan sets how many of your cars can be boosted at the same time, from 1 car (Basic) to all your cars (Enterprise Lux).'],
+      ['Pay with Paystack', 'Pay by card, bank transfer or USSD. 7.5% VAT is added and shown before you pay, and on your receipt.'],
+      ['Choose the cars', 'On your seller page, press Boost on the cars you want. You can swap which cars are boosted at any time while the plan runs.'],
+      ['It ends on its own', 'When the plan ends, your cars stay for sale as normal; they just stop being boosted. Buy again any time.']
+    ] },
+    { h2: 'Questions about boosts', faq: [
+      ['Who can buy a boost?', 'Any seller on Korrect Cars: dealers, Verified Sellers and private sellers, for cars that are for sale. In a dealer team, the owner and managers can buy one.'],
+      ['Does a boost change my seller badge?', 'No. Buyers still see whether you are a Verified Dealer, a Verified Seller or a private seller. A boost buys position, not trust.'],
+      ['What if I sell a boosted car?', 'Mark it as sold and press Boost on another car: the boost moves to it for the rest of the plan.'],
+      ['Can I move to a bigger plan?', 'Yes. Buy the bigger plan and it starts at once; your boosted cars carry on under it.'],
+      ['Is VAT included in the prices?', 'The plan prices are before VAT. 7.5% VAT is added at checkout, as the law requires.']
+    ] }
+  ]
+};
+
+module.exports = { GUIDES, CONTACT, SWAP, VIN, MARKET, SELLERS, PRIVACY_MARKETPLACE, BOOSTS };

@@ -127,7 +127,7 @@ app.get('/sitemap.xml', async (_req, res, next) => {
     // Seller pages with at least 3 cars for sale, and the page on how sellers are checked (only while the marketplace is on)
     const mkt = settings.current().marketplace;
     const sellerPages = mkt ? (await db.q(`SELECT d.slug FROM dealers d JOIN cars c ON c.dealer_id = d.id AND c.status = 'available'
-      WHERE d.id <> 1 AND d.status = 'approved' GROUP BY d.id, d.slug HAVING COUNT(c.id) >= 3`)).map((x) => '/dealers/' + x.slug).concat(['/how-we-check-sellers']) : [];
+      WHERE d.id <> 1 AND d.status = 'approved' GROUP BY d.id, d.slug HAVING COUNT(c.id) >= 3`)).map((x) => '/dealers/' + x.slug).concat(['/how-we-check-sellers', '/boost-plans']) : [];
     const urls = ['/', '/cars', ...catPages, ...sellerPages, ...(settings.current().swap ? ['/swap'] : []), '/pay-small-small', '/vin-check', ...((await settings.market()).items.length >= settings.MARKET_MIN ? ['/car-market-today'] : []), '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)
       .map((u) => `<url><loc>${config.siteUrl}${u}</loc></url>`)
       .concat(cars.map((c) => `<url><loc>${config.siteUrl}/cars/${c.slug}</loc><lastmod>${d(c.updated_at)}</lastmod>${(c.photos || []).slice(0, 5).map((ph) => `<image:image><image:loc>${config.siteUrl}${xml(ph)}</image:loc></image:image>`).join('')}</url>`))

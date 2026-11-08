@@ -421,7 +421,7 @@ function BoostPanel({ onChange }) {
       {err && <div className="err" role="alert">{err}</div>}
       {msg && <div className="okmsg" role="status">{msg}</div>}
       {a ? <p style={{ margin: '4px 0 0' }}><span className="tag tag-ok">{a.name}</span> until <b>{date(a.endsAt)}</b> · {data.boosted} of {a.cars == null ? 'all your' : a.cars} car{a.cars === 1 ? '' : 's'} boosted. Use <b>Boost</b> on a car in the list below.</p>
-        : <p className="small muted" style={{ margin: '4px 0 0' }}>Boosted cars show <span className="badge-inline">Featured</span>, come first on the cars pages and on the home page, and get more views.</p>}
+        : <p className="small muted" style={{ margin: '4px 0 0' }}>Boosted cars show <span className="badge-inline">Featured</span>, come first on the cars pages and on the home page, and get more views. <Link to="/boost-plans">See plan fees</Link></p>}
       {open && <>
         <div className="pills" role="group" aria-label="How long" style={{ margin: '14px 0 10px' }}>{Object.entries(DAYS_TEXT).map(([d, l]) => <button key={d} type="button" className={'pill' + (days === Number(d) ? ' on' : '')} onClick={() => setDays(Number(d))}>{l}</button>)}</div>
         <div className="scroll-x"><table className="tbl"><thead><tr><th>Plan</th><th className="num">Cars boosted at once</th><th className="num">Price</th><th className="num">With VAT ({data.vatPct}%)</th><th className="num">Per day</th><th /></tr></thead><tbody>
@@ -429,7 +429,7 @@ function BoostPanel({ onChange }) {
             <td><b>{p.name}</b></td><td className="num">{p.cars == null ? 'All' : p.cars}</td><td className="num">{naira(q.amount)}</td><td className="num">{naira(q.total)}</td><td className="num small muted">{naira(q.perDay)}</td>
             <td style={{ textAlign: 'right' }}><button className="btn btn-red btn-sm" disabled={!!busy} onClick={() => buy(p.key)}>{busy === p.key ? 'Opening…' : 'Pay'}</button></td></tr>; })}
         </tbody></table></div>
-        <p className="small muted">You pay securely with Paystack (card, bank transfer or USSD). The plan starts as soon as the payment is confirmed. Longer plans cost less per day.{!data.payOnline ? ' Online payment is not switched on yet: contact Korrect Cars to buy a plan.' : ''}</p>
+        <p className="small muted"><Link to={'/boost-plans?days=' + days}>See the plan fees page</Link> for every plan and length side by side. You pay securely with Paystack (card, bank transfer or USSD). The plan starts as soon as the payment is confirmed. Longer plans cost less per day.{!data.payOnline ? ' Online payment is not switched on yet: contact Korrect Cars to buy a plan.' : ''}</p>
       </>}
       {data.orders.length > 0 && <details style={{ marginTop: 8 }}><summary className="small">Your boost payments</summary>
         <table className="tbl" style={{ marginTop: 8 }}><thead><tr><th>Date</th><th>Plan</th><th className="num">Paid</th><th>Status</th><th>Reference</th></tr></thead>
