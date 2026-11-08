@@ -64,7 +64,7 @@ export function Post({ slug }) {
       {p.image_credit && <p className="small muted" style={{ maxWidth: 760 }}>Cover: {p.image_credit}</p>}
       {p.author_bio && <div className="box" style={{ marginTop: 28, maxWidth: 760 }}><div className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em' }}>About the author</div><p style={{ margin: '6px 0 0' }}><b>{p.author || 'The Korrect Cars team'}</b>: {p.author_bio}</p></div>}
       <div className="box" style={{ marginTop: 32, maxWidth: 760, display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div><b>Looking for a car?</b><div className="muted small">See cars from verified dealers, each listed with its VIN.</div></div>
+        <div><b>Looking for a car?</b><div className="muted small">See cars from dealers and private sellers, each listed with its VIN. A badge shows who we have checked.</div></div>
         <div style={{ display: 'flex', gap: 10 }}><Link to="/cars" className="btn btn-red btn-sm">Browse cars</Link></div>
       </div>
       {data.more.length > 0 && <section className="sec-sm"><h2>More guides</h2><div className="post-cards">{data.more.map((m) => (

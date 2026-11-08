@@ -168,8 +168,8 @@ r.post('/auth/2fa/verify', codeLimit, requireAuth, staffOnly, async (req, res) =
 // Partner dealers: the header shows "My dealer page" instead of "For dealers" (Korrect Cars itself is dealer 1, run from the staff area)
 async function withDealer(out) {
   if (!out || isStaff(out)) return out;
-  const d = await one('SELECT d.status, d.slug FROM dealer_members m JOIN dealers d ON d.id = m.dealer_id WHERE m.user_id = ? AND d.id <> 1 ORDER BY m.id LIMIT 1', [out.id]).catch(() => null);
-  if (d) out.dealer = { status: d.status, slug: d.slug };
+  const d = await one('SELECT d.status, d.slug, d.kind FROM dealer_members m JOIN dealers d ON d.id = m.dealer_id WHERE m.user_id = ? AND d.id <> 1 ORDER BY m.id LIMIT 1', [out.id]).catch(() => null);
+  if (d) out.dealer = { status: d.status, slug: d.slug, kind: d.kind || 'business' };
   return out;
 }
 function publicUser(u, mfa = false) {
@@ -188,7 +188,10 @@ async function facets() {
 }
 r.get('/cars/facets', async (_req, res) => res.json(await facets()));
 
-const SELLER = ', (SELECT d.business_name FROM dealers d WHERE d.id = cars.dealer_id) AS seller, (SELECT d.whatsapp FROM dealers d WHERE d.id = cars.dealer_id) AS seller_whatsapp, (SELECT d.phone FROM dealers d WHERE d.id = cars.dealer_id) AS seller_phone';
+const SELLER = ', (SELECT d.business_name FROM dealers d WHERE d.id = cars.dealer_id) AS seller, (SELECT d.whatsapp FROM dealers d WHERE d.id = cars.dealer_id) AS seller_whatsapp, (SELECT d.phone FROM dealers d WHERE d.id = cars.dealer_id) AS seller_phone'
+  // What kind of seller (badge): dealer = Verified Dealer (CAC checked), verified = Verified Seller (ID checked),
+  // private = Private Seller, not verified by Korrect Cars. Cars with no dealer are Korrect Cars' own stock (a dealer).
+  + ", (SELECT CASE WHEN d.kind = 'personal' THEN CASE WHEN d.status = 'approved' THEN 'verified' ELSE 'private' END ELSE 'dealer' END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_type";
 const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured, created_at'
   // A car is where its dealer is (one location per dealer for now; branches may come later)
   + ', (SELECT d.state FROM dealers d WHERE d.id = cars.dealer_id) AS state, (SELECT d.lga FROM dealers d WHERE d.id = cars.dealer_id) AS lga'
@@ -198,7 +201,8 @@ const STOCK_MAX = 2000;
 async function listCars(query = {}) {
   const where = [`status IN ${PUBLIC_STATUSES}`]; const p = [];
   const add = (sql, v) => { where.push(sql); p.push(v); };
-  const { make, model, body, condition, minPrice, maxPrice, yearMin, yearMax, sort, featured, search, limit, state, lga } = query;
+  const { make, model, body, condition, minPrice, maxPrice, yearMin, yearMax, sort, featured, search, limit, state, lga, verified } = query;
+  if (verified === '1') where.push("(dealer_id IS NULL OR dealer_id NOT IN (SELECT id FROM dealers WHERE kind = 'personal' AND status <> 'approved'))");
   if (make) add('make = ?', String(make));
   if (model) add('model = ?', String(model));
   if (body) add('body = ?', String(body));
@@ -228,11 +232,12 @@ async function carDetail(slug) {
   const similar = await q(`SELECT id, slug, title, make, model, body, year, price, old_price, mileage, photos, status${SELLER} FROM cars
     WHERE id <> ? AND status = 'available' AND (body = ? OR make = ?) ORDER BY ABS(price - ?) LIMIT 3`, [car.id, car.body, car.make, car.price]);
   // Who sells it: buyers pay this business, so the car page names it (the "Stay safe" note)
-  const seller = car.dealer_id ? await one('SELECT business_name, whatsapp, phone, state, lga FROM dealers WHERE id = ?', [car.dealer_id]) : null;
+  const seller = car.dealer_id ? await one('SELECT business_name, whatsapp, phone, state, lga, kind, status FROM dealers WHERE id = ?', [car.dealer_id]) : null;
+  car.seller_type = !seller || seller.kind !== 'personal' ? 'dealer' : seller.status === 'approved' ? 'verified' : 'private';
   car.seller = (seller && seller.business_name) || 'Korrect Cars';
   car.seller_whatsapp = (seller && seller.whatsapp) || null; car.seller_phone = (seller && seller.phone) || null;
   car.state = (seller && seller.state) || null; car.lga = (seller && seller.lga) || null;
-  for (const k of ['vin', 'old_slug', 'vin_photo', 'vehicle_id_ref', 'live_key', 'created_by']) delete car[k]; // staff only
+  for (const k of ['vin', 'old_slug', 'vin_photo', 'vehicle_id_ref', 'live_key', 'created_by', 'reviewed_by', 'reviewed_at']) delete car[k]; // staff only
   cleanCar(car); similar.forEach(cleanCar);
   return moved ? { car, similar, movedTo: car.slug } : { car, similar };
 }
@@ -247,6 +252,20 @@ r.post('/cars/:id/view', limiter(10, 120), async (req, res) => {
 });
 
 // ---------- Enquiries (viewing, offer, Pay Small Small, contact) ----------
+// "Report this listing": anyone may report (signed in or not); staff see it in "Reported listings"
+r.post('/cars/:id/report', limiter(60, 10, 'Too many reports from this connection. Please call us instead.'), async (req, res) => {
+  if (!/^\d{1,10}$/.test(String(req.params.id))) return res.status(404).json({ error: 'Car not found' });
+  const car = await one("SELECT id FROM cars WHERE id = ? AND status IN ('available','reserved','sold')", [req.params.id]);
+  if (!car) return res.status(404).json({ error: 'Car not found' });
+  const reports = require('../lib/reports');
+  const reason = String((req.body && req.body.reason) || '');
+  if (!reports.REASONS[reason]) return res.status(400).json({ error: 'Choose what is wrong with this listing.', field: 'reason' });
+  const details = String((req.body && req.body.details) || '').trim().slice(0, 600);
+  if (reason === 'other' && details.length < 5) return res.status(400).json({ error: 'Tell us briefly what is wrong.', field: 'details' });
+  await reports.report({ carId: car.id, reason, details, userId: req.user && req.user.id, ip: String(req.ip || '').slice(0, 60) });
+  res.json({ ok: true }); // the same answer for a repeat report, so it cannot be used to probe
+});
+
 r.post('/enquiries', limiter(60, 8, 'Too many messages sent. Please call or WhatsApp us instead.'), validate('enquiry'), async (req, res) => {
   const v = req.valid;
   if (v.website) return res.json({ ok: true }); // honeypot

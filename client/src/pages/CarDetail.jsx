@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { placeOf } from '../../../server/lib/places.js';
 import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, rs, srcset, api } from '../lib/core.jsx';
-import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal } from '../components/Bits.jsx';
+import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal, SellerBadge, SELLER_TYPES } from '../components/Bits.jsx';
 
 
 // Staff-written inspection notes for this car (shown only when filled in)
@@ -93,14 +93,18 @@ export function CarDetail({ slug }) {
               {sellerPhone(car, cfg) && <a className="btn btn-dark" href={'tel:' + sellerPhone(car, cfg).replace(/\s/g, '')}>Call {car.seller || 'the seller'}: {sellerPhone(car, cfg)}</a>}
               <button className={'btn ' + (saved.has(car.id) ? 'btn-saved' : 'btn-line')} aria-pressed={saved.has(car.id)} onClick={() => saved.toggle(car.id)}>{saved.has(car.id) ? 'Saved ✓' : 'Save this car'}</button>
             </div>
-            {!sold && <p className="small muted" style={{ margin: '14px 0 0' }}>Sold by {car.seller || 'a verified dealer'}{car.state ? <> in {[car.lga, car.state].filter(Boolean).join(', ')}</> : null}. Contact them to view the car. Inspect it and its papers before you pay.</p>}
+            <div style={{ marginTop: 14 }}><SellerBadge type={car.seller_type} long /> <span className="small muted">{(SELLER_TYPES[car.seller_type] || SELLER_TYPES.dealer)[2]}</span></div>
+            {!sold && <p className="small muted" style={{ margin: '8px 0 0' }}>Sold by {car.seller || 'a verified dealer'}{car.state ? <> in {[car.lga, car.state].filter(Boolean).join(', ')}</> : null}. Contact them to view the car. Inspect it and its papers before you pay.</p>}
           </div>
           {cfg && cfg.swap && <div className="box">
             <h3 style={{ fontSize: 22 }}>Want to change your car?</h3>
             <p className="small muted">Swap it with a verified owner on Korrect Swap. We check both owners and their papers, and both cars are inspected at a partner car lot. {(cfg && cfg.swapFeePct) || 2}% fee, paid only after a successful swap.</p>
             <Link to="/swap/new" className="btn btn-line btn-sm">List my car</Link>
           </div>}
-          <div className="notice"><b>Stay safe:</b> see the car in person and check its papers <b>before</b> you pay anything. Then pay only into <b>{car.seller || 'the seller'}</b>'s business account, never a personal account.</div>
+          {car.seller_type === 'private'
+            ? <div className="notice notice-strong" role="note"><b>Private seller, not verified by Korrect Cars.</b> We have not checked who this seller is. See the car in person, check its papers and make sure the seller's name matches them <b>before</b> you pay anything. Never pay a deposit to "hold" a car you have not seen.</div>
+            : <div className="notice"><b>Stay safe:</b> see the car in person and check its papers <b>before</b> you pay anything. Then pay only into {car.seller_type === 'verified' ? <>an account in <b>{car.seller}</b>'s own name</> : <><b>{car.seller || 'the seller'}</b>'s business account, never a personal account</>}.</div>}
+          <p className="small" style={{ margin: '10px 2px 0' }}><button type="button" className="linkbtn muted" onClick={() => setModal('report')}>Report this listing</button></p>
         </aside>
       </div>
       {data.similar && data.similar.length > 0 && (
@@ -112,7 +116,8 @@ export function CarDetail({ slug }) {
         <button className="btn btn-red" onClick={() => setModal('viewing')}>Book</button>
       </div>}
       {!sold && <a className="wa-fab" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${sellerName(car)} about this car`}><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M16 3.2A12.7 12.7 0 0 0 5.1 22.4L3.3 28.8l6.6-1.7A12.7 12.7 0 1 0 16 3.2Zm0 23.2c-1.9 0-3.8-.5-5.4-1.5l-.4-.2-3.9 1 1-3.8-.3-.4A10.5 10.5 0 1 1 16 26.4Zm5.8-7.9c-.3-.2-1.9-.9-2.2-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7.1a8.6 8.6 0 0 1-4.3-3.7c-.3-.6.3-.5.9-1.7.1-.2 0-.4 0-.6l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.9.4 3.6 3.6 0 0 0-1.1 2.7 6.3 6.3 0 0 0 1.3 3.3 14.4 14.4 0 0 0 5.5 4.9c2 .9 2.8 1 3.9.8a3.2 3.2 0 0 0 2.1-1.5 2.6 2.6 0 0 0 .2-1.5c-.1-.1-.3-.2-.6-.3Z" /></svg></a>}
-      {modal && <Modal onClose={() => setModal(null)} label={modal === 'viewing' ? 'Book a viewing' : 'Make an offer'}>
+      {modal === 'report' && <Modal onClose={() => setModal(null)} label="Report this listing"><ReportForm car={car} onDone={() => setModal(null)} /></Modal>}
+      {modal && modal !== 'report' && <Modal onClose={() => setModal(null)} label={modal === 'viewing' ? 'Book a viewing' : 'Make an offer'}>
         <EnquiryForm type={modal} car={car} title={modal === 'viewing' ? 'Book a viewing' : 'Make an offer'} cta={modal === 'viewing' ? 'Request viewing' : 'Send offer'} />
       </Modal>}
     </div>
@@ -121,4 +126,31 @@ export function CarDetail({ slug }) {
 
 function NotFoundCar() {
   return <div className="wrap sec"><h1>This car is no longer listed</h1><p className="muted">It may have been sold. See what is in stock now.</p><Link to="/cars" className="btn btn-red">Browse cars</Link></div>;
+}
+
+// "Report this listing": goes to Korrect Cars staff, who can hide the car at once
+const REPORT_REASONS = [['scam', 'Looks like a scam / asked for payment before viewing'], ['sold', 'Car already sold'], ['wrong', 'Wrong details or photos'], ['unreachable', 'Seller cannot be reached'], ['other', 'Something else']];
+function ReportForm({ car, onDone }) {
+  const [reason, setReason] = useState(''); const [details, setDetails] = useState('');
+  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [sent, setSent] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault(); setErr('');
+    if (!reason) return setErr('Choose what is wrong with this listing.');
+    if (reason === 'other' && details.trim().length < 5) return setErr('Tell us briefly what is wrong.');
+    setBusy(true);
+    try { await api(`/cars/${car.id}/report`, { method: 'POST', body: { reason, details } }); setSent(true); } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+  };
+  if (sent) return <div><h2 style={{ fontSize: 26 }}>Thank you</h2><p>Our team will look at this listing. If something is wrong, we take it down.</p><button className="btn btn-dark" onClick={onDone}>Close</button></div>;
+  return (
+    <form onSubmit={submit} noValidate>
+      <h2 style={{ fontSize: 26 }}>Report this listing</h2>
+      <p className="small muted">{car.title}. Only our team sees your report; the seller does not.</p>
+      {err && <div className="err" role="alert">{err}</div>}
+      <fieldset className="field" style={{ border: 0, padding: 0, margin: '0 0 12px' }}><legend className="f">What is wrong?</legend>
+        {REPORT_REASONS.map(([k, l]) => <label key={k} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0' }}><input type="radio" name="reason" value={k} checked={reason === k} onChange={() => setReason(k)} /> {l}</label>)}
+      </fieldset>
+      <div className="field"><label className="f" htmlFor="rp-details">More details {reason === 'other' ? '' : '(optional)'}</label><textarea id="rp-details" className="input" rows={3} maxLength={600} value={details} onChange={(e) => setDetails(e.target.value)} /></div>
+      <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Sending…' : 'Send report'}</button>
+    </form>
+  );
 }

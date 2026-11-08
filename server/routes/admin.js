@@ -27,6 +27,7 @@ const slugify = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').repla
 
 r.use(requireStaff('admin', 'sales', 'editor'));
 r.use('/dealers', require('./admin-dealers')); // every staff role may review dealers (owner decision, Nov 2026)
+r.use('/listings', require('./admin-listings')); // cars to check (private sellers) and reported listings
 
 r.get('/stats', async (req, res) => {
   const c = async (sql, p) => Number((await one(sql, p)).n) || 0;
@@ -43,6 +44,8 @@ r.get('/stats', async (req, res) => {
     reported: await c('SELECT COUNT(*) AS n FROM messages WHERE reported = 1'),
     newPss: await c("SELECT COUNT(*) AS n FROM enquiries WHERE status = 'new' AND type = 'bnpl'"),
     dealersWaiting: await c("SELECT COUNT(*) AS n FROM dealers WHERE status = 'pending_review'"),
+    carsToCheck: await c("SELECT COUNT(*) AS n FROM cars c JOIN dealers d ON d.id = c.dealer_id WHERE c.status = 'pending' AND c.reviewed_at IS NULL AND d.kind = 'personal' AND d.status NOT IN ('approved','rejected','suspended')"),
+    listingReports: await c("SELECT COUNT(*) AS n FROM listing_reports WHERE status = 'open'"),
     role: req.user.role
   });
 });

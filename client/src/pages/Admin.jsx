@@ -8,7 +8,7 @@ import { Loading } from '../components/Bits.jsx';
 import { AuthPage } from './Account.jsx';
 import { TwoFASetup, TwoFAVerify } from './AdminAuth.jsx';
 import { Cars } from './AdminCars.jsx';
-import { Dealers } from './AdminDealers.jsx';
+import { Dealers, CarChecks, Reports } from './AdminDealers.jsx';
 import { Leads, Listings, STATUS_LABEL, Swaps, TYPE_LABEL } from './AdminLeads.jsx';
 import { Audit, Settings, Users } from './AdminSettings.jsx';
 import { ROLE_LABEL, STAFF, T, stTag } from './AdminShared.jsx';
@@ -18,7 +18,8 @@ import { ROLE_LABEL, STAFF, T, stTag } from './AdminShared.jsx';
 // Grouped by the job: daily selling work first, then stock, then content, then admin. [key, label, roles, group]
 const ALL_TABS = [
   ['overview', 'Overview', 'admin sales editor', 'Today'], ['leads', 'Leads', 'admin sales', 'Today'],
-  ['cars', 'Cars', 'admin sales editor', 'Stock'], ['dealers', 'Dealers to review', 'admin sales editor', 'Stock'],
+  ['cars', 'Cars', 'admin sales editor', 'Stock'], ['dealers', 'Sellers to review', 'admin sales editor', 'Stock'],
+  ['checks', 'Cars to check', 'admin sales editor', 'Stock'], ['reports', 'Reported listings', 'admin sales editor', 'Stock'],
   ['listings', 'Swap listings', 'admin sales', 'Swap'], ['swaps', 'Swaps & fees', 'admin sales', 'Swap'],
   ['blog', 'Guides', 'admin editor', 'Content'], ['market', 'Market figures', 'admin editor', 'Content'],
   ['users', 'Staff & users', 'admin', 'Admin'], ['settings', 'Settings', 'admin', 'Admin'], ['audit', 'Activity log', 'admin', 'Admin']];
@@ -50,7 +51,7 @@ function NoAccess({ user }) {
 function Console({ user }) {
   const { setUser, cfg } = useApp();
   const rk = roleKey(user.role);
-  const TABS = ALL_TABS.filter((t) => t[2].split(' ').includes(rk) && ((cfg && cfg.swap) || !['listings', 'swaps'].includes(t[0])) && ((cfg && cfg.marketplace) || t[0] !== 'dealers'));
+  const TABS = ALL_TABS.filter((t) => t[2].split(' ').includes(rk) && ((cfg && cfg.swap) || !['listings', 'swaps'].includes(t[0])) && ((cfg && cfg.marketplace) || !['dealers', 'checks'].includes(t[0])));
   const [tab, setTab] = useState('overview');
   const stats = useApi('/admin/stats');
   const logout = async () => { await api('/auth/logout', { method: 'POST' }); setUser(null); };
@@ -63,7 +64,7 @@ function Console({ user }) {
             <div className="small" style={{ color: '#a1a1aa' }}>{user.name} · {ROLE_LABEL[user.role] || user.role}</div>
           </div>
           <nav className="sidenav">{TABS.map(([k, l, , g], i) => {
-            const n = stats.data ? { listings: stats.data.pendingListings, leads: stats.data.newEnquiries, dealers: stats.data.dealersWaiting }[k] : 0;
+            const n = stats.data ? { listings: stats.data.pendingListings, leads: stats.data.newEnquiries, dealers: stats.data.dealersWaiting, checks: stats.data.carsToCheck, reports: stats.data.listingReports }[k] : 0;
             return <React.Fragment key={k}>{(i === 0 || TABS[i - 1][3] !== g) && <div className="grp" aria-hidden="true">{g}</div>}
               <button className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined} onClick={() => setTab(k)}>{l}{n ? <span className="n">{n}</span> : null}</button></React.Fragment>;
           })}</nav>
@@ -74,6 +75,8 @@ function Console({ user }) {
           {tab === 'cars' && <Cars isAdmin={user.role === 'admin'} />}
           {tab === 'leads' && <Leads onChange={stats.reload} />}
           {tab === 'dealers' && <Dealers onChange={stats.reload} isAdmin={user.role === 'admin'} />}
+          {tab === 'checks' && <CarChecks onChange={stats.reload} />}
+          {tab === 'reports' && <Reports onChange={stats.reload} />}
           {tab === 'settings' && <Settings />}
           {tab === 'listings' && <Listings onChange={stats.reload} />}
           {tab === 'swaps' && <Swaps />}
@@ -99,7 +102,9 @@ function Overview({ stats, go }) {
     <>
       <div className="kpis">
         <K l="Cars in stock" v={s.carsAvail} sub={`${s.carsSold} sold`} to="cars" />
-        {cfg && cfg.marketplace && <K l="Dealers to review" v={s.dealersWaiting || 0} to="dealers" />}
+        {cfg && cfg.marketplace && <K l="Sellers to review" v={s.dealersWaiting || 0} to="dealers" />}
+        {cfg && cfg.marketplace && <K l="Private seller cars to check" v={s.carsToCheck || 0} to="checks" />}
+        {s.listingReports > 0 && <K l="Reported listings" v={s.listingReports} to="reports" />}
         {seesLeads && <K l="New leads" v={s.newEnquiries} sub={s.newPss ? `${s.newPss} Pay Small Small` : ''} to="leads" />}
         {swap && <K l="Swap listings to review" v={s.pendingListings} sub={`${s.liveListings} live`} to="listings" />}
         {swap && <K l="Open swap offers" v={s.openOffers} to="swaps" />}

@@ -2,7 +2,7 @@
 // The car page is in CarDetail.jsx and the Pay Small Small page in PaySmallSmall.jsx (re-exported below).
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, priced, waLink, slugify, useLocalList, bnpl, firstPhoto, api, rs } from '../lib/core.jsx';
-import { CarCard, Loading } from '../components/Bits.jsx';
+import { CarCard, Loading, SellerBadge } from '../components/Bits.jsx';
 import { pages as categoryPages } from '../../../server/lib/categories.js';
 import { recommended } from '../lib/rank.js';
 
@@ -17,7 +17,7 @@ function applyFilters(all, f, cat) {
   let cars = all.filter((c) => (!cat || cat.test(c)) && (!f.make || c.make === f.make) && (!f.model || c.model === f.model) && (!f.body || c.body === f.body)
     && (!f.condition || c.car_condition === f.condition) && (!f.maxPrice || (Number(c.price) > 0 && Number(c.price) <= Number(f.maxPrice)))
     && (!f.yearMin || Number(c.year) >= Number(f.yearMin)) && (!f.yearMax || Number(c.year) <= Number(f.yearMax))
-    && (!f.state || c.state === f.state) && (!f.lga || c.lga === f.lga));
+    && (!f.state || c.state === f.state) && (!f.lga || c.lga === f.lga) && (!f.verified || c.seller_type !== 'private'));
   const newest = (a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || b.id - a.id;
   const by = { 'price-asc': (a, b) => (!hasPrice(a) - !hasPrice(b)) || (a.price - b.price), 'price-desc': (a, b) => b.price - a.price, 'year-desc': (a, b) => (b.year - a.year) || (b.price - a.price), newest };
   if (by[f.sort]) cars = cars.slice().sort(by[f.sort]);
@@ -38,7 +38,7 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   const f = {
     make: makeFromSlug || query.get('make') || '', model: modelFromSlug || query.get('model') || '',
     body: query.get('body') || '', condition: query.get('condition') || '', maxPrice: query.get('maxPrice') || '',
-    yearMin: query.get('yearMin') || '', yearMax: query.get('yearMax') || '', state: query.get('state') || '', lga: query.get('lga') || '', sort: query.get('sort') || (category && category.sort) || 'recommended'
+    yearMin: query.get('yearMin') || '', yearMax: query.get('yearMax') || '', state: query.get('state') || '', lga: query.get('lga') || '', verified: query.get('verified') || '', sort: query.get('sort') || (category && category.sort) || 'recommended'
   };
   const defaultSort = (category && category.sort) || 'recommended';
   const setF = (patch) => {
@@ -48,7 +48,7 @@ export function Inventory({ makeSlug, modelSlug, category }) {
     // Body type follows make/model: drop a body type the chosen make/model doesn't come in
     if (('make' in patch || 'model' in patch) && n.body && !all.some((c) => c.body === n.body && (!n.make || c.make === n.make) && (!n.model || c.model === n.model))) n.body = '';
     // On a category page (/cars/suv) make and model go in the query, so the visitor stays in the category
-    const rest = Object.entries({ ...(category ? { make: n.make, model: n.model } : {}), body: n.body, condition: n.condition, maxPrice: n.maxPrice, yearMin: n.yearMin, yearMax: n.yearMax, state: n.state, lga: n.lga, sort: n.sort === defaultSort ? '' : n.sort }).filter(([, v]) => v);
+    const rest = Object.entries({ ...(category ? { make: n.make, model: n.model } : {}), body: n.body, condition: n.condition, maxPrice: n.maxPrice, yearMin: n.yearMin, yearMax: n.yearMax, state: n.state, lga: n.lga, verified: n.verified, sort: n.sort === defaultSort ? '' : n.sort }).filter(([, v]) => v);
     const base = category ? `/cars/${category.slug}` : n.make ? `/cars/${slugify(n.make)}${n.model ? '/' + slugify(n.model) : ''}` : '/cars';
     go(base + (rest.length ? '?' + new URLSearchParams(rest) : ''), { replace: true, keepScroll: true });
   };
@@ -91,6 +91,7 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   if (f.condition) chips.push([f.condition, { condition: '' }]);
   if (f.state) chips.push([f.state, { state: '', lga: '' }]);
   if (f.lga) chips.push([f.lga, { lga: '' }]);
+  if (f.verified) chips.push(['Verified sellers only', { verified: '' }]);
   const reset = () => go(category ? '/cars/' + category.slug : '/cars', { replace: true, keepScroll: true });
 
   const avail = cars.filter((c) => c.status === 'available');
@@ -148,6 +149,10 @@ export function Inventory({ makeSlug, modelSlug, category }) {
               <button className={'pill' + (!f.condition ? ' on' : '')} onClick={() => setF({ condition: '' })}>Any</button>
               {conds.map((m) => <button key={m} className={'pill' + (f.condition === m ? ' on' : '')} onClick={() => setF({ condition: m })}>{m}</button>)}
             </div></div>}
+            <div className="grp"><h3>Seller</h3>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" checked={!!f.verified} onChange={(e) => setF({ verified: e.target.checked ? '1' : '' })} /> Verified dealers and sellers only</label>
+              <p className="small muted" style={{ margin: '6px 0 0' }}>Hides Private Sellers, whose identity Korrect Cars has not checked.</p>
+            </div>
             <SaveSearch filters={f} />
             <button className="btn btn-red btn-block filt-toggle" style={{ marginTop: 10 }} onClick={() => setOpen(false)}>Show {cars.length} car{cars.length === 1 ? '' : 's'}</button>
           </aside>
@@ -161,6 +166,7 @@ export function Inventory({ makeSlug, modelSlug, category }) {
                 <select className="input" style={{ width: 'auto', minHeight: 42 }} value={f.sort} onChange={(e) => setF({ sort: e.target.value })}>{SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
               </label>
             </div>
+            <div className="seller-key" aria-label="Who sells the cars"><SellerBadge type="dealer" /><span className="small muted">CAC checked</span><SellerBadge type="verified" /><span className="small muted">ID checked</span><SellerBadge type="private" /><span className="small muted">identity not checked by us: see the car before you pay</span></div>
             {chips.length > 0 && <div className="chips">{chips.map(([l, patch]) => <button key={l} className="chip" onClick={() => setF(patch)} aria-label={`Remove filter ${l}`}>{l} ✕</button>)}<button className="chip" style={{ background: 'none', color: 'var(--muted)' }} onClick={reset}>Clear all</button></div>}
             {list.error ? <div className="err">{list.error.message}</div> : !list.loading && !cars.length
               ? <div className="empty box center"><h3>No cars match right now</h3><p className="muted">Save this search and we will email you as soon as one arrives.</p><div style={{ maxWidth: 340, margin: '0 auto 10px' }}><SaveSearch filters={f} /></div><div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}><button className="btn btn-line" onClick={reset}>Clear filters</button></div></div>

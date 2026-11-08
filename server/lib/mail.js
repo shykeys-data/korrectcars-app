@@ -100,8 +100,11 @@ const templates = {
     text: `Hello ${name},\n\nThanks for applying to sell on Korrect Cars. Our team checks your business papers (CAC) and phone, usually within 2 working days, and emails you the result.\n\nYou can already add your cars: they go live as soon as you are approved.\n${config.siteUrl}/dealer\n\nKorrect Cars`,
     html: layout('Application received', `<p>Hello ${esc(name)},</p><p>Thanks for applying to sell on Korrect Cars as <b>${esc(business)}</b>. Our team checks your business papers (CAC) and phone, usually within 2 working days, and emails you the result.</p><p>You can already add your cars: they go live as soon as you are approved.</p>${button(`${config.siteUrl}/dealer`, 'Open my dealer page')}`)
   }),
-  dealerDecision: (name, business, decision, note) => {
-    const t = { approve: ['You are approved', `${business} is approved. Your cars are now live on Korrect Cars.`],
+  dealerDecision: (name, business, decision, note, kind) => {
+    const t = kind === 'personal' ? { approve: ['You are a Verified Seller', 'Your ID is checked: you are now a Verified Seller and can list up to 5 cars.'],
+      more_info: ['We need a little more', 'We need a little more before we can check your ID.'],
+      reject: ['ID not accepted', 'We could not accept your ID at this time.'],
+      suspend: ['Your seller account is paused', 'Your listings are paused while our team looks into something.'] }[decision] : { approve: ['You are approved', `${business} is approved. Your cars are now live on Korrect Cars.`],
       more_info: ['We need a little more', `We need a little more before we can approve ${business}.`],
       reject: ['Application not approved', `We could not approve ${business} at this time.`],
       suspend: ['Your dealer account is paused', `${business}'s listings are paused while our team looks into something.`] }[decision];
@@ -115,6 +118,34 @@ const templates = {
     subject: `New dealer to review: ${business}`,
     text: `${business} (${state || 'state not given'}) applied to sell on Korrect Cars. Open "Dealers to review" in the staff area.`,
     html: layout('New dealer to review', `<p><b>${esc(business)}</b> (${esc(state || 'state not given')}) applied to sell on Korrect Cars. Open “Dealers to review” in the staff area.</p>`)
+  }),
+  sellerIdReceived: (name) => ({
+    subject: 'We received your ID',
+    text: `Hello ${name},\n\nThanks for sending your ID. Our team checks it, usually within 2 working days, and emails you the result. Once it is checked you are a Verified Seller and can list up to 5 cars.\n\n${config.siteUrl}/dealer\n\nKorrect Cars`,
+    html: layout('ID received', `<p>Hello ${esc(name)},</p><p>Thanks for sending your ID. Our team checks it, usually within 2 working days, and emails you the result. Once it is checked you are a <b>Verified Seller</b> and can list up to 5 cars.</p>${button(`${config.siteUrl}/dealer`, 'Open my seller page')}`)
+  }),
+  staffNewSeller: (name, state) => ({
+    subject: `Seller ID to check: ${name}`,
+    text: `${name} (${state || 'state not given'}) sent an ID to become a Verified Seller. Open "Dealers to review" in the staff area.`,
+    html: layout('Seller ID to check', `<p><b>${esc(name)}</b> (${esc(state || 'state not given')}) sent an ID to become a Verified Seller. Open “Dealers to review” in the staff area.</p>`)
+  }),
+  staffCarToCheck: (seller, title) => ({
+    subject: `Private seller car to check: ${title}`,
+    text: `${seller} (private seller, not verified) added ${title}. It goes live only after a staff check. Open "Cars to check" in the staff area.`,
+    html: layout('Private seller car to check', `<p><b>${esc(seller)}</b> (private seller, not verified) added <b>${esc(title)}</b>. It goes live only after a staff check. Open “Cars to check” in the staff area.</p>`)
+  }),
+  carCheckDecision: (name, title, ok, note) => {
+    const t = ok ? ['Your car is live', `${title} passed our check and is now live on Korrect Cars.`] : ['Your car was not approved', `We could not put ${title} live.`];
+    return {
+      subject: `${t[0]}: Korrect Cars`,
+      text: `Hello ${name},\n\n${t[1]}${note ? `\n\nNote from our team: ${note}` : ''}\n\n${config.siteUrl}/dealer\n\nKorrect Cars`,
+      html: layout(t[0], `<p>Hello ${esc(name)},</p><p>${esc(t[1])}</p>${note ? `<p style="background:#f4f4f5;border-radius:10px;padding:12px 14px"><b>Note from our team:</b> ${esc(note)}</p>` : ''}${button(`${config.siteUrl}/dealer`, 'Open my seller page')}`)
+    };
+  },
+  staffReport: (title, reason) => ({
+    subject: `Listing reported: ${title}`,
+    text: `A buyer reported ${title} (${reason}). Open "Reported listings" in the staff area.`,
+    html: layout('Listing reported', `<p>A buyer reported <b>${esc(title)}</b> (${esc(reason)}). Open “Reported listings” in the staff area.</p>`)
   }),
   verify: (name, url) => ({
     subject: 'Confirm your email for Korrect Cars',

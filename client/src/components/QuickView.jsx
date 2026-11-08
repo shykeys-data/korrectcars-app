@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, naira, hasPrice, priceText, bnpl, useApp, waLink, useLocalList, sellerWa, sellerName, firstPhoto, rs, srcset } from '../lib/core.jsx';
+import { SellerBadge } from './Bits.jsx';
 
 // Quick view for car cards.
 // PC: hover the photo (or focus the "Quick view" button) and a details panel opens beside the card.
@@ -88,6 +89,7 @@ function Body({ car, onClose }) {
       <div className="qv-price">{priceText(car)}{hasPrice(car) && car.old_price && !sold ? <s>{naira(car.old_price)}</s> : null}</div>
       {!sold && hasPrice(car) && <div className="qv-monthly">Pay small small from about <b>{naira(plan.monthly)}/mo</b> <span>(estimate)</span></div>}
       <Specs car={car} />
+      <div className="seller-line"><SellerBadge type={car.seller_type} long /></div>
       <div className="qv-where">{car.seller ? `Sold by ${car.seller}` : 'Listed on Korrect Cars'}{car.state ? ` · ${[car.lga, car.state].filter(Boolean).join(', ')}` : ''} · listed with its VIN</div>
       <div className="qv-actions">
         <Link to={url} className="btn btn-red btn-sm" onClick={onClose}>View full details</Link>

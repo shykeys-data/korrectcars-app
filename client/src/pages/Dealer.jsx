@@ -3,7 +3,7 @@
 // Everything is checked again on the server; the VIN rules come from the same file the server uses.
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, priceText, date, api, firstPhoto, rs, shrinkPhoto, waLink, forgetBoot, ContactUs } from '../lib/core.jsx';
-import { Loading } from '../components/Bits.jsx';
+import { Loading, SellerBadge } from '../components/Bits.jsx';
 import { check as checkVin } from '../../../server/lib/vehicle-id.js';
 import { STATES, lgasOf } from '../../../server/lib/ng-lgas.js';
 import { applyPrefill } from '../lib/prefill.js';
@@ -17,41 +17,138 @@ const STATUS = {
   suspended: ['Paused', 'tag-bad', 'Your listings are paused while our team looks into something. Please contact us.'],
   draft: ['Not sent yet', 'tag-grey', '']
 };
+// People selling their own car (kind 'personal')
+const SELLER_STATUS = {
+  unverified: ['Private Seller · not verified', 'tag-grey', 'You can list 1 car. Our team looks at it before it goes live, and buyers are told we have not checked who you are.'],
+  pending_review: ['ID being checked', 'tag-warn', 'Our team is checking your ID, usually within 2 working days. Until then you can list 1 car, which we look at before it goes live.'],
+  more_info: ['We need a little more', 'tag-warn', 'Please read the note from our team below, then send your ID again.'],
+  approved: ['✓ Verified Seller', 'tag-ok', 'Your ID is checked. You can have up to 5 cars for sale, and they go live at once.'],
+  rejected: STATUS.rejected, suspended: STATUS.suspended
+};
 const CAR_STATUS = { pending: ['Waiting for approval', 'tag-warn'], available: ['For sale', 'tag-ok'], reserved: ['Reserved', 'tag-info'], sold: ['Sold', 'tag-grey'], hidden: ['Hidden', 'tag-bad'] };
 const Tag = ({ s, map }) => { const x = map[s] || [s, 'tag-grey']; return <span className={'tag ' + x[1]}>{x[0]}</span>; };
 const Err = ({ e }) => (e ? <div className="err" role="alert">{e}</div> : null);
 
 function Steps({ at, phone = true }) {
   // While phone texts are paused (no SMS sender yet) the Phone step is skipped: the email code is the check
-  const names = ['Email', 'Account', 'Phone', 'Business'].filter((n) => phone || n !== 'Phone');
+  const names = ['Email', 'Account', 'Phone', 'Seller details'].filter((n) => phone || n !== 'Phone');
   const pos = !phone && at === 3 ? 2 : at;
   return <ol className="signup-steps" aria-label="Sign-up steps">{names.map((n, i) => <li key={n} className={i < pos ? 'done' : i === pos ? 'on' : ''} aria-current={i === pos ? 'step' : undefined}><span>{i + 1}</span>{n}</li>)}</ol>;
 }
 
 // ---------- /dealers/join ----------
+// One sign-up for every seller. After the account (and phone) step the seller says who they are:
+//   a dealer (business with CAC papers)  -> BusinessStep  -> "Verified Dealer" once staff check the CAC
+//   selling my own car                   -> PersonalStep  -> "Private Seller" (1 car, each checked by staff),
+//                                                           or "Verified Seller" (up to 5) once staff check an ID
+// ?as=dealer lets a private or verified seller register as a dealer; ?as=id lets a private seller send their ID.
 export function DealerJoin() {
-  useTitle('Sell your cars on Korrect Cars | Partner dealers', 'Verified car dealers can list their cars on Korrect Cars. Free to join; we check every dealer\'s CAC papers.');
+  useTitle('Sell your car on Korrect Cars | Dealers and private sellers', 'Car dealers and people selling their own car can list on Korrect Cars. Free to join; we check every dealer\'s CAC papers and verified sellers\' ID.');
   const { user, setUser } = useApp();
-  const { go } = useRouter();
+  const { go, query } = useRouter();
   const me = useApi(user ? '/dealer/me' : null, [user && user.id]);
   const [email, setEmail] = useState(''); const [pass, setPass] = useState('');
-  const [stage, setStage] = useState('email'); // email -> code -> account (then phone / business, from /dealer/me)
+  const [stage, setStage] = useState('email'); // email -> code -> account (then phone / seller details, from /dealer/me)
+  const [kind, setKind] = useState(query.get('as') === 'dealer' ? 'business' : query.get('as') === 'private' || query.get('as') === 'id' ? 'personal' : '');
   if (user === undefined || (user && me.loading && !me.data)) return <Loading />;
-  if (user && me.data && me.data.user.staff) return <Box title="Staff account"><p>You are signed in with a Korrect Cars staff account. Dealers need their own account: sign out and use a different email.</p></Box>;
-  if (user && me.data && me.data.dealer && !['more_info', 'draft'].includes(me.data.dealer.status)) { go('/dealer', { replace: true }); return <Loading />; }
+  if (user && me.data && me.data.user.staff) return <Box title="Staff account"><p>You are signed in with a Korrect Cars staff account. Sellers need their own account: sign out and use a different email.</p></Box>;
+  const d = user && me.data && me.data.dealer;
+  const blocked = d && ['rejected', 'suspended'].includes(d.status);
+  const upgrade = d && d.kind === 'personal' && !blocked && query.get('as') === 'dealer';
+  const sendId = d && d.kind === 'personal' && ['unverified', 'more_info'].includes(d.status);
+  const fixing = d && ['more_info', 'draft'].includes(d.status);
+  if (d && !upgrade && !sendId && !fixing) { go('/dealer', { replace: true }); return <Loading />; }
+  const shownKind = upgrade ? 'business' : d ? d.kind : kind;
   const at = !user ? (stage === 'account' ? 1 : 0) : me.data && !me.data.user.phoneVerified ? 2 : 3;
+  const done = async () => { forgetBoot('/auth/me'); try { setUser((await api('/auth/me')).user); } catch (_e) { /* header updates on the next page load */ } go('/dealer'); };
   return (
     <div className="wrap sec-sm" style={{ maxWidth: 640 }}>
-      <h1 style={{ fontSize: 44 }}>Sell your cars on Korrect Cars</h1>
-      <p className="muted">Free to join. We check every dealer's CAC papers and phone before their cars go live, so buyers can trust every listing.</p>
+      <h1 style={{ fontSize: 44 }}>{upgrade ? 'Register as a dealer' : 'Sell your car on Korrect Cars'}</h1>
+      <p className="muted">Free to join. Dealers and private sellers both list here. We check every dealer's CAC papers, and buyers always see who has been checked.</p>
       <Steps at={at} phone={!me.data || me.data.user.phoneCheck !== false} />
       {!user && stage === 'email' && <EmailStep onSent={(e) => { setEmail(e); setStage('code'); }} />}
       {!user && stage === 'code' && <CodeStep email={email} onBack={() => setStage('email')} onOk={(p) => { setPass(p); setStage('account'); }} />}
       {!user && stage === 'account' && <AccountStep email={email} pass={pass} onRestart={() => setStage('email')} onDone={(u) => setUser(u)} />}
       {user && at === 2 && <PhoneStep phone={me.data.user.phone} onDone={me.reload} />}
-      {user && at === 3 && <BusinessStep dealer={me.data.dealer} onDone={async () => { forgetBoot('/auth/me'); try { setUser((await api('/auth/me')).user); } catch (_e) { /* header updates on the next page load */ } go('/dealer'); }} />}
-      {!user && <p className="small muted" style={{ marginTop: 16 }}>Already have a Korrect Cars account? <Link to="/login?next=/dealers/join">Sign in</Link> and carry on from the phone step.</p>}
+      {user && at === 3 && !shownKind && <KindStep onPick={setKind} />}
+      {user && at === 3 && shownKind === 'business' && <BusinessStep dealer={upgrade ? null : d} upgrading={upgrade} onDone={done} />}
+      {user && at === 3 && shownKind === 'personal' && <PersonalStep dealer={d} name={me.data.user.name} onDone={done} onBack={d ? null : () => setKind('')} />}
+      {!user && <p className="small muted" style={{ marginTop: 16 }}>Already have a Korrect Cars account? <Link to="/login?next=/dealers/join">Sign in</Link> and carry on from here.</p>}
     </div>
+  );
+}
+
+function KindStep({ onPick }) {
+  return (
+    <div className="box">
+      <h2>Who is selling?</h2>
+      <div className="opts" role="group" aria-label="Who is selling" style={{ display: 'grid', gap: 12 }}>
+        <button type="button" className="opt" style={{ textAlign: 'left', padding: 16 }} onClick={() => onPick('business')}>
+          <b>I'm a car dealer (a business)</b><div className="small muted">You have CAC papers (RC or BN). Once we check them, your cars show <SellerBadge type="dealer" />. Up to 50 cars in your first 3 months, then no limit.</div></button>
+        <button type="button" className="opt" style={{ textAlign: 'left', padding: 16 }} onClick={() => onPick('personal')}>
+          <b>I'm selling my own car</b><div className="small muted">No CAC needed. Without an ID check you can list 1 car, shown as <SellerBadge type="private" />, and our team looks at it before it goes live. Send your ID to become a <SellerBadge type="verified" /> and list up to 5.</div></button>
+      </div>
+    </div>
+  );
+}
+
+// Selling my own car: the name buyers see, where the car is, and (optional) an ID + selfie for "Verified Seller"
+const ID_TYPES = [['nin', 'NIN slip'], ['licence', "Driver's licence"], ['passport', 'International passport'], ['voter', "Voter's card"]];
+function PersonalStep({ dealer, name, onDone, onBack }) {
+  const d = dealer || {};
+  const okLga = d.state && lgasOf(d.state).includes(d.lga) ? d.lga : '';
+  const [f, setF] = useState({ displayName: d.businessName || name || '', state: STATES.includes(d.state) ? d.state : '', lga: okLga, whatsapp: d.whatsapp || '', idType: '' });
+  const [idDoc, setIdDoc] = useState(null); const [selfie, setSelfie] = useState(null);
+  const [withId, setWithId] = useState(!!dealer);
+  const [err, setErr] = useState(''); const [field, setField] = useState(''); const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const IMG = ['image/jpeg', 'image/png', 'image/webp'];
+  const problem = () => {
+    if (f.displayName.trim().length < 2) return ['displayName', 'Enter the name buyers will see.'];
+    if (!f.state) return ['state', 'Choose the state the car is in.'];
+    if (!f.lga) return ['lga', `Choose the local government area (LGA) in ${f.state}.`];
+    if (withId) {
+      if (!f.idType) return ['idType', 'Choose which ID you are sending.'];
+      if (!idDoc) return ['idDoc', 'Add a photo of your ID.'];
+      if (![...IMG, 'application/pdf'].includes(idDoc.type)) return ['idDoc', 'The ID must be a photo (JPG, PNG or WEBP) or a PDF.'];
+      if (!selfie) return ['selfie', 'Add a selfie holding the same ID.'];
+      if (!IMG.includes(selfie.type)) return ['selfie', 'The selfie must be a photo (JPG, PNG or WEBP).'];
+    }
+    return null;
+  };
+  const submit = async (e) => {
+    e.preventDefault(); setErr(''); setField('');
+    const p = problem();
+    if (p) { setField(p[0]); setErr(p[1]); const el = document.getElementById('ps-' + p[0]); if (el) el.focus(); return; }
+    setBusy(true);
+    const fd = new FormData();
+    for (const k of ['displayName', 'state', 'lga', 'whatsapp']) if (f[k]) fd.append(k, f[k]);
+    try {
+      if (withId) { fd.append('idType', f.idType); fd.append('idDoc', idDoc.type === 'application/pdf' ? idDoc : await shrinkPhoto(idDoc)); fd.append('selfie', await shrinkPhoto(selfie)); }
+      await api('/dealer/personal', { method: 'POST', form: fd }); onDone();
+    } catch (e2) { setErr(e2.message); setField((e2.data && e2.data.field) || ''); } finally { setBusy(false); }
+  };
+  return (
+    <form className="box" onSubmit={submit} noValidate>
+      <h2>{dealer ? 'Become a Verified Seller' : 'About you'}</h2>
+      {d.status === 'more_info' && d.lastNote && <p className="note" role="note"><b>Note from our team:</b> {d.lastNote}</p>}
+      <Err e={err} />
+      <div className="field"><label className="f" htmlFor="ps-displayName">Name buyers see <span className="req" aria-hidden="true">*</span></label><input id="ps-displayName" className="input" maxLength={80} value={f.displayName} onChange={set('displayName')} aria-invalid={field === 'displayName'} /><div className="hint">Use your real name: it should match the car's papers.</div></div>
+      <div className="grid2">
+        <div className="field"><label className="f" htmlFor="ps-state">State the car is in <span className="req" aria-hidden="true">*</span></label><select id="ps-state" className="input" value={f.state} onChange={(e) => setF({ ...f, state: e.target.value, lga: '' })} aria-invalid={field === 'state'}><option value="">Choose state</option>{STATES.map((s) => <option key={s}>{s}</option>)}</select></div>
+        <div className="field"><label className="f" htmlFor="ps-lga">LGA <span className="req" aria-hidden="true">*</span></label><select id="ps-lga" className="input" disabled={!f.state} value={f.lga} onChange={set('lga')} aria-invalid={field === 'lga'}><option value="">{f.state ? `Choose LGA in ${f.state}` : 'Choose a state first'}</option>{lgasOf(f.state).map((l) => <option key={l}>{l}</option>)}</select></div>
+      </div>
+      <div className="field"><label className="f" htmlFor="ps-wa">WhatsApp for buyers (if different from your phone)</label><input id="ps-wa" className="input" type="tel" value={f.whatsapp} onChange={set('whatsapp')} /></div>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', margin: '6px 0 12px' }}><input type="checkbox" checked={withId} onChange={(e) => setWithId(e.target.checked)} style={{ marginTop: 4 }} /><span><b>Send my ID now</b> to become a Verified Seller (up to 5 cars, shown with a ✓ badge). Without it you can list 1 car as a Private Seller, and buyers are told you are not verified.</span></label>
+      {withId && <>
+        <div className="field"><label className="f" htmlFor="ps-idType">Which ID? <span className="req" aria-hidden="true">*</span></label><select id="ps-idType" className="input" value={f.idType} onChange={set('idType')} aria-invalid={field === 'idType'}><option value="">Choose</option>{ID_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+        <div className="field"><label className="f" htmlFor="ps-idDoc">Photo of the ID <span className="req" aria-hidden="true">*</span></label><input id="ps-idDoc" type="file" className="input" style={{ paddingTop: 12 }} accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setIdDoc(e.target.files[0] || null)} aria-invalid={field === 'idDoc'} /><div className="hint">All four corners, your photo and name readable.</div></div>
+        <div className="field"><label className="f" htmlFor="ps-selfie">Selfie holding the same ID <span className="req" aria-hidden="true">*</span></label><input id="ps-selfie" type="file" className="input" style={{ paddingTop: 12 }} accept="image/jpeg,image/png,image/webp" capture="user" onChange={(e) => setSelfie(e.target.files[0] || null)} aria-invalid={field === 'selfie'} /></div>
+        <p className="small muted">Only our team sees your ID and selfie. They are kept for 12 months after our decision, then deleted.</p>
+      </>}
+      <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Sending…' : withId ? 'Send for checking' : 'Start selling'}</button>
+      {onBack && <p className="small" style={{ marginTop: 10 }}><button type="button" className="linkbtn" onClick={onBack}>Back: I'm a dealer</button></p>}
+    </form>
   );
 }
 const Box = ({ title, children }) => <div className="wrap sec-sm" style={{ maxWidth: 620 }}><h1 style={{ fontSize: 40 }}>{title}</h1><div className="box">{children}</div></div>;
@@ -152,7 +249,7 @@ function PhoneStep({ phone, onDone }) {
   );
 }
 
-function BusinessStep({ dealer, onDone }) {
+function BusinessStep({ dealer, onDone, upgrading = false }) {
   const d = dealer || {};
   const okLga = d.state && lgasOf(d.state).includes(d.lga) ? d.lga : '';
   const [f, setF] = useState({ businessName: d.businessName || '', cacType: d.cacType || 'RC', cacNumber: d.cacNumber || '', state: STATES.includes(d.state) ? d.state : '', lga: okLga, address: d.address || '', whatsapp: d.whatsapp || '', about: d.about || '' });
@@ -185,6 +282,7 @@ function BusinessStep({ dealer, onDone }) {
   return (
     <form className="box" onSubmit={submit} noValidate>
       <h2>Your business</h2>
+      {upgrading && <p className="note" role="note">Once we check your CAC papers you become a <SellerBadge type="dealer" /> and the 5-car limit is lifted. Your cars stay live while we check.</p>}
       {d.status === 'more_info' && d.lastNote && <p className="note" role="note"><b>Note from our team:</b> {d.lastNote}</p>}
       <p className="small muted">As written on your CAC certificate. Fields marked <span aria-hidden="true">*</span><span className="sr">with a star</span> are required. Only our team sees the certificate; it is kept for 12 months after our decision.</p>
       <Err e={err} />
@@ -237,7 +335,7 @@ function ViewsPanel({ s }) {
 }
 
 export function DealerHome() {
-  useTitle('My dealer page | Korrect Cars');
+  useTitle('My seller page | Korrect Cars');
   const { user, cfg } = useApp();
   const { go } = useRouter();
   const me = useApi(user ? '/dealer/me' : null, [user && user.id]);
@@ -247,21 +345,25 @@ export function DealerHome() {
   if (!user) { go('/login?next=/dealer', { replace: true }); return <Loading />; }
   const d = me.data.dealer;
   if (!d) { go('/dealers/join', { replace: true }); return <Loading />; }
-  const st = STATUS[d.status] || STATUS.draft;
+  const personal = d.kind === 'personal';
+  const st = (personal ? SELLER_STATUS : STATUS)[d.status] || STATUS.draft;
+  const carStatus = personal && d.status !== 'approved' ? { ...CAR_STATUS, pending: ['Waiting for our check', 'tag-warn'] } : CAR_STATUS;
   const canList = !['rejected', 'suspended'].includes(d.status);
   const list = (cars.data && cars.data.cars) || [];
   const setStatus = async (c, status) => { try { await api(`/dealer/cars/${c.id}/status`, { method: 'POST', body: { status } }); cars.reload(); } catch (e) { window.alert(e.message); } };
   return (
     <div className="wrap sec-sm">
-      <div className="sec-head"><div><h1 style={{ fontSize: 40, margin: 0 }}>{d.businessName}</h1><div className="small muted">{d.cacType} {d.cacNumber} · {d.state}</div></div>
+      <div className="sec-head"><div><h1 style={{ fontSize: 40, margin: 0 }}>{d.businessName}</h1><div className="small muted">{personal ? `Selling my own car · ${[d.lga, d.state].filter(Boolean).join(', ')}` : `${d.cacType} ${d.cacNumber} · ${d.state}`}</div></div>
         {canList && <Link to="/dealer/cars/new" className="btn btn-red">+ Add a car</Link>}</div>
       <div className="box" role="status"><span className={'tag ' + st[1]}>{st[0]}</span> <span>{st[2]}</span>
         {d.lastNote && ['more_info', 'rejected', 'suspended'].includes(d.status) && <p className="note" style={{ marginTop: 10 }}><b>Note from our team:</b> {d.lastNote}</p>}
-        {d.status === 'more_info' && <p style={{ marginTop: 10 }}><Link to="/dealers/join" className="btn btn-dark btn-sm">Update my details</Link></p>}
+        {d.status === 'more_info' && <p style={{ marginTop: 10 }}><Link to="/dealers/join" className="btn btn-dark btn-sm">{personal ? 'Send my ID again' : 'Update my details'}</Link></p>}
+        {personal && d.status === 'unverified' && <p style={{ marginTop: 10 }}><Link to="/dealers/join?as=id" className="btn btn-dark btn-sm">Send my ID: become a Verified Seller (5 cars)</Link></p>}
+        {personal && canList && <p className="small" style={{ marginTop: 10 }}>{d.status === 'approved' ? 'Selling more than 5 cars?' : 'A car business?'} <Link to="/dealers/join?as=dealer">Register as a dealer</Link> with your CAC papers.</p>}
         {!canList && <p style={{ marginTop: 10 }}><ContactUs className="btn btn-line btn-sm">Contact Korrect Cars</ContactUs></p>}
       </div>
       <div className="kpis">
-        <div className="box kpi"><div className="small muted">Cars for sale</div><div className="v">{d.liveCars}{d.liveLimit ? <span className="small muted"> / {d.liveLimit}</span> : null}</div>{d.liveLimit ? <div className="small muted">limit for your first 3 months</div> : null}</div>
+        <div className="box kpi"><div className="small muted">Cars for sale</div><div className="v">{d.liveCars}{d.liveLimit ? <span className="small muted"> / {d.liveLimit}</span> : null}</div>{d.liveLimit ? <div className="small muted">{!personal ? 'limit for your first 3 months' : d.status === 'approved' ? 'limit for Verified Sellers' : 'limit until your ID is checked'}</div> : null}</div>
         <div className="box kpi"><div className="small muted">All your cars</div><div className="v">{list.length}</div></div>
       </div>
       <ViewsPanel s={stats.data} />
@@ -271,7 +373,7 @@ export function DealerHome() {
           <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th className="num">Views today</th><th className="num">Last 7 days</th><th className="num">All time</th><th className="num">Buyer requests</th><th>Status</th><th /></tr></thead><tbody>
             {list.map((c) => <tr key={c.id}>
               <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">VIN …{String(c.vin || '').slice(-6)} · added {date(c.created_at)}</div></div></div></td>
-              <td>{priceText(c)}</td><td className="num">{c.views_today}</td><td className="num">{c.views_week}</td><td className="num">{c.views}</td><td className="num">{c.enquiries}{c.enquiries_week ? <span className="small muted"> ({c.enquiries_week} this week)</span> : null}</td><td><Tag s={c.status} map={CAR_STATUS} /></td>
+              <td>{priceText(c)}</td><td className="num">{c.views_today}</td><td className="num">{c.views_week}</td><td className="num">{c.views}</td><td className="num">{c.enquiries}{c.enquiries_week ? <span className="small muted"> ({c.enquiries_week} this week)</span> : null}</td><td><Tag s={c.status} map={carStatus} /></td>
               <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {c.status === 'available' && <Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link>}{' '}
                 {canList && <Link to={'/dealer/cars/' + c.id} className="btn btn-dark btn-sm">Edit</Link>}{' '}

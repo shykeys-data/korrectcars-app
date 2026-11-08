@@ -1,7 +1,9 @@
-// Site frame: Header (menu, For dealers, account), Footer, and the floating WhatsApp button (all screen sizes).
+// Site frame: Header (menu, Sell a car, account), Footer, and the floating WhatsApp button (all screen sizes).
 import React, { useState, useEffect } from 'react';
 import { Link, useRouter, useApp, waLink, api, booted } from '../lib/core.jsx';
 
+// Dealers have a dealer page; people selling their own car have a seller page
+const sellerPage = (u) => (u.dealer && u.dealer.kind === 'personal' ? 'My seller page' : 'My dealer page');
 // Swap your car is switched on in admin Settings (on by default only on staging)
 export const swapOn = (cfg) => !!(cfg && cfg.swap);
 // Buyer menu, most used first. The phone number and WhatsApp live in the floating WhatsApp button, Contact and the footer.
@@ -20,12 +22,12 @@ export function Header() {
         <Link to="/" className="logo" aria-label="Korrect Cars home"><img src="/img/logo.svg" alt="Korrect Cars" width="200" height="50" /></Link>
         <nav className={'nav' + (open ? ' open' : '')} aria-label="Main">
           {NAV.filter(([to]) => to !== '/swap' || swapOn(cfg)).map(([to, label, cls]) => <Link key={to} to={to} className={[path.startsWith(to) ? 'on' : '', cls || ''].join(' ').trim()}>{label}</Link>)}
-          {user && user.dealer ? <Link to="/dealer" className="m-only">My dealer page</Link> : dealersOn(cfg) && <Link to="/dealers/join" className="m-only">For dealers: sell your cars here</Link>}
+          {user && user.dealer ? <Link to="/dealer" className="m-only">{sellerPage(user)}</Link> : dealersOn(cfg) && <Link to="/dealers/join" className="m-only">Sell a car: dealers and private sellers</Link>}
           {user ? <><Link to="/account" className="m-only">My account</Link><a href="/" className="m-only" onClick={signOut}>Sign out</a></> : <Link to="/login" className="m-only">Sign in</Link>}
         </nav>
         <div className="right">
-          {user && user.dealer ? <Link to="/dealer" className={'acct dealers-link' + (/^\/dealer/.test(path) ? ' on' : '')}>My dealer page</Link>
-            : dealersOn(cfg) && <Link to="/dealers/join" className={'acct dealers-link' + (/^\/dealer/.test(path) ? ' on' : '')}>For dealers</Link>}
+          {user && user.dealer ? <Link to="/dealer" className={'acct dealers-link' + (/^\/dealer/.test(path) ? ' on' : '')}>{sellerPage(user)}</Link>
+            : dealersOn(cfg) && <Link to="/dealers/join" className={'acct dealers-link' + (/^\/dealer/.test(path) ? ' on' : '')}>Sell a car</Link>}
           {user ? <Link to="/account" className="acct">My account</Link> : <Link to="/login" className="acct">Sign in</Link>}
           <button className="menu-btn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen(!open)}><span /><span /><span /></button>
         </div>

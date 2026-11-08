@@ -24,6 +24,7 @@ export function CarCard({ car }) {
         </div>
         <div className="bd">
           <div className="ttl">{car.title}</div>
+          <div className="seller-line"><SellerBadge type={car.seller_type} /></div>
           <div className="meta">{[car.body, car.mileage, car.transmission && car.transmission.replace(/-Speed/i, '-spd'), car.location].filter(Boolean).slice(0, 3).map((m) => <span key={m}>{m}</span>)}</div>
           <div className="price">{priceText(car)}{hasPrice(car) && car.old_price && !sold ? <span className="old">{naira(car.old_price)}</span> : null}</div>
           {!sold && hasPrice(car) && <div className="monthly">Pay small small from about <b>{naira(plan.monthly)}/mo</b></div>}
@@ -40,6 +41,18 @@ export function CarCard({ car }) {
       </div>
     </article>
   );
+}
+
+// Who sells the car (Nov 2026): Verified Dealer (CAC checked by us), Verified Seller (ID checked by us),
+// Private Seller (not verified by Korrect Cars). Cars with no seller type are Korrect Cars' own stock (a dealer).
+export const SELLER_TYPES = {
+  dealer: ['✓ Verified Dealer', 'sb-dealer', 'A car business. Korrect Cars checked its CAC registration.'],
+  verified: ['✓ Verified Seller', 'sb-verified', 'A person selling their own car. Korrect Cars checked their ID.'],
+  private: ['Private Seller · not verified', 'sb-private', 'A person selling their own car. Korrect Cars has not checked who they are.']
+};
+export function SellerBadge({ type, long = false }) {
+  const t = SELLER_TYPES[type || 'dealer'] || SELLER_TYPES.dealer;
+  return <span className={'sbadge ' + t[1]} title={t[2]}>{t[0]}{long ? <span className="sr">: {t[2]}</span> : null}</span>;
 }
 
 export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false }) {

@@ -104,8 +104,16 @@ async function membership(userId) {
   return one(`SELECT m.role AS member_role, d.* FROM dealer_members m JOIN dealers d ON d.id = m.dealer_id
     WHERE m.user_id = ? AND d.id <> 1 ORDER BY m.id LIMIT 1`, [userId]);
 }
+// How many cars a seller may have for sale at once (staff can set dealers.live_limit to override):
+//   business (dealer): 50 in the first 3 months after approval, then no limit
+//   personal, ID checked (Verified Seller): 5, until they register as a dealer
+//   personal, not checked (Private Seller): 1, and staff look at that car before it goes live
+const VERIFIED_SELLER_LIMIT = 5;
+const PRIVATE_SELLER_LIMIT = 1;
+const isPersonal = (d) => d && d.kind === 'personal';
 async function liveLimit(d) {
   if (d.live_limit != null) return Number(d.live_limit);
+  if (isPersonal(d)) return d.status === 'approved' ? VERIFIED_SELLER_LIMIT : PRIVATE_SELLER_LIMIT;
   const since = d.verified_at || d.created_at;
   const ageDays = since ? (Date.now() - new Date(String(since).replace(' ', 'T') + (/Z$|[+-]\d\d:?\d\d$/.test(String(since)) ? '' : 'Z')).getTime()) / 86400000 : 0;
   return ageDays < NEW_DEALER_DAYS ? FIRST_MONTHS_LIMIT : null; // null = no limit
@@ -114,7 +122,7 @@ async function liveLimit(d) {
 const liveCount = async (dealerId, exceptCar) => Number((await one(`SELECT COUNT(*) AS n FROM cars WHERE dealer_id = ? AND moved_from IS NULL AND status IN ${registry.LIVE_SQL}${exceptCar ? ' AND id <> ?' : ''}`, exceptCar ? [dealerId, exceptCar] : [dealerId])).n);
 
 const dealerView = async (d) => (d ? {
-  id: d.id, slug: d.slug, businessName: d.business_name, cacType: d.cac_type, cacNumber: d.cac_number, status: d.status,
+  id: d.id, slug: d.slug, kind: d.kind || 'business', businessName: d.business_name, cacType: d.cac_type, cacNumber: d.cac_number, status: d.status,
   verifiedAt: d.verified_at, phone: d.phone, whatsapp: d.whatsapp, email: d.email, address: d.address, state: d.state, lga: d.lga,
   about: d.about, role: d.member_role, liveLimit: await liveLimit(d), liveCars: await liveCount(d.id),
   lastNote: ((await one("SELECT note FROM verification_events WHERE dealer_id = ? AND step = 'review' ORDER BY id DESC LIMIT 1", [d.id])) || {}).note || null
@@ -192,8 +200,10 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
 
   const cac = req.files && req.files.cac && req.files.cac[0];
   // Changing a reply to "we need more" is allowed; an approved or waiting dealer edits through staff
-  if (existing && !['more_info', 'draft'].includes(existing.status)) return res.status(409).json({ error: 'Your business is already registered. Contact us to change its details.' });
-  if (!existing && !cac) return res.status(400).json({ error: 'Add a photo or PDF of your CAC certificate.', field: 'cac' });
+  // A private or verified seller can register as a dealer at any time (that lifts the 5-car limit once approved)
+  const upgrading = existing && isPersonal(existing) && !['rejected', 'suspended'].includes(existing.status);
+  if (existing && !upgrading && !['more_info', 'draft'].includes(existing.status)) return res.status(409).json({ error: 'Your business is already registered. Contact us to change its details.' });
+  if ((!existing || upgrading) && !cac) return res.status(400).json({ error: 'Add a photo or PDF of your CAC certificate.', field: 'cac' });
   const clash = await one('SELECT id FROM dealers WHERE cac_number = ? AND cac_type = ?', [num, type]);
   if (clash && (!existing || clash.id !== existing.id)) return res.status(409).json({ error: 'A dealer with this CAC number is already registered. If this is your business, contact us.', field: 'cacNumber' });
 
@@ -206,7 +216,7 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
   if (existing) {
     dealerId = existing.id;
     const cols = Object.keys(fields);
-    await q(`UPDATE dealers SET ${cols.map((c) => `${c} = ?`).join(', ')}, status = 'pending_review' WHERE id = ?`, [...cols.map((c) => fields[c]), dealerId]);
+    await q(`UPDATE dealers SET ${cols.map((c) => `${c} = ?`).join(', ')}, kind = 'business', status = 'pending_review' WHERE id = ?`, [...cols.map((c) => fields[c]), dealerId]);
   } else {
     let slug = slugify(business) || 'dealer';
     if (slug === 'korrect-cars' || await one('SELECT id FROM dealers WHERE slug = ?', [slug])) slug = `${slug}-${crypto.randomBytes(2).toString('hex')}`;
@@ -221,9 +231,64 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
     await q("INSERT INTO dealer_members (dealer_id, user_id, role) VALUES (?, ?, 'owner')", [dealerId, u.id]);
   }
   for (const s of saved) await q('INSERT INTO dealer_documents (dealer_id, kind, file_key, sha256, uploaded_by) VALUES (?, ?, ?, ?, ?)', [dealerId, s.kind, s.key, s.sha, u.id]);
-  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'submitted', 'pending', ?, ?)", [dealerId, u.id, existing ? 'Sent again after "we need more"' : 'Applied']);
+  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'submitted', 'pending', ?, ?)", [dealerId, u.id, upgrading ? 'Registered as a dealer (was a private seller)' : existing ? 'Sent again after "we need more"' : 'Applied']);
   mail.send({ to: u.email, ...mail.templates.dealerReceived(u.name.split(' ')[0], business) }).catch((e) => console.error('Dealer email failed:', e.message));
   mail.send({ to: config.email, ...mail.templates.staffNewDealer(business, state) }).catch((e) => console.error('Staff email failed:', e.message));
+  res.status(existing ? 200 : 201).json({ dealer: await dealerView(await membership(u.id)) });
+});
+
+// ---------- 5b: selling my own car (personal seller) ----------
+// No CAC. An ID document (NIN slip, driver's licence, international passport or voter's card) plus a selfie is optional:
+// without it the seller is a "Private Seller · not verified" (1 car, checked by staff before it goes live);
+// with it, staff check the ID and the seller becomes a "Verified Seller" (up to 5 cars).
+const ID_TYPES = { nin: 'NIN slip', licence: "Driver's licence", passport: 'International passport', voter: "Voter's card" };
+r.post('/personal', requireAuth, limiter(60, 10), memory.fields([{ name: 'idDoc', maxCount: 1 }, { name: 'selfie', maxCount: 1 }]), async (req, res) => {
+  if (isStaff(req.user)) return res.status(403).json({ error: 'Staff accounts cannot sell cars. Sign up with a different email.' });
+  const u = await one('SELECT id, name, email, phone, phone_verified_at FROM users WHERE id = ?', [req.user.id]);
+  if (!u.phone_verified_at && sms.otpOn()) return res.status(403).json({ error: 'Please confirm your phone number first.', step: 'phone' });
+  if (!u.phone) return res.status(400).json({ error: 'Add your mobile number to your account first.', step: 'phone' });
+  const existing = await membership(u.id);
+  if (existing && !isPersonal(existing)) return res.status(409).json({ error: 'You are already registered as a dealer.' });
+  if (existing && ['rejected', 'suspended'].includes(existing.status)) return res.status(403).json({ error: 'Your seller account is not active. Please contact us.' });
+  if (existing && ['pending_review', 'approved'].includes(existing.status) && !(req.files && req.files.idDoc)) return res.status(409).json({ error: 'Your details are already with us. Contact us to change them.' });
+  const b = req.body || {};
+  const name = String(b.displayName || u.name || '').trim().replace(/\s+/g, ' ');
+  if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'Enter the name buyers will see, e.g. your first name and surname.', field: 'displayName' });
+  const state = STATES.includes(b.state) ? b.state : null;
+  if (!state) return res.status(400).json({ error: 'Choose the state the car is in.', field: 'state' });
+  const lga = String(b.lga || '').trim();
+  if (!isLga(state, lga)) return res.status(400).json({ error: `Choose the local government area (LGA) in ${state}.`, field: 'lga' });
+  const whatsapp = b.whatsapp ? sms.toE164(b.whatsapp) : u.phone;
+  if (!whatsapp) return res.status(400).json({ error: 'Enter a Nigerian WhatsApp number.', field: 'whatsapp' });
+  const idDoc = req.files && req.files.idDoc && req.files.idDoc[0];
+  const selfie = req.files && req.files.selfie && req.files.selfie[0];
+  const idType = ID_TYPES[b.idType] ? b.idType : null;
+  if (idDoc && !idType) return res.status(400).json({ error: 'Choose which ID this is.', field: 'idType' });
+  if (idDoc && !selfie) return res.status(400).json({ error: 'Add a selfie holding the same ID, so we can see it is you.', field: 'selfie' });
+  if (selfie && !idDoc) return res.status(400).json({ error: 'Add a photo of your ID too.', field: 'idDoc' });
+  const status = idDoc ? 'pending_review' : (existing ? existing.status : 'unverified');
+  const fields = { business_name: name, state, lga, whatsapp, phone: u.phone, email: u.email, about: null, address: null };
+  const saved = [['id_' + (idType || 'other'), idDoc], ['selfie', selfie]].filter(([, f]) => f)
+    .map(([kind, f]) => ({ kind, key: save(f, { privateFile: true, allowPdf: kind !== 'selfie' }), sha: crypto.createHash('sha256').update(f.buffer).digest('hex') }));
+  let dealerId;
+  const cols = Object.keys(fields);
+  if (existing) {
+    dealerId = existing.id;
+    await q(`UPDATE dealers SET ${cols.map((c) => `${c} = ?`).join(', ')}, status = ? WHERE id = ?`, [...cols.map((c) => fields[c]), status, dealerId]);
+  } else {
+    let slug = slugify(name) || 'seller';
+    slug = `${slug}-${crypto.randomBytes(2).toString('hex')}`; // people share names: always a random end
+    const ins = await q(`INSERT INTO dealers (slug, kind, status, ${cols.join(', ')}) VALUES (?, 'personal', ?, ${cols.map(() => '?').join(', ')})`, [slug, status, ...cols.map((c) => fields[c])]);
+    dealerId = ins.insertId;
+    await q("INSERT INTO dealer_members (dealer_id, user_id, role) VALUES (?, ?, 'owner')", [dealerId, u.id]);
+  }
+  for (const s of saved) await q('INSERT INTO dealer_documents (dealer_id, kind, file_key, sha256, uploaded_by) VALUES (?, ?, ?, ?, ?)', [dealerId, s.kind, s.key, s.sha, u.id]);
+  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'submitted', ?, ?, ?)",
+    [dealerId, idDoc ? 'pending' : 'unverified', u.id, idDoc ? `Private seller sent ID (${ID_TYPES[idType]})` : 'Private seller (no ID yet)']);
+  if (idDoc) {
+    mail.send({ to: u.email, ...mail.templates.sellerIdReceived(u.name.split(' ')[0]) }).catch((e) => console.error('Seller email failed:', e.message));
+    mail.send({ to: config.email, ...mail.templates.staffNewSeller(name, state) }).catch((e) => console.error('Staff email failed:', e.message));
+  }
   res.status(existing ? 200 : 201).json({ dealer: await dealerView(await membership(u.id)) });
 });
 
@@ -290,15 +355,20 @@ r.get('/cars/:id', requireDealer, async (req, res) => {
 });
 
 // The status a dealer asks for, and what it becomes: cars of a dealer still waiting for review wait too
-function statusFor(asked, dealer) {
+// A private seller (not verified) is different: each car waits until staff have looked at it (cars.reviewed_at)
+function statusFor(asked, dealer, car) {
   const s = ['available', 'sold', 'hidden'].includes(asked) ? asked : 'available';
-  return s === 'available' && dealer.status !== 'approved' ? 'pending' : s;
+  if (s !== 'available' || dealer.status === 'approved') return s;
+  return isPersonal(dealer) && car && car.reviewed_at ? 'available' : 'pending';
 }
 async function checkLimit(dealer, status, exceptCar) {
   if (!['pending', 'available', 'reserved'].includes(status)) return;
   const limit = await liveLimit(dealer);
   if (limit != null && (await liveCount(dealer.id, exceptCar)) >= limit) {
-    throw Object.assign(new Error(`New dealers can have up to ${limit} cars for sale in their first 3 months. Mark a sold car as sold, or hide one, to add another.`), { status: 403, code: 'LIMIT', limit });
+    const why = !isPersonal(dealer) ? `New dealers can have up to ${limit} cars for sale in their first 3 months.`
+      : dealer.status === 'approved' ? `Verified Sellers can have up to ${limit} cars for sale. Register as a dealer to list more.`
+        : 'Private sellers can list 1 car until we have checked their ID. Send your ID from your seller page to list up to 5.';
+    throw Object.assign(new Error(`${why} Mark a sold car as sold, or hide one, to add another.`), { status: 403, code: 'LIMIT', limit });
   }
 }
 async function fingerprint(carId, photos, files) {
@@ -332,6 +402,7 @@ r.post('/cars', requireDealer, limiter(60, 60, 'Too many cars added in an hour. 
       VALUES (?, ?, ?, ?, ?, ?, ${cols.map(() => '?').join(', ')})`, [slug, J(urls), req.dealer.id, reg.ref, vinPhoto, req.user.id, ...cols.map((c) => v[c])]));
   } catch (e) { discard([...urls, vinPhoto]); throw e; }
   fingerprint(ins.insertId, urls, photos).catch(() => {});
+  if (v.status === 'pending' && isPersonal(req.dealer)) mail.send({ to: config.email, ...mail.templates.staffCarToCheck(req.dealer.business_name, v.title) }).catch((e) => console.error('Staff email failed:', e.message));
   if (v.status === 'available') {
     const added = await one('SELECT * FROM cars WHERE id = ?', [ins.insertId]);
     require('../lib/seo').notify(require('../lib/seo').carPaths(added));
@@ -341,15 +412,19 @@ r.post('/cars', requireDealer, limiter(60, 60, 'Too many cars added in an hour. 
 });
 
 r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (req, res) => {
-  const car = isId(req.params.id) && await one('SELECT id, photos, status, vin, vehicle_id_ref FROM cars WHERE id = ? AND dealer_id = ?', [req.params.id, req.dealer.id]);
+  const car = isId(req.params.id) && await one('SELECT id, photos, status, vin, vehicle_id_ref, reviewed_at FROM cars WHERE id = ? AND dealer_id = ?', [req.params.id, req.dealer.id]);
   if (!car) return res.status(404).json({ error: 'Not found' });
   if (!req.valid.vin) return res.status(422).json({ code: 'VIN_INVALID', error: 'Enter the VIN (or chassis number).', field: 'vin' });
   const v = carValues(req.valid);
   v.location = whereFrom(req.dealer, v.location);
   delete v.featured;
-  v.status = car.status === 'reserved' ? 'reserved' : statusFor(req.valid.status, req.dealer);
   const reg = await registry.refFor(v.vin);
   v.vin = reg.v.value;
+  // A private seller's checked car is checked again if the VIN changes or new photos are added
+  const newPhotos = ((req.files && req.files.photos) || []).length > 0;
+  const recheck = isPersonal(req.dealer) && req.dealer.status !== 'approved' && car.reviewed_at && (newPhotos || v.vin !== car.vin);
+  if (recheck) car.reviewed_at = null;
+  v.status = car.status === 'reserved' ? 'reserved' : statusFor(req.valid.status, req.dealer, car);
   if (!['pending', 'available', 'reserved'].includes(car.status)) await checkLimit(req.dealer, v.status, car.id);
   const current = car.photos || [];
   const keep = req.valid.keepPhotos !== undefined ? list(req.valid.keepPhotos).filter((p) => current.includes(p)) : current;
@@ -360,7 +435,7 @@ r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (re
   const cols = Object.keys(v);
   const vinPhoto = vp ? save(vp, { privateFile: true }) : null;
   try {
-    await registry.guarded(reg.ref, req.dealer.id, () => q(`UPDATE cars SET ${cols.map((c) => `${c} = ?`).join(', ')}, photos = ?, vehicle_id_ref = ?${vp ? ', vin_photo = ?' : ''} WHERE id = ? AND dealer_id = ?`,
+    await registry.guarded(reg.ref, req.dealer.id, () => q(`UPDATE cars SET ${cols.map((c) => `${c} = ?`).join(', ')}, photos = ?, vehicle_id_ref = ?${vp ? ', vin_photo = ?' : ''}${recheck ? ', reviewed_at = NULL, reviewed_by = NULL' : ''} WHERE id = ? AND dealer_id = ?`,
       [...cols.map((c) => v[c]), J([...keep, ...added]), reg.ref, ...(vp ? [vinPhoto] : []), car.id, req.dealer.id]));
   } catch (e) { discard([...added, vinPhoto]); throw e; }
   fingerprint(car.id, added, files).catch(() => {});
@@ -372,11 +447,11 @@ r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (re
 
 // Quick status change from the car list (sold / hidden / for sale)
 r.post('/cars/:id/status', requireDealer, async (req, res) => {
-  const car = isId(req.params.id) && await one('SELECT id, status, mileage FROM cars WHERE id = ? AND dealer_id = ?', [req.params.id, req.dealer.id]);
+  const car = isId(req.params.id) && await one('SELECT id, status, mileage, reviewed_at FROM cars WHERE id = ? AND dealer_id = ?', [req.params.id, req.dealer.id]);
   if (!car) return res.status(404).json({ error: 'Not found' });
   if (req.body.status === 'available' && !/\d/.test(String(car.mileage || ''))) return res.status(400).json({ error: 'Add the mileage first: open the car, fill it in and save.' });
   if (car.status === 'reserved') return res.status(409).json({ error: 'This car is reserved for a buyer. Contact us to change it.' });
-  const status = statusFor(String(req.body.status || ''), req.dealer);
+  const status = statusFor(String(req.body.status || ''), req.dealer, car);
   if (!['pending', 'available'].includes(car.status)) await checkLimit(req.dealer, status, car.id);
   const row = await one('SELECT vehicle_id_ref FROM cars WHERE id = ?', [car.id]);
   await registry.guarded(row.vehicle_id_ref, req.dealer.id, () => q('UPDATE cars SET status = ? WHERE id = ? AND dealer_id = ?', [status, car.id, req.dealer.id]));
@@ -385,3 +460,4 @@ r.post('/cars/:id/status', requireDealer, async (req, res) => {
 
 module.exports = r;
 module.exports.membership = membership;
+module.exports.ID_TYPES = ID_TYPES;

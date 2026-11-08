@@ -13,18 +13,21 @@ const seo = require('../lib/seo');
 const r = express.Router();
 const isId = (s) => /^\d{1,10}$/.test(String(s));
 const sqlTime = (ms) => new Date(Date.now() + ms).toISOString().slice(0, 19).replace('T', ' ');
-const STATUSES = ['pending_review', 'more_info', 'approved', 'rejected', 'suspended', 'draft'];
+const STATUSES = ['pending_review', 'more_info', 'approved', 'unverified', 'rejected', 'suspended', 'draft'];
 const KEEP_PAPERS_DAYS = 365;
 
 r.get('/', async (req, res) => {
   const st = STATUSES.includes(req.query.status) ? req.query.status : null;
-  const dealers = await q(`SELECT d.id, d.slug, d.business_name, d.cac_type, d.cac_number, d.status, d.state, d.created_at, d.verified_at,
+  const kind = ['business', 'personal'].includes(req.query.kind) ? req.query.kind : null;
+  const dealers = await q(`SELECT d.id, d.slug, d.kind, d.business_name, d.cac_type, d.cac_number, d.status, d.state, d.created_at, d.verified_at,
       (SELECT COUNT(*) FROM cars c WHERE c.dealer_id = d.id AND c.status IN ('pending','available','reserved')) AS live_cars,
       (SELECT COUNT(*) FROM dealer_documents x WHERE x.dealer_id = d.id) AS papers,
       (SELECT u.name FROM dealer_members m JOIN users u ON u.id = m.user_id WHERE m.dealer_id = d.id AND m.role = 'owner' LIMIT 1) AS owner_name
-    FROM dealers d WHERE d.id <> 1 ${st ? 'AND d.status = ?' : ''} ORDER BY CASE d.status WHEN 'pending_review' THEN 0 WHEN 'more_info' THEN 1 ELSE 2 END, d.id DESC LIMIT 300`, st ? [st] : []);
+    FROM dealers d WHERE d.id <> 1 ${st ? 'AND d.status = ?' : ''}${kind ? ' AND d.kind = ?' : ''} ORDER BY CASE d.status WHEN 'pending_review' THEN 0 WHEN 'more_info' THEN 1 ELSE 2 END, d.id DESC LIMIT 300`, [...(st ? [st] : []), ...(kind ? [kind] : [])]);
   const waiting = Number((await one("SELECT COUNT(*) AS n FROM dealers WHERE status = 'pending_review'")).n);
-  res.json({ dealers, waiting, statuses: STATUSES });
+  const carsToCheck = Number((await one(`SELECT COUNT(*) AS n FROM cars c JOIN dealers d ON d.id = c.dealer_id WHERE c.status = 'pending' AND c.reviewed_at IS NULL AND d.kind = 'personal' AND d.status NOT IN ('approved','rejected','suspended')`)).n);
+  const reports = Number((await one("SELECT COUNT(*) AS n FROM listing_reports WHERE status = 'open'")).n);
+  res.json({ dealers, waiting, carsToCheck, reports, statuses: STATUSES });
 });
 
 r.get('/:id', async (req, res) => {
@@ -88,7 +91,7 @@ r.post('/:id/decision', async (req, res) => {
   for (const c of changed) seo.notify(seo.carPaths(c));
   if (decision === 'approve') for (const c of changed) require('../lib/searches').notifyNewCar({ ...c, status: 'available' });
   const owner = await one("SELECT u.name, u.email FROM dealer_members m JOIN users u ON u.id = m.user_id WHERE m.dealer_id = ? AND m.role = 'owner' LIMIT 1", [d.id]);
-  if (owner) mail.send({ to: owner.email, ...mail.templates.dealerDecision(owner.name.split(' ')[0], d.business_name, decision, note) }).catch((e) => console.error('Dealer decision email failed:', e.message));
+  if (owner) mail.send({ to: owner.email, ...mail.templates.dealerDecision(owner.name.split(' ')[0], d.business_name, decision, note, d.kind) }).catch((e) => console.error('Dealer decision email failed:', e.message));
   res.json({ ok: true, status: (await one('SELECT status FROM dealers WHERE id = ?', [d.id])).status, carsChanged: changed.length });
 });
 
