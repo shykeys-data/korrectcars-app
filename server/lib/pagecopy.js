@@ -92,4 +92,53 @@ const MARKET = {
   lead: 'The figures that move car prices in Nigeria, kept up to date by the Korrect Cars team. Each figure shows its source and the date we checked it.'
 };
 
-module.exports = { GUIDES, CONTACT, SWAP, VIN, MARKET };
+
+// How sellers are checked (Nov 2026). Keep every line true to what the site does (server/routes/dealer.js, admin-*.js).
+const SELLERS = {
+  h1: 'How Korrect Cars checks car sellers',
+  lead: 'Cars on Korrect Cars come from three kinds of seller, and every listing shows which one: a Verified Dealer (a car business whose CAC registration our team has checked), a Verified Seller (a person selling their own car whose ID our team has checked) or a Private Seller (a person selling their own car whom we have not checked). Each car can be listed only once, by its VIN.',
+  sections: [
+    { h2: 'The three badges', list: [
+      '✓ Verified Dealer: a registered car business. Our team checks the CAC certificate and looks the RC or BN number up on the CAC public search before any of its cars go live.',
+      '✓ Verified Seller: a person selling their own car. Our team has checked a government ID (NIN slip, driver\'s licence, international passport or voter\'s card) and a selfie holding it. They can list up to 5 cars.',
+      'Private Seller · not verified: a person selling their own car whom Korrect Cars has not checked. They can list 1 car, and our team looks at that car before it goes live. The car page tells buyers plainly that the seller is not verified.'
+    ] },
+    { h2: 'What every seller goes through', steps: [
+      ['Email code', 'Every seller proves their email with a 6-digit code before an account exists. Temporary email addresses are refused.'],
+      ['Checks by our team', 'Dealers send their CAC certificate; sellers who want the Verified badge send an ID and a selfie. Our team decides; papers are kept private and deleted 12 months after the decision.'],
+      ['One VIN, one listing', 'A car can be listed once. If a VIN is already live on the site, nobody else can list it, so the same car never appears twice.'],
+      ['Report this listing', 'Every car page has a "Report this listing" link. Our team reads each report and can take a car off the site straight away.']
+    ] },
+    { h2: 'Buyer questions', faq: [
+      ['How do I know a car dealer in Nigeria is real?', 'Ask for the business\'s RC or BN number and look it up on the CAC public search (search.cac.gov.ng): the name and status should match. On Korrect Cars, every dealer with the ✓ Verified Dealer badge has had this check done by our team.'],
+      ['Is a Private Seller on Korrect Cars safe to buy from?', 'We have not checked who a Private Seller is. See the car in person, check its papers and make sure the name on them matches the seller before you pay anything, and never pay a deposit to hold a car you have not seen. You can choose to see only verified dealers and sellers on the cars page.'],
+      ['Who do I pay when I buy a car on Korrect Cars?', 'You pay the seller shown on the car page. For a dealer, pay only into the business\'s own account; for a person, into an account in their own name, and only after you have seen the car and its papers. For cars Korrect Cars sells itself, pay only into the Korrect Cars company account.'],
+      ['Can the same car be listed twice?', 'No. Each car is listed by its VIN, and a VIN can have only one live listing on Korrect Cars.']
+    ] }
+  ]
+};
+
+// Added to the privacy policy while the marketplace is on (Nov 2026). Keep it true to what the code does.
+const PRIVACY_MARKETPLACE = {
+  h1: 'Sellers, buyer requests and cookies',
+  lead: 'This part of our privacy policy covers selling on Korrect Cars, requests buyers send to sellers, and the cookies we use.',
+  sections: [
+    { h2: 'If you sell on Korrect Cars', list: [
+      'We keep your name, email, phone and WhatsApp numbers, and where your cars are (state and LGA). Your name, WhatsApp, phone and area are shown to buyers on your cars and your seller page.',
+      'Dealers send a CAC certificate; sellers who want the Verified badge send a photo of an ID and a selfie. These papers are kept in a private folder that only Korrect Cars staff can open; every time staff open one it is logged. We delete them 12 months after our decision.',
+      'When you sign in on a new device or from outside Nigeria, or after several wrong passwords, we email you a one-time code. We then remember that browser for 90 days with a cookie (kc_td) that holds a random token; we store only a scrambled version of it.',
+      'If you invite people to your team, we email them a link that works once, for 72 hours.'
+    ] },
+    { h2: 'If you send a request about a car', list: [
+      'When you book a viewing, make an offer or ask a question about a car sold by a dealer or another seller, your name, phone, email (if you give it) and message go to that seller, and Korrect Cars keeps a copy so we can help if they do not reply.',
+      'Pay Small Small requests go only to Korrect Cars; with your consent we pass them to our credit partners.',
+      'If you report a listing, only Korrect Cars staff see your report; the seller does not.'
+    ] },
+    { h2: 'Cookies', list: [
+      'Sign-in cookies (kc_session, and kc_td for sellers) are needed for the site to work and are always on.',
+      'Google Analytics (counting visits) and Google AdSense (ads) use cookies only if you accept them on the cookie bar. If you decline, analytics cookies stay off and ads are not personalised. You can change your choice any time with "Cookie choices" at the bottom of every page.'
+    ] }
+  ]
+};
+
+module.exports = { GUIDES, CONTACT, SWAP, VIN, MARKET, SELLERS, PRIVACY_MARKETPLACE };

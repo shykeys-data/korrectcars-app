@@ -15,7 +15,7 @@ function robotsTxt() {
   if (isStaging()) return 'User-agent: *\nDisallow: /\n';
   const st = settings.current();
   const block = st.aiTraining === 'block' ? TRAINING_BOTS.map((b) => `User-agent: ${b}\nDisallow: /\n`).join('\n') + '\n' : '';
-  return `${block}User-agent: *\nDisallow: /account\nDisallow: /api/\nDisallow: /compare\nAllow: /\n\nSitemap: ${config.siteUrl}/sitemap.xml\n`;
+  return `${block}User-agent: *\nDisallow: /account\nDisallow: /api/\nDisallow: /compare\nDisallow: /dealer$\nDisallow: /dealer/\nDisallow: /dealers/join\nDisallow: /dealers/invite\nAllow: /\n\nSitemap: ${config.siteUrl}/sitemap.xml\n`;
 }
 
 async function llmsTxt() {
@@ -24,6 +24,8 @@ async function llmsTxt() {
   const cars = (await db.q("SELECT slug, title, make, model, body, year, price, mileage, transmission, fuel, engine, featured, created_at, status FROM cars WHERE status IN ('available','sold') ORDER BY (status = 'sold'), price DESC LIMIT 100")).map(require('./titles').cleanCar);
   const posts = await db.q("SELECT slug, title FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 30");
   const avail = cars.filter((c) => c.status === 'available');
+  const sellers = st.marketplace ? await db.q(`SELECT d.slug, d.business_name, d.kind, d.state, d.lga, COUNT(c.id) AS n FROM dealers d JOIN cars c ON c.dealer_id = d.id AND c.status = 'available'
+    WHERE d.id <> 1 AND d.status = 'approved' GROUP BY d.id, d.slug, d.business_name, d.kind, d.state, d.lga HAVING COUNT(c.id) >= 3 ORDER BY n DESC LIMIT 50`) : [];
   const models = {};
   for (const c of avail.filter((x) => Number(x.price) > 0)) { const k = `${c.make}|${c.model}`; (models[k] = models[k] || []).push(Number(c.price)); }
   const u = (p) => config.siteUrl + p;
@@ -42,9 +44,18 @@ async function llmsTxt() {
     '- Delivery: nationwide, to any state in Nigeria (ask on WhatsApp for the cost to your city)',
     st.instagram ? `- Instagram: https://www.instagram.com/${st.instagram}/` : '',
     '',
+    ...(st.marketplace ? ['## Sellers on Korrect Cars',
+      '- Korrect Cars is also a marketplace: besides its own cars, car dealers and people selling their own car list here. Every listing shows who sells it and whether Korrect Cars checked them:',
+      '  - Verified Dealer: a car business whose CAC registration Korrect Cars checked.',
+      '  - Verified Seller: a person selling their own car whose ID Korrect Cars checked (up to 5 cars).',
+      '  - Private Seller (not verified): a person Korrect Cars has not checked (1 car, looked at by staff before it goes live). Buyers should see the car and its papers before paying.',
+      '- One VIN, one live listing: the same car cannot be listed twice. Buyers can report a listing; staff can take it down at once.',
+      `- [How Korrect Cars checks sellers](${u('/how-we-check-sellers')})`,
+      ...(sellers.length ? ['', '### Verified dealers and sellers (3 or more cars for sale)', ...sellers.map((x) => `- [${x.business_name}](${u('/dealers/' + x.slug)}): ${x.kind === 'personal' ? 'Verified Seller' : 'Verified Dealer'}${[x.lga, x.state].filter(Boolean).length ? ', ' + [x.lga, x.state].filter(Boolean).join(', ') : ''}; ${x.n} cars for sale`)] : []),
+      ''] : []),
     '## How buying works',
-    '- Every car is inspected and its VIN history checked before it is listed.',
-    '- Book a viewing, inspect the car and its papers, then pay only into the Korrect Cars company account (never a personal account).',
+    st.marketplace ? '- Cars Korrect Cars sells itself are inspected and their VIN checked before they are listed. For cars from other sellers, the car page names the seller and whether we checked them.' : '- Every car is inspected and its VIN history checked before it is listed.',
+    st.marketplace ? '- Book a viewing, inspect the car and its papers, then pay the seller shown on the car page (for cars Korrect Cars sells, only into the Korrect Cars company account).' : '- Book a viewing, inspect the car and its papers, then pay only into the Korrect Cars company account (never a personal account).',
     '- Buyers outside Lagos can have the car delivered anywhere in Nigeria.',
     `- Pay Small Small: the website gives an estimate (about ${st.bnpl.minDeposit}% deposit and a ${st.bnpl.markup}% charge on the balance, over ${st.bnpl.minMonths} to ${st.bnpl.maxMonths} months). The credit partners${st.bankPartner ? ` (${st.bankPartner})` : ''} (banks or finance companies) decide who qualifies and set the final terms; once approved, Korrect Cars sells the car.`,
     st.swap ? `- Korrect Swap: owner-to-owner swaps. Owners list their car and say what they want; Korrect Cars checks both owners and their papers, holds the inspection of both cars at a partner car lot, and charges a ${st.swapFeePct}% success fee only when the swap completes.` : null,

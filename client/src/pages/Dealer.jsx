@@ -366,6 +366,7 @@ export function DealerHome() {
         <div className="box kpi"><div className="small muted">Cars for sale</div><div className="v">{d.liveCars}{d.liveLimit ? <span className="small muted"> / {d.liveLimit}</span> : null}</div>{d.liveLimit ? <div className="small muted">{!personal ? 'limit for your first 3 months' : d.status === 'approved' ? 'limit for Verified Sellers' : 'limit until your ID is checked'}</div> : null}</div>
         <div className="box kpi"><div className="small muted">All your cars</div><div className="v">{list.length}</div></div>
       </div>
+      <BuyerRequests />
       <ViewsPanel s={stats.data} />
       <div className="box">
         <h2>Your cars</h2>
@@ -383,7 +384,114 @@ export function DealerHome() {
             </tr>)}
           </tbody></table></div>)}
       </div>
+      {!personal && ['owner', 'manager'].includes(d.role) && <TeamPanel />}
+      {d.role && d.role !== 'owner' && <p className="small muted">You are a {d.role} in this team{d.role === 'lister' ? ': you see and edit the cars you added, and their buyer requests' : ''}.</p>}
     </div>
+  );
+}
+
+// Buyer requests: viewings, offers and questions buyers sent about this seller's cars (Korrect Cars keeps a copy)
+const LEAD_TYPE = { viewing: 'Wants to view', offer: 'Offer', contact: 'Question' };
+const waBuyer = (l) => `https://wa.me/${String(l.phone).replace(/\D/g, '').replace(/^0/, '234')}?text=${encodeURIComponent(`Hello ${l.name.split(' ')[0]}, this is about the ${l.title} on Korrect Cars.`)}`;
+function BuyerRequests() {
+  const { data, reload } = useApi('/dealer/leads');
+  const [show, setShow] = useState('open');
+  if (!data) return null;
+  const list = data.leads.filter((l) => (show === 'open' ? l.seller_status === 'new' : true));
+  const mark = async (l, status) => { try { await api(`/dealer/leads/${l.id}`, { method: 'POST', body: { status } }); reload(); } catch (e) { window.alert(e.message); } };
+  return (
+    <div className="box">
+      <div className="sec-head" style={{ marginBottom: 8 }}><h2 style={{ margin: 0 }}>Buyer requests {data.open ? <span className="tag tag-warn">{data.open} new</span> : null}</h2>
+        <select className="input" style={{ maxWidth: 170 }} aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)}><option value="open">Not replied yet</option><option value="all">All requests</option></select></div>
+      <p className="small muted" style={{ marginTop: 0 }}>Viewings, offers and questions buyers sent about your cars. We email you each one; reply quickly, buyers move on. Pay Small Small requests go to Korrect Cars, who work with the credit partners.</p>
+      {!list.length ? <p className="muted">{data.leads.length ? 'All caught up.' : 'No requests yet.'}</p> : list.map((l) => (
+        <div className="row" key={l.id} style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 220 }}><b>{LEAD_TYPE[l.type] || l.type}</b>{l.type === 'offer' && l.offer_amount ? `: ${priceText({ price: l.offer_amount })}` : ''}{l.type === 'viewing' && l.preferred_date ? ` · ${l.preferred_date}` : ''} · <Link to={'/cars/' + l.slug} target="_blank">{l.title}</Link>
+            <div className="small">{l.name} · <a href={'tel:' + l.phone}>{l.phone}</a>{l.email ? <> · {l.email}</> : null} · {date(l.created_at)}</div>
+            {l.message && <div className="small muted">“{l.message}”</div>}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <a className="btn btn-wa btn-sm" href={waBuyer(l)} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+            {l.seller_status === 'new' ? <button className="btn btn-dark btn-sm" onClick={() => mark(l, 'replied')}>Mark replied</button> : <span className="tag tag-grey">{l.seller_status}</span>}
+            {l.seller_status !== 'closed' && <button className="btn btn-line btn-sm" onClick={() => mark(l, 'closed')}>Close</button>}
+          </div>
+        </div>))}
+    </div>
+  );
+}
+
+// Team (dealers): the owner invites a manager or a lister by email; managers can see the team
+const ROLE_TEXT = { owner: 'Owner', manager: 'Manager (everything except the team)', lister: 'Lister (adds cars, edits their own)' };
+function TeamPanel() {
+  const { data, reload } = useApi('/dealer/team');
+  const [f, setF] = useState({ email: '', role: 'lister' }); const [code, setCode] = useState(''); const [needCode, setNeedCode] = useState(null);
+  const [err, setErr] = useState(''); const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  // Team changes from a device trusted for less than a day ask for an emailed code; the change is then sent again with it
+  const run = async (fn) => {
+    setErr(''); setMsg(''); setBusy(true);
+    try { await fn(needCode ? code : undefined); setNeedCode(null); setCode(''); reload(); return true; } catch (e) {
+      if (e.data && e.data.code === 'STEP_UP') { setNeedCode(() => fn); setErr(e.message); } else setErr(e.message);
+      return false;
+    } finally { setBusy(false); }
+  };
+  const invite = (e) => { e.preventDefault(); run(async (stepCode) => { await api('/dealer/team', { method: 'POST', body: { ...f, stepCode } }); setMsg(`Invitation sent to ${f.email}. The link works once, for 72 hours.`); setF({ email: '', role: 'lister' }); }); };
+  const remove = (m) => { if (window.confirm(`Remove ${m.name} from your team? The cars they added stay with your business.`)) run(async (stepCode) => api(`/dealer/team/${m.id}`, { method: 'DELETE', body: { stepCode } })); };
+  return (
+    <div className="box">
+      <h2>Your team</h2>
+      <p className="small muted" style={{ marginTop: 0 }}>Each person signs in with their own email. {ROLE_TEXT.manager}; {ROLE_TEXT.lister.toLowerCase()}.</p>
+      {data.members.map((m) => <div className="row" key={m.id}><div><b>{m.name}</b> <span className="small muted">{m.email} · {ROLE_TEXT[m.role] || m.role}</span></div>
+        {data.canInvite && m.role !== 'owner' && <button className="btn btn-line btn-sm" disabled={busy} onClick={() => remove(m)}>Remove</button>}</div>)}
+      {data.invites.map((i) => <div className="row" key={i.id}><div className="small">Invited: {i.email} ({i.role}) · until {date(i.expires_at)}</div>
+        {data.canInvite && <button className="btn btn-line btn-sm" onClick={() => run(() => api(`/dealer/team/invites/${i.id}`, { method: 'DELETE' }))}>Cancel</button>}</div>)}
+      {err && <div className="err" role="alert" style={{ marginTop: 10 }}>{err}</div>}
+      {msg && <div className="okmsg" role="status" style={{ marginTop: 10 }}>{msg}</div>}
+      {needCode && <div className="field" style={{ marginTop: 10 }}><label className="f" htmlFor="tm-code">Code from your email</label>
+        <div style={{ display: 'flex', gap: 8 }}><input id="tm-code" className="input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} style={{ maxWidth: 160 }} />
+          <button className="btn btn-red" disabled={busy || code.length !== 6} onClick={() => run(needCode)}>Confirm</button></div></div>}
+      {data.canInvite && !needCode && <form onSubmit={invite} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }} noValidate>
+        <input className="input" type="email" placeholder="Their email" aria-label="Their email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} style={{ flex: 2, minWidth: 200 }} />
+        <select className="input" aria-label="Role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} style={{ flex: 1, minWidth: 140 }}><option value="lister">Lister</option><option value="manager">Manager</option></select>
+        <button className="btn btn-dark" disabled={busy || !f.email}>Invite</button></form>}
+      {!data.canInvite && data.members.length < 2 && <p className="small muted">You can add people once your business is approved.</p>}
+    </div>
+  );
+}
+
+// ---------- /dealers/invite?token=… : accept a team invitation ----------
+export function DealerInvite() {
+  useTitle('Join a team | Korrect Cars');
+  const { user, setUser } = useApp();
+  const { query, go } = useRouter();
+  const token = query.get('token') || '';
+  const inv = useApi('/dealer/invite/' + encodeURIComponent(token), [user && user.id]);
+  const [f, setF] = useState({ name: '', phone: '', password: '' }); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  if (inv.loading && !inv.data) return <Loading />;
+  if (inv.error) return <Box title="Invitation"><p>{inv.error.message}</p></Box>;
+  const d = inv.data;
+  const accept = async (e) => {
+    if (e) e.preventDefault();
+    setErr(''); setBusy(true);
+    try {
+      await api('/dealer/invite/' + encodeURIComponent(token), { method: 'POST', body: d.hasAccount ? {} : f });
+      forgetBoot('/auth/me'); try { setUser((await api('/auth/me')).user); } catch (_e) { /* next page load */ }
+      go('/dealer');
+    } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+  };
+  return (
+    <Box title={`Join ${d.business}`}>
+      <p>You were invited as a <b>{d.role}</b>{d.role === 'lister' ? ' (you can add cars and edit the ones you add)' : ' (everything except the team)'}. Invitation for <b>{d.email}</b>.</p>
+      {err && <div className="err" role="alert">{err}</div>}
+      {d.hasAccount ? (user && user.email === d.email
+        ? <button className="btn btn-red btn-block" disabled={busy} onClick={() => accept()}>{busy ? 'Joining…' : `Join ${d.business}`}</button>
+        : <p><Link className="btn btn-red" to={'/login?next=' + encodeURIComponent('/dealers/invite?token=' + token)}>Sign in as {d.email}</Link></p>)
+        : <form onSubmit={accept} noValidate>
+          <div className="field"><label className="f" htmlFor="iv-name">Your full name</label><input id="iv-name" className="input" autoComplete="name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div>
+          <div className="field"><label className="f" htmlFor="iv-phone">Mobile number</label><input id="iv-phone" className="input" type="tel" autoComplete="tel" placeholder="0803 123 4567" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></div>
+          <div className="field"><label className="f" htmlFor="iv-pw">Choose a password</label><input id="iv-pw" className="input" type="password" autoComplete="new-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /><div className="hint">At least 10 characters. A few words you will remember works well.</div></div>
+          <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Joining…' : 'Create my account and join'}</button>
+        </form>}
+    </Box>
   );
 }
 

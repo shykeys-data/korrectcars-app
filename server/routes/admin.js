@@ -117,8 +117,8 @@ r.get('/enquiries', salesTeam, async (req, res) => {
   const where = []; const p = [];
   if (['viewing', 'offer', 'bnpl', 'contact'].includes(req.query.type)) { where.push('e.type = ?'); p.push(req.query.type); }
   if (LEAD_STATUSES.includes(req.query.status)) { where.push('e.status = ?'); p.push(req.query.status); }
-  res.json({ statuses: LEAD_STATUSES, enquiries: await q(`SELECT e.*, c.title AS car_title, c.slug AS car_slug, c.price AS car_price, u.name AS assigned_name
-    FROM enquiries e LEFT JOIN cars c ON c.id = e.car_id LEFT JOIN users u ON u.id = e.assigned_to ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY e.id DESC LIMIT 500`, p) });
+  res.json({ statuses: LEAD_STATUSES, enquiries: await q(`SELECT e.*, c.title AS car_title, c.slug AS car_slug, c.price AS car_price, u.name AS assigned_name, sd.business_name AS seller_name
+    FROM enquiries e LEFT JOIN cars c ON c.id = e.car_id LEFT JOIN users u ON u.id = e.assigned_to LEFT JOIN dealers sd ON sd.id = e.dealer_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY e.id DESC LIMIT 500`, p) });
 });
 async function updateLead(req, res) {
   if (!isId(req.params.id)) return res.status(400).json({ error: 'Bad request' });

@@ -1,9 +1,9 @@
 // Content pages: blog / guides list and posts, About and legal pages, FAQs, Contact and the 404 page.
 import React, { useState } from 'react';
 import { Link, useApi, useApp, useTitle, date, waLink, rs, srcset, ContactUs } from '../lib/core.jsx';
-import { Loading, ErrorBox, EnquiryForm } from '../components/Bits.jsx';
+import { Loading, ErrorBox, EnquiryForm, SellerBadge } from '../components/Bits.jsx';
 import { CopySections } from '../components/Copy.jsx';
-import { GUIDES, CONTACT } from '../../../server/lib/pagecopy.js';
+import { GUIDES, CONTACT, SELLERS, PRIVACY_MARKETPLACE } from '../../../server/lib/pagecopy.js';
 
 // Post HTML comes from our own admin/WordPress import; strip anything executable before showing it.
 export function clean(html) {
@@ -75,12 +75,14 @@ export function Post({ slug }) {
 }
 
 export function Page({ slug }) {
+  const { cfg } = useApp();
   const { data, loading, error } = useApi('/pages/' + slug);
   useTitle(data && data.page ? `${data.page.title} | Korrect Cars` : null);
   if (loading) return <Loading />;
   if (error) return <ErrorBox error={error} />;
   const html = clean(data.page.content).replace(/^\s*<h1>[\s\S]*?<\/h1>/i, '');
-  return <div className="wrap sec-sm"><h1>{data.page.title}</h1><div className="prose" dangerouslySetInnerHTML={{ __html: html }} /></div>;
+  return <div className="wrap sec-sm"><h1>{data.page.title}</h1><div className="prose" dangerouslySetInnerHTML={{ __html: html }} />
+    {slug === 'privacy-policy' && cfg && cfg.marketplace && <div className="prose"><h2>{PRIVACY_MARKETPLACE.h1}</h2><p>{PRIVACY_MARKETPLACE.lead}</p><CopySections page={PRIVACY_MARKETPLACE} /></div>}</div>;
 }
 
 export function Faqs() {
@@ -139,4 +141,18 @@ export function Contact() {
 export function NotFound() {
   useTitle('Page not found | Korrect Cars');
   return <div className="wrap sec"><h1>Page not found</h1><p className="muted">The page you wanted has moved or no longer exists.</p><div style={{ display: 'flex', gap: 12 }}><Link to="/" className="btn btn-red">Home</Link><Link to="/cars" className="btn btn-line">Browse cars</Link></div></div>;
+}
+
+// /how-we-check-sellers: the plain answer to "how do I know a seller on Korrect Cars is real?" (same words as the server page)
+export function HowWeCheckSellers() {
+  useTitle('How Korrect Cars checks car sellers | Verified Dealers and Sellers', SELLERS.lead);
+  return (
+    <div className="wrap sec-sm" style={{ maxWidth: 820 }}>
+      <div className="eyebrow">Buying safely</div><h1>{SELLERS.h1}</h1>
+      <p className="lead-text">{SELLERS.lead}</p>
+      <div className="seller-key" aria-hidden="true"><SellerBadge type="dealer" /><SellerBadge type="verified" /><SellerBadge type="private" /></div>
+      <div className="box"><CopySections page={SELLERS} /></div>
+      <p style={{ marginTop: 16 }}><Link to="/cars?verified=1" className="btn btn-red">See cars from verified sellers</Link> <Link to="/dealers/join" className="btn btn-line">Sell your car</Link></p>
+    </div>
+  );
 }

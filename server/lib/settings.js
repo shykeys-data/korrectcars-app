@@ -16,7 +16,7 @@ const FIELDS = {
   swapFeePct: { type: 'number', label: 'Swap fee %', min: 0, max: 20 },
   internalCodes: { type: 'list', label: 'Staff-only codes at the end of car titles, hidden from customers (comma separated, e.g. BF)' },
   swap: { type: 'choice', label: 'Swap your car (Korrect Swap)', options: [['off', 'Hidden: not shown anywhere on the site'], ['on', 'Shown: menu, home page, swap pages and account tabs']] },
-  marketplace: { type: 'choice', label: 'Partner dealers (marketplace)', options: [['off', 'Off: only Korrect Cars lists cars; dealer sign-up is closed'], ['on', 'On: verified partner dealers can sign up and list cars']] },
+  marketplace: { type: 'choice', label: 'Partner dealers (marketplace)', options: [['off', 'Off: only Korrect Cars lists cars; seller sign-up is closed'], ['on', 'On: dealers and private sellers can sign up and list cars']] },
   aiTraining: { type: 'choice', label: 'AI training bots (GPTBot, ClaudeBot, Google-Extended, CCBot)', options: [['allow', 'Allow: the site can be used to train AI models'], ['block', 'Block: AI search assistants can still read and cite the site']] }
 };
 let cache = {};

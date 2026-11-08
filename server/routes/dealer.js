@@ -26,6 +26,7 @@ const sms = require('../lib/sms');
 const mail = require('../lib/mail');
 const phash = require('../lib/phash');
 const vin = require('../lib/vin');
+const stepup = require('../lib/stepup');
 
 const r = express.Router();
 const sqlTime = (ms) => new Date(Date.now() + ms).toISOString().slice(0, 19).replace('T', ' ');
@@ -96,6 +97,7 @@ r.post('/signup/account', limiter(15, 20, 'Too many tries. Please wait 15 minute
   }
   const user = await one('SELECT * FROM users WHERE id = ?', [ins.insertId]);
   issueSession(res, user);
+  await stepup.trust(req, res, user, { quiet: true }); // this browser just proved the email with a code
   res.status(201).json({ user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role } });
 });
 
@@ -181,6 +183,7 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
   if (!u.phone_verified_at && sms.otpOn()) return res.status(403).json({ error: 'Please confirm your phone number first.', step: 'phone' });
   if (!u.phone) return res.status(400).json({ error: 'Add your mobile number to your account first.', step: 'phone' });
   const existing = await membership(u.id);
+  if (existing && existing.member_role && existing.member_role !== 'owner') return res.status(403).json({ error: 'Only the account owner can change the business details.', code: 'ROLE' });
   const b = req.body || {};
   const business = String(b.businessName || '').trim().replace(/\s+/g, ' ');
   if (business.length < 3 || business.length > 160) return res.status(400).json({ error: 'Enter the business name as it is on your CAC certificate.', field: 'businessName' });
@@ -248,6 +251,7 @@ r.post('/personal', requireAuth, limiter(60, 10), memory.fields([{ name: 'idDoc'
   if (!u.phone_verified_at && sms.otpOn()) return res.status(403).json({ error: 'Please confirm your phone number first.', step: 'phone' });
   if (!u.phone) return res.status(400).json({ error: 'Add your mobile number to your account first.', step: 'phone' });
   const existing = await membership(u.id);
+  if (existing && existing.member_role && existing.member_role !== 'owner') return res.status(403).json({ error: 'Only the account owner can change these details.', code: 'ROLE' });
   if (existing && !isPersonal(existing)) return res.status(409).json({ error: 'You are already registered as a dealer.' });
   if (existing && ['rejected', 'suspended'].includes(existing.status)) return res.status(403).json({ error: 'Your seller account is not active. Please contact us.' });
   if (existing && ['pending_review', 'approved'].includes(existing.status) && !(req.files && req.files.idDoc)) return res.status(409).json({ error: 'Your details are already with us. Contact us to change them.' });
@@ -300,8 +304,15 @@ async function requireDealer(req, res, next) {
   if (!d) return res.status(403).json({ error: 'Register your business first.', step: 'business' });
   if (['rejected', 'suspended'].includes(d.status)) return res.status(403).json({ error: 'Your dealer account is not active. Please contact us.' });
   req.dealer = d;
+  req.role = d.member_role || 'owner';
   next();
 }
+// Roles (Nov 2026): owner = everything; manager = everything except the team; lister = adds cars and edits only the
+// cars they added, and sees buyer requests for those cars only. Checked here on the server for every route.
+const ROLES = ['owner', 'manager', 'lister'];
+const onlyRoles = (...roles) => (req, res, next) => (roles.includes(req.role) ? next() : res.status(403).json({ error: 'Only the account owner can do this.', code: 'ROLE' }));
+// SQL to limit a query on cars (alias c) to what this member may see
+const scope = (req, alias = 'c') => (req.role === 'lister' ? { sql: ` AND ${alias}.created_by = ?`, p: [req.user.id] } : { sql: '', p: [] });
 // A dealer's cars are where the dealer is (State and LGA from sign-up); branches come later
 const whereFrom = (d, fallback) => [d.lga, d.state].filter(Boolean).join(', ') || fallback;
 const CAR_COLS = 'id, slug, title, make, model, body, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, trim_level, vin, stock, description, features, specs, info, photos, status, views, created_at, updated_at';
@@ -326,11 +337,11 @@ r.get('/cars', requireDealer, async (req, res) => {
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 19).replace('T', ' ');
   // Per car: views today, in the last 7 days and all time (cars.views), and buyer requests (viewings, offers, Pay Small Small)
   const cars = await q(`SELECT ${CAR_COLS},
-      (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = cars.id AND v.day = ?) AS views_today,
-      (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = cars.id AND v.day >= ?) AS views_week,
-      (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = cars.id) AS enquiries,
-      (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = cars.id AND e.created_at >= ?) AS enquiries_week
-    FROM cars WHERE dealer_id = ? ORDER BY id DESC LIMIT 500`, [today, weekAgo, sevenDaysAgo, req.dealer.id]);
+      (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = c0.id AND v.day = ?) AS views_today,
+      (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = c0.id AND v.day >= ?) AS views_week,
+      (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = c0.id) AS enquiries,
+      (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = c0.id AND e.created_at >= ?) AS enquiries_week
+    FROM cars c0 WHERE dealer_id = ?${scope(req, 'c0').sql} ORDER BY id DESC LIMIT 500`, [today, weekAgo, sevenDaysAgo, req.dealer.id, ...scope(req, 'c0').p]);
   for (const c of cars) for (const k of ['views', 'views_today', 'views_week', 'enquiries', 'enquiries_week']) c[k] = Number(c[k]) || 0;
   res.json({ cars, liveLimit: await liveLimit(req.dealer), liveCars: await liveCount(req.dealer.id) });
 });
@@ -339,17 +350,18 @@ r.get('/cars', requireDealer, async (req, res) => {
 r.get('/stats', requireDealer, async (req, res) => {
   const { lastDays } = require('../lib/views');
   const days = lastDays(30);
+  const sc = scope(req);
   const rows = await q(`SELECT v.day, SUM(v.views) AS views FROM car_views_daily v JOIN cars c ON c.id = v.car_id
-    WHERE c.dealer_id = ? AND v.day >= ? GROUP BY v.day`, [req.dealer.id, days[0]]);
+    WHERE c.dealer_id = ?${sc.sql} AND v.day >= ? GROUP BY v.day`, [req.dealer.id, ...sc.p, days[0]]);
   const by = Object.fromEntries(rows.map((r2) => [r2.day, Number(r2.views) || 0]));
   const daily = days.map((day) => ({ day, views: by[day] || 0 }));
   const sum = (n) => daily.slice(-n).reduce((s, d) => s + d.views, 0);
-  const total = Number((await one('SELECT COALESCE(SUM(views), 0) AS n FROM cars WHERE dealer_id = ?', [req.dealer.id])).n) || 0;
-  const enq = await one('SELECT COUNT(*) AS n FROM enquiries e JOIN cars c ON c.id = e.car_id WHERE c.dealer_id = ?', [req.dealer.id]);
+  const total = Number((await one(`SELECT COALESCE(SUM(views), 0) AS n FROM cars c WHERE c.dealer_id = ?${sc.sql}`, [req.dealer.id, ...sc.p])).n) || 0;
+  const enq = await one(`SELECT COUNT(*) AS n FROM enquiries e JOIN cars c ON c.id = e.car_id WHERE c.dealer_id = ?${sc.sql}`, [req.dealer.id, ...sc.p]);
   res.json({ daily, today: sum(1), week: sum(7), month: sum(30), total, enquiries: Number(enq.n) || 0 });
 });
 r.get('/cars/:id', requireDealer, async (req, res) => {
-  const car = isId(req.params.id) && await one(`SELECT ${CAR_COLS} FROM cars WHERE id = ? AND dealer_id = ?`, [req.params.id, req.dealer.id]);
+  const car = isId(req.params.id) && await one(`SELECT ${CAR_COLS} FROM cars c WHERE c.id = ? AND c.dealer_id = ?${scope(req).sql}`, [req.params.id, req.dealer.id, ...scope(req).p]);
   if (!car) return res.status(404).json({ error: 'Not found' });
   res.json({ car });
 });
@@ -412,7 +424,7 @@ r.post('/cars', requireDealer, limiter(60, 60, 'Too many cars added in an hour. 
 });
 
 r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (req, res) => {
-  const car = isId(req.params.id) && await one('SELECT id, photos, status, vin, vehicle_id_ref, reviewed_at FROM cars WHERE id = ? AND dealer_id = ?', [req.params.id, req.dealer.id]);
+  const car = isId(req.params.id) && await one(`SELECT id, photos, status, vin, vehicle_id_ref, reviewed_at FROM cars c WHERE c.id = ? AND c.dealer_id = ?${scope(req).sql}`, [req.params.id, req.dealer.id, ...scope(req).p]);
   if (!car) return res.status(404).json({ error: 'Not found' });
   if (!req.valid.vin) return res.status(422).json({ code: 'VIN_INVALID', error: 'Enter the VIN (or chassis number).', field: 'vin' });
   const v = carValues(req.valid);
@@ -447,7 +459,7 @@ r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (re
 
 // Quick status change from the car list (sold / hidden / for sale)
 r.post('/cars/:id/status', requireDealer, async (req, res) => {
-  const car = isId(req.params.id) && await one('SELECT id, status, mileage, reviewed_at FROM cars WHERE id = ? AND dealer_id = ?', [req.params.id, req.dealer.id]);
+  const car = isId(req.params.id) && await one(`SELECT id, status, mileage, reviewed_at FROM cars c WHERE c.id = ? AND c.dealer_id = ?${scope(req).sql}`, [req.params.id, req.dealer.id, ...scope(req).p]);
   if (!car) return res.status(404).json({ error: 'Not found' });
   if (req.body.status === 'available' && !/\d/.test(String(car.mileage || ''))) return res.status(400).json({ error: 'Add the mileage first: open the car, fill it in and save.' });
   if (car.status === 'reserved') return res.status(409).json({ error: 'This car is reserved for a buyer. Contact us to change it.' });
@@ -456,6 +468,123 @@ r.post('/cars/:id/status', requireDealer, async (req, res) => {
   const row = await one('SELECT vehicle_id_ref FROM cars WHERE id = ?', [car.id]);
   await registry.guarded(row.vehicle_id_ref, req.dealer.id, () => q('UPDATE cars SET status = ? WHERE id = ? AND dealer_id = ?', [status, car.id, req.dealer.id]));
   res.json({ ok: true, status });
+});
+
+
+// ---------- Buyer requests (viewings, offers, questions on this seller's cars) ----------
+// Korrect Cars staff see every request in Leads; here the seller sees their own and marks them replied or closed.
+r.get('/leads', requireDealer, async (req, res) => {
+  const sc = scope(req);
+  const leads = await q(`SELECT e.id, e.type, e.name, e.phone, e.email, e.message, e.offer_amount, e.preferred_date, e.seller_status, e.created_at,
+      c.id AS car_id, c.title, c.slug FROM enquiries e JOIN cars c ON c.id = e.car_id
+    WHERE e.dealer_id = ? AND c.dealer_id = ?${sc.sql} ORDER BY e.id DESC LIMIT 300`, [req.dealer.id, req.dealer.id, ...sc.p]);
+  res.json({ leads, open: leads.filter((l) => l.seller_status === 'new').length });
+});
+r.post('/leads/:id', requireDealer, async (req, res) => {
+  const status = String((req.body && req.body.status) || '');
+  if (!['new', 'replied', 'closed'].includes(status)) return res.status(400).json({ error: 'Choose replied, closed or new.' });
+  const sc = scope(req);
+  const lead = isId(req.params.id) && await one(`SELECT e.id FROM enquiries e JOIN cars c ON c.id = e.car_id WHERE e.id = ? AND e.dealer_id = ? AND c.dealer_id = ?${sc.sql}`, [req.params.id, req.dealer.id, req.dealer.id, ...sc.p]);
+  if (!lead) return res.status(404).json({ error: 'Not found' });
+  await q('UPDATE enquiries SET seller_status = ? WHERE id = ?', [status, lead.id]);
+  res.json({ ok: true, status });
+});
+
+// ---------- Team (dealers only): the owner invites a manager or a lister; each invite is a single-use link for 72 hours ----------
+const STEP = { error: 'For your safety, enter the code we just emailed you to change your team.', code: 'STEP_UP' };
+async function stepOk(req, res) {
+  if (await stepup.sensitiveOk(req)) return true;
+  if (!(req.body && req.body.stepCode)) await stepup.sendCode(await one('SELECT id, name, email FROM users WHERE id = ?', [req.user.id]), 'a team change');
+  res.status(403).json(req.body && req.body.stepCode ? { ...STEP, error: 'That code is wrong or has expired.' } : STEP);
+  return false;
+}
+r.get('/team', requireDealer, onlyRoles('owner', 'manager'), async (req, res) => {
+  const members = await q(`SELECT u.id, u.name, u.email, m.role, m.created_at FROM dealer_members m JOIN users u ON u.id = m.user_id WHERE m.dealer_id = ? ORDER BY m.id`, [req.dealer.id]);
+  const invites = await q('SELECT id, email, role, expires_at, created_at FROM dealer_invites WHERE dealer_id = ? AND used_at IS NULL AND expires_at > ? ORDER BY id DESC', [req.dealer.id, sqlTime(0)]);
+  res.json({ members, invites, canInvite: req.role === 'owner' && !isPersonal(req.dealer) && req.dealer.status === 'approved' });
+});
+r.post('/team', requireDealer, onlyRoles('owner'), limiter(60, 20), async (req, res) => {
+  if (isPersonal(req.dealer)) return res.status(403).json({ error: 'Teams are for dealers. Register as a dealer to add people.' });
+  if (req.dealer.status !== 'approved') return res.status(403).json({ error: 'You can add people once your business is approved.', code: 'DEALER_NOT_APPROVED' });
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const role = String((req.body && req.body.role) || '');
+  if (!emailOk(email)) return res.status(400).json({ error: 'Enter their email address.', field: 'email' });
+  if (!['manager', 'lister'].includes(role)) return res.status(400).json({ error: 'Choose manager or lister.', field: 'role' });
+  if (isDisposable(email)) return res.status(400).json({ error: 'Use a real email address, not a temporary one.', field: 'email' });
+  const existing = await one('SELECT u.id, u.role, (SELECT m.dealer_id FROM dealer_members m WHERE m.user_id = u.id LIMIT 1) AS dealer_id FROM users u WHERE u.email = ?', [email]);
+  if (existing && (isStaff(existing) || existing.dealer_id)) return res.status(409).json({ error: existing.dealer_id === req.dealer.id ? 'This person is already in your team.' : 'This email cannot be added: it already belongs to another seller or to Korrect Cars staff.', field: 'email' });
+  if (Number((await one('SELECT COUNT(*) AS n FROM dealer_members WHERE dealer_id = ?', [req.dealer.id])).n) >= 20) return res.status(400).json({ error: 'A team can have up to 20 people.' });
+  if (!(await stepOk(req, res))) return;
+  const token = crypto.randomBytes(32).toString('hex');
+  await q('UPDATE dealer_invites SET expires_at = ? WHERE dealer_id = ? AND email = ? AND used_at IS NULL', [sqlTime(0), req.dealer.id, email]);
+  await q('INSERT INTO dealer_invites (dealer_id, email, role, token_hash, invited_by, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [req.dealer.id, email, role, hmac(`invite:${token}`), req.user.id, sqlTime(72 * 3600 * 1000)]);
+  const inviter = (await one('SELECT name FROM users WHERE id = ?', [req.user.id])).name;
+  await mail.send({ to: email, ...mail.templates.teamInvite(req.dealer.business_name, inviter, role, `${config.siteUrl}/dealers/invite?token=${token}`) });
+  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'team', 'invited', ?, ?)", [req.dealer.id, req.user.id, `${email} as ${role}`]);
+  res.status(201).json({ ok: true });
+});
+r.delete('/team/:userId', requireDealer, onlyRoles('owner'), limiter(60, 20), async (req, res) => {
+  if (!isId(req.params.userId) || Number(req.params.userId) === req.user.id) return res.status(400).json({ error: 'You cannot remove yourself.' });
+  const m = await one('SELECT m.id, u.email FROM dealer_members m JOIN users u ON u.id = m.user_id WHERE m.dealer_id = ? AND m.user_id = ? AND m.role <> ?', [req.dealer.id, req.params.userId, 'owner']);
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  if (!(await stepOk(req, res))) return;
+  await q('DELETE FROM dealer_members WHERE id = ?', [m.id]); // their cars stay with the business
+  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'team', 'removed', ?, ?)", [req.dealer.id, req.user.id, m.email]);
+  res.json({ ok: true });
+});
+r.delete('/team/invites/:id', requireDealer, onlyRoles('owner'), async (req, res) => {
+  if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  await q('UPDATE dealer_invites SET expires_at = ? WHERE id = ? AND dealer_id = ? AND used_at IS NULL', [sqlTime(0), req.params.id, req.dealer.id]);
+  res.json({ ok: true });
+});
+// Ask for a code before a team change (the page then sends it with the change)
+r.post('/step-up', requireDealer, onlyRoles('owner'), limiter(60, 6), async (req, res) => {
+  await stepup.sendCode(await one('SELECT id, name, email FROM users WHERE id = ?', [req.user.id]), 'a team change');
+  res.json({ ok: true });
+});
+
+// The invited person opens the link: who invited them, and whether they already have an account
+async function inviteFor(token) {
+  if (!/^[a-f0-9]{64}$/.test(String(token || ''))) return null;
+  return one(`SELECT i.*, d.business_name, d.status AS dealer_status FROM dealer_invites i JOIN dealers d ON d.id = i.dealer_id
+    WHERE i.token_hash = ? AND i.used_at IS NULL AND i.expires_at > ?`, [hmac(`invite:${token}`), sqlTime(0)]);
+}
+r.get('/invite/:token', limiter(15, 30), async (req, res) => {
+  const inv = await inviteFor(req.params.token);
+  if (!inv) return res.status(404).json({ error: 'This invitation has expired or was already used. Ask for a new one.' });
+  const hasAccount = !!(await one('SELECT id FROM users WHERE email = ?', [inv.email]));
+  res.json({ business: inv.business_name, role: inv.role, email: inv.email, hasAccount, signedInAs: req.user ? req.user.email : null });
+});
+// Accept: a signed-in user with the invited email joins; or a new account is made (the link proved the email)
+r.post('/invite/:token', limiter(15, 20, 'Too many tries. Please wait 15 minutes.'), async (req, res) => {
+  const inv = await inviteFor(req.params.token);
+  if (!inv) return res.status(404).json({ error: 'This invitation has expired or was already used. Ask for a new one.' });
+  let user = await one('SELECT * FROM users WHERE email = ?', [inv.email]);
+  if (user) {
+    if (!req.user || req.user.id !== user.id) return res.status(403).json({ error: `Sign in as ${inv.email} first, then open the link again.`, signIn: true });
+  } else {
+    const name = String((req.body && req.body.name) || '').trim().replace(/\s+/g, ' ');
+    if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'Enter your full name.', field: 'name' });
+    const phone = sms.toE164(req.body && req.body.phone);
+    if (!phone) return res.status(400).json({ error: 'Enter a Nigerian mobile number, e.g. 0803 123 4567.', field: 'phone' });
+    const weak = weakPassword(req.body && req.body.password, { email: inv.email, name });
+    if (weak) return res.status(400).json({ error: weak, field: 'password' });
+    let ins;
+    try { ins = await q('INSERT INTO users (name, email, phone, password_hash, role, email_verified) VALUES (?, ?, ?, ?, ?, 1)', [name, inv.email, phone, await bcrypt.hash(String(req.body.password), 12), 'user']); } catch (e) {
+      if (/duplicate|unique/i.test(e.message)) return res.status(409).json({ error: 'An account with this email was just made. Sign in, then open the link again.', signIn: true });
+      throw e;
+    }
+    user = await one('SELECT * FROM users WHERE id = ?', [ins.insertId]);
+  }
+  if (isStaff(user)) return res.status(403).json({ error: 'Staff accounts cannot join a seller.' });
+  if (await one('SELECT id FROM dealer_members WHERE user_id = ?', [user.id])) return res.status(409).json({ error: 'This account already belongs to a seller on Korrect Cars.' });
+  const used = await q('UPDATE dealer_invites SET used_at = ? WHERE id = ? AND used_at IS NULL', [sqlTime(0), inv.id]);
+  if (!used.affectedRows) return res.status(409).json({ error: 'This invitation was already used.' });
+  await q('INSERT INTO dealer_members (dealer_id, user_id, role) VALUES (?, ?, ?)', [inv.dealer_id, user.id, inv.role]);
+  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'team', 'joined', ?, ?)", [inv.dealer_id, user.id, `${user.email} as ${inv.role}`]);
+  if (!req.user) issueSession(res, user);
+  await stepup.trust(req, res, user, { quiet: true }); // the emailed link proved the email on this browser
+  res.status(201).json({ ok: true, business: inv.business_name, role: inv.role });
 });
 
 module.exports = r;

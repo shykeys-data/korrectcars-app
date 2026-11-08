@@ -11,6 +11,7 @@ export function AuthPage({ mode, adminGate = false }) {
   const [f, setF] = useState({ name: '', email: '', phone: '', password: '' });
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(''); const [unverified, setUnverified] = useState(false);
+  const [step, setStep] = useState(null); const [code, setCode] = useState(''); // sellers: emailed code when a sign-in looks unusual
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const next = adminGate ? window.location.pathname : (query.get('next') || '/account');
   if (user && !adminGate) return (
@@ -27,9 +28,26 @@ export function AuthPage({ mode, adminGate = false }) {
     try {
       const d = await api('/auth/' + (mode === 'login' ? 'login' : 'register'), { method: 'POST', body: mode === 'login' ? { email: f.email, password: f.password } : f });
       if (d.pending) { setPending(d.email); return; }
+      if (d.code === 'STEP_UP') { setStep(d); return; }
       setUser(d.user); go(next.startsWith('/') && !next.startsWith('//') ? next : '/account');
     } catch (e2) { setErr(e2.message); setUnverified(!!(e2.data && e2.data.unverified)); } finally { setBusy(false); }
   };
+  const sendCode = async (e) => {
+    e.preventDefault(); setErr(''); setBusy(true);
+    try { const d = await api('/auth/login/code', { method: 'POST', body: { ticket: step.ticket, code } }); setUser(d.user); go(next.startsWith('/') && !next.startsWith('//') ? next : '/account'); } catch (e2) { setErr(e2.message); if (e2.data && e2.data.restart) { setStep(null); setCode(''); } } finally { setBusy(false); }
+  };
+  if (step) return (
+    <div className="wrap sec-sm" style={{ maxWidth: 480 }}>
+      <h1 style={{ fontSize: 44 }}>Check your email</h1>
+      <form className="box" onSubmit={sendCode}>
+        <p>For your safety we sent a 6-digit code to <b>{step.email}</b> because of: {step.reason}. Type it to finish signing in. We will remember this browser for 90 days.</p>
+        {err && <div className="err" role="alert">{err}</div>}
+        <div className="field"><label className="f" htmlFor="a-code">Code</label><input id="a-code" className="input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} /></div>
+        <button className="btn btn-red btn-block" disabled={busy || code.length !== 6}>{busy ? 'Checking…' : 'Sign in'}</button>
+        <p className="small muted" style={{ marginTop: 12, marginBottom: 0 }}>No email? Check spam, or <button type="button" className="linkbtn" onClick={() => { setStep(null); setCode(''); }}>sign in again</button> for a new code.</p>
+      </form>
+    </div>
+  );
   return (
     <div className="wrap sec-sm" style={{ maxWidth: 480 }}>
       <h1 style={{ fontSize: 48 }}>{adminGate ? 'Staff sign in' : mode === 'login' ? 'Sign in' : 'Create your account'}</h1>

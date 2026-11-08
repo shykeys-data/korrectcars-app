@@ -142,6 +142,26 @@ const templates = {
       html: layout(t[0], `<p>Hello ${esc(name)},</p><p>${esc(t[1])}</p>${note ? `<p style="background:#f4f4f5;border-radius:10px;padding:12px 14px"><b>Note from our team:</b> ${esc(note)}</p>` : ''}${button(`${config.siteUrl}/dealer`, 'Open my seller page')}`)
     };
   },
+  loginCode: (name, code, reason) => ({
+    subject: `Your Korrect Cars sign-in code: ${code}`,
+    text: `Hello ${name},\n\nYour sign-in code is ${code}. It works for 10 minutes.\n\nWe asked for it because of: ${reason}.\n\nIf this was not you, do not share the code. Reset your password straight away: ${config.siteUrl}/forgot-password\n\nKorrect Cars`,
+    html: layout('Your sign-in code', `<p>Hello ${esc(name)},</p><p>Type this code to finish signing in. It works for 10 minutes.</p>${codeBox(code)}<p style="font-size:14px;color:#52525b">We asked for it because of: ${esc(reason)}. If this was not you, do not share the code, and <a href="${config.siteUrl}/forgot-password">reset your password</a> straight away.</p>`)
+  }),
+  newDevice: (name, device) => ({
+    subject: 'New sign-in to your Korrect Cars seller account',
+    text: `Hello ${name},\n\nYour seller account was just signed in on a new device:\n${device}\n\nIf this was you, there is nothing to do. If not, reset your password now: ${config.siteUrl}/forgot-password\n\nKorrect Cars`,
+    html: layout('New sign-in', `<p>Hello ${esc(name)},</p><p>Your seller account was just signed in on a new device:</p><p style="background:#f4f4f5;border-radius:10px;padding:12px 14px;font-size:14px">${esc(device)}</p><p>If this was you, there is nothing to do. If not, <a href="${config.siteUrl}/forgot-password">reset your password</a> now.</p>`)
+  }),
+  teamInvite: (business, inviter, role, url) => ({
+    subject: `${inviter} invited you to ${business} on Korrect Cars`,
+    text: `Hello,\n\n${inviter} invited you to join ${business} on Korrect Cars as a ${role}.\n\nAccept within 72 hours (the link works once):\n${url}\n\nIf you were not expecting this, ignore this email.\n\nKorrect Cars`,
+    html: layout('You are invited', `<p>Hello,</p><p><b>${esc(inviter)}</b> invited you to join <b>${esc(business)}</b> on Korrect Cars as a <b>${esc(role)}</b>.</p>${button(url, 'Accept the invitation')}<p style="font-size:14px;color:#52525b">The link works once, for 72 hours. If you were not expecting this, ignore this email.</p>`)
+  }),
+  sellerLead: (name, l) => ({
+    subject: `Buyer request: ${l.buyer} ${l.what} your ${l.title}`,
+    text: `Hello ${name},\n\n${l.buyer} ${l.what} your ${l.title} on Korrect Cars.\n\nPhone: ${l.phone}${l.email ? `\nEmail: ${l.email}` : ''}${l.details.length ? '\n' + l.details.join('\n') : ''}\n\nReply to them soon: buyers move on quickly. Mark it as replied on your page:\n${config.siteUrl}/dealer\n\nKorrect Cars`,
+    html: layout('New buyer request', `<p>Hello ${esc(name)},</p><p><b>${esc(l.buyer)}</b> ${esc(l.what)} your <a href="${config.siteUrl}/cars/${esc(l.slug)}">${esc(l.title)}</a>.</p><p style="background:#f4f4f5;border-radius:10px;padding:12px 14px">Phone: <b>${esc(l.phone)}</b>${l.email ? `<br>Email: ${esc(l.email)}` : ''}${l.details.map((d) => `<br>${esc(d)}`).join('')}</p><p>Reply to them soon: buyers move on quickly.</p>${button(`${config.siteUrl}/dealer`, 'Open buyer requests')}`)
+  }),
   staffReport: (title, reason) => ({
     subject: `Listing reported: ${title}`,
     text: `A buyer reported ${title} (${reason}). Open "Reported listings" in the staff area.`,

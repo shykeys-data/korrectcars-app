@@ -51,7 +51,7 @@ export function Footer() {
           </div>
           <div>
             <h2 className="foot-h">Buy</h2>
-            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/vin-check">Free VIN check</Link></li>{swapOn(cfg) && <><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></>}{cfg && cfg.marketplace && <li><Link to="/dealers/join">Dealers: sell with us</Link></li>}</ul>
+            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/vin-check">Free VIN check</Link></li>{dealersOn(cfg) && <li><Link to="/how-we-check-sellers">How we check sellers</Link></li>}{swapOn(cfg) && <><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></>}{cfg && cfg.marketplace && <li><Link to="/dealers/join">Dealers: sell with us</Link></li>}</ul>
           </div>
           <div>
             <h2 className="foot-h">Company</h2>
@@ -68,9 +68,10 @@ export function Footer() {
             </ul>
           </div>
         </div>
-        <p className="small" style={{ marginTop: 28, color: '#9AA0AB' }}>Safety: see the car and check its papers before any money changes hands, then pay only into the dealer's business account, never a personal account. Korrect Cars will never ask you to pay into a personal account.</p>
+        <p className="small" style={{ marginTop: 28, color: '#9AA0AB' }}>Safety: see the car and check its papers before any money changes hands. Pay a dealer only into their business account, and a private seller only into an account in their own name. Never pay a deposit to hold a car you have not seen. Korrect Cars will never ask you to pay into a personal account.</p>
         <div className="legal">
           <span>© {new Date().getFullYear()} Korrect Cars. All rights reserved.</span>
+          <button type="button" className="linkbtn" onClick={() => window.dispatchEvent(new Event('kc-cookies'))}>Cookie choices</button>
           <a href={`https://www.instagram.com/${ig}/`} target="_blank" rel="noopener noreferrer">Instagram @{ig}</a>
         </div>
       </div>
@@ -78,3 +79,24 @@ export function Footer() {
   );
 }
 
+
+// Cookie bar (NDPA): sign-in cookies are always needed; analytics and personalised ads only if the visitor accepts.
+// The choice is kept in this browser; "Cookie choices" in the footer opens the bar again.
+export function CookieBar() {
+  const read = () => { try { return localStorage.getItem('kc_consent'); } catch (_e) { return 'yes'; } };
+  const [open, setOpen] = useState(() => !read());
+  useEffect(() => { const o = () => setOpen(true); window.addEventListener('kc-cookies', o); return () => window.removeEventListener('kc-cookies', o); }, []);
+  if (!open) return null;
+  const choose = (yes) => {
+    try { localStorage.setItem('kc_consent', yes ? 'yes' : 'no'); } catch (_e) { /* private mode */ }
+    const v = yes ? 'granted' : 'denied';
+    if (window.gtag) window.gtag('consent', 'update', { ad_storage: v, ad_user_data: v, ad_personalization: v, analytics_storage: v });
+    setOpen(false);
+  };
+  return (
+    <div className="cookie-bar" role="dialog" aria-label="Cookie choices">
+      <p>We use cookies to keep you signed in (always on) and, if you agree, to count visits with Google Analytics and show ads that suit you. <Link to="/privacy-policy">Privacy policy</Link></p>
+      <div className="cookie-btns"><button className="btn btn-line btn-sm" onClick={() => choose(false)}>Decline</button><button className="btn btn-red btn-sm" onClick={() => choose(true)}>Accept</button></div>
+    </div>
+  );
+}

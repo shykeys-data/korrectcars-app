@@ -116,6 +116,9 @@ export function EnquiryForm({ type, car, title, cta, extra, onDone }) {
       setDone(true); if (onDone) onDone();
     } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
   };
+  // Viewings, offers and questions on another seller's car go to that seller (Korrect Cars keeps a copy)
+  const toSeller = car && car.dealer_id && Number(car.dealer_id) !== 1 && type !== 'bnpl' && car.seller;
+  if (done && toSeller) return <div className="okmsg">Thank you. Your request went to <b>{car.seller}</b>, who will contact you{type === 'viewing' ? ' to agree the time and place' : ''}. See the car and its papers before you pay anything.{user ? <> You can follow it in <Link to="/account?tab=requests">My account</Link>.</> : null}</div>;
   if (done) return <div className="okmsg">Thank you. We have your request and will contact you shortly{type === 'viewing' ? ' to confirm the time and send the address of the car lot on WhatsApp' : ''}.{user ? <> You can follow it in <Link to="/account?tab=requests">My account</Link>.</> : null}</div>;
   const id = (k) => `${type}-${k}`;
   return (
@@ -132,7 +135,7 @@ export function EnquiryForm({ type, car, title, cta, extra, onDone }) {
       {extra}
       <div className="field"><label className="f" htmlFor={id('msg')}>Message (optional)</label><textarea id={id('msg')} className="input" rows={3} value={f.message} onChange={set('message')} maxLength={1500} /></div>
       <div style={{ position: 'absolute', left: -9999 }} aria-hidden="true"><label>Website<input tabIndex={-1} autoComplete="off" value={f.website} onChange={set('website')} /></label></div>
-      <label className="check field"><input type="checkbox" checked={f.consent} onChange={set('consent')} required /> I agree that Korrect Cars may contact me about this request and store my details as described in the privacy policy.</label>
+      <label className="check field"><input type="checkbox" checked={f.consent} onChange={set('consent')} required /> {toSeller ? <>I agree that my name, phone and message go to <b>{car.seller}</b> (the seller) and to Korrect Cars, who may contact me about this request, as described in the privacy policy.</> : 'I agree that Korrect Cars may contact me about this request and store my details as described in the privacy policy.'}</label>
       <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Sending…' : cta || 'Send'}</button>
     </form>
   );

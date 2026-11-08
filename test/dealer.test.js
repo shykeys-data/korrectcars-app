@@ -354,7 +354,7 @@ test('a new dealer can have 50 cars for sale in the first 3 months', async () =>
 test('the dealer pages open (200) and the private ones are kept out of search', async () => {
   const join = await fetch(B + '/dealers/join');
   assert.strictEqual(join.status, 200);
-  assert.match(await join.text(), /Sell your cars on Korrect Cars/);
+  assert.match(await join.text(), /Sell your car on Korrect Cars/);
   const home = await fetch(B + '/dealer');
   assert.strictEqual(home.status, 200);
   assert.match(await home.text(), /noindex/);
@@ -480,4 +480,118 @@ test('report this listing: buyers report, staff hide the car in one click', asyn
   assert.strictEqual((await call('POST', `/api/admin/listings/reports/${rep.id}`, { cookie: staffCookie, body: { action: 'hide' } })).status, 200);
   assert.strictEqual((await call('GET', `/api/cars/${car.slug}`)).status, 404, 'hidden at once');
   assert.strictEqual((await call('GET', '/api/admin/listings/reports', { cookie: staffCookie })).json.reports.filter((x) => x.car_id === car.id).length, 0, 'no longer open');
+});
+
+// ---------- Milestones 2, 5 and 7 (Nov 2026): buyer requests, seller pages, teams, unusual sign-ins ----------
+const loginCodeFor = (email) => { const m = [...log.matchAll(new RegExp(`To: ${email.replace(/[.+]/g, '\\$&')} \\| Your Korrect Cars sign-in code: (\\d{6})`, 'g'))]; return m.length ? m[m.length - 1][1] : null; };
+const inviteFor = (email) => { const i = log.lastIndexOf(`To: ${email} |`); const m = i >= 0 && log.slice(i).match(/dealers\/invite\?token=([a-f0-9]{64})/); return m ? m[1] : null; };
+const adeSlug = () => { const db = sqlite(); const s = db.prepare("SELECT slug FROM dealers WHERE business_name = 'Ade Motors Ltd'").get().slug; db.close(); return s; };
+
+test('buyer requests on a seller\'s car go to that seller (email + their list); Pay Small Small stays with Korrect Cars', async () => {
+  const car = (await call('GET', '/api/cars')).json.cars.find((c) => c.title === '2015 Kia Rio 1');
+  const before = mailsTo('kemi@example.com');
+  const v = await call('POST', '/api/enquiries', { body: { type: 'viewing', car: String(car.id), name: 'Bola Buyer', phone: '08039990000', preferredDate: '2026-12-01', message: 'Is it still available?', consent: true } });
+  assert.deepStrictEqual([v.status, v.json.seller], [201, true]);
+  await wait(100);
+  assert.strictEqual(mailsTo('kemi@example.com'), before + 1, 'the seller got an email');
+  assert.match(log, /Buyer request: Bola Buyer wants to view your 2015 Kia Rio 1/);
+  const b = await call('POST', '/api/enquiries', { body: { type: 'bnpl', car: String(car.id), name: 'Pss Buyer', phone: '08039990001', consent: true } });
+  assert.strictEqual(b.json.seller, undefined, 'Pay Small Small goes to Korrect Cars only');
+  const leads = await call('GET', '/api/dealer/leads', { cookie: kemi.cookie });
+  assert.deepStrictEqual([leads.status, leads.json.leads.length, leads.json.open], [200, 1, 1]);
+  const id = leads.json.leads[0].id;
+  assert.strictEqual((await call('POST', `/api/dealer/leads/${id}`, { cookie: tunde.cookie, body: { status: 'replied' } })).status, 404, 'another seller cannot touch it');
+  assert.strictEqual((await call('POST', `/api/dealer/leads/${id}`, { cookie: kemi.cookie, body: { status: 'replied' } })).json.status, 'replied');
+  const db = sqlite(); assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM enquiries WHERE car_id = ?').get(car.id).n, 2, 'staff keep a copy of both in Leads'); db.close();
+});
+
+test('seller pages: approved dealers get a page (AutoDealer, in the sitemap); private sellers do not; filter by dealer', async () => {
+  const slug = adeSlug();
+  const api = await call('GET', `/api/dealers/${slug}`);
+  assert.deepStrictEqual([api.status, api.json.seller.type, api.json.seller.indexable], [200, 'dealer', true]);
+  assert.ok(api.json.cars.length >= 3 && api.json.cars.every((c) => c.seller === 'Ade Motors Ltd'));
+  const html = await (await fetch(`${B}/dealers/${slug}`)).text();
+  assert.match(html, /"@type":"AutoDealer","name":"Ade Motors Ltd"/);
+  assert.match(html, /Verified car dealer in Ikeja, Lagos/);
+  assert.doesNotMatch(html, /noindex/);
+  const db = sqlite(); const tundeSlug = db.prepare("SELECT slug FROM dealers WHERE business_name = 'Tunde Ojo'").get().slug; db.close();
+  assert.strictEqual((await call('GET', `/api/dealers/${tundeSlug}`)).status, 404, 'no page for a private seller');
+  assert.strictEqual((await fetch(`${B}/dealers/${tundeSlug}`)).status, 404);
+  const only = (await call('GET', `/api/cars?dealer=${slug}`)).json.cars;
+  assert.ok(only.length && only.every((c) => c.seller === 'Ade Motors Ltd' && c.seller_slug === slug));
+  const car = (await call('GET', '/api/cars')).json.cars.find((c) => c.seller === 'Ade Motors Ltd' && c.slug && !c.slug.startsWith('filler'));
+  const carHtml = await (await fetch(`${B}/cars/${car.slug}`)).text();
+  assert.match(carHtml, new RegExp(`Sold by <a href="/dealers/${slug}">Ade Motors Ltd</a> in Ikeja, Lagos, a car dealer whose CAC registration Korrect Cars has checked`));
+  const how = await fetch(`${B}/how-we-check-sellers`);
+  assert.strictEqual(how.status, 200);
+  assert.match(await how.text(), /"@type":"FAQPage"/);
+  assert.match(await (await fetch(`${B}/sitemap.xml`)).text(), new RegExp(`/dealers/${slug}<`));
+  assert.match(await (await fetch(`${B}/llms.txt`)).text(), /Verified dealers and sellers \(3 or more cars for sale\)[\s\S]*Ade Motors Ltd/);
+});
+
+let lister;
+test('teams: the owner invites a lister (code needed first); the lister sees and edits only their own cars', async () => {
+  const first = await call('POST', '/api/dealer/team', { cookie: ade.cookie, body: { email: 'lola@example.com', role: 'lister' } });
+  assert.deepStrictEqual([first.status, first.json.code], [403, 'STEP_UP'], 'a team change from a new device needs a code');
+  await wait(100);
+  const code = loginCodeFor('ade@example.com');
+  assert.ok(code, 'code emailed');
+  assert.strictEqual((await call('POST', '/api/dealer/team', { cookie: ade.cookie, body: { email: 'lola@example.com', role: 'boss', stepCode: code } })).status, 400);
+  const ok = await call('POST', '/api/dealer/team', { cookie: ade.cookie, body: { email: 'lola@example.com', role: 'lister', stepCode: code } });
+  assert.strictEqual(ok.status, 201, JSON.stringify(ok.json));
+  await wait(100);
+  const token = inviteFor('lola@example.com');
+  assert.ok(token, 'invite emailed');
+  const look = await call('GET', `/api/dealer/invite/${token}`);
+  assert.deepStrictEqual([look.json.business, look.json.role, look.json.hasAccount], ['Ade Motors Ltd', 'lister', false]);
+  const acc = await call('POST', `/api/dealer/invite/${token}`, { body: { name: 'Lola Lister', phone: '08035550009', password: 'green mango table 4' } });
+  assert.strictEqual(acc.status, 201, JSON.stringify(acc.json));
+  lister = acc.cookie;
+  assert.strictEqual((await call('POST', `/api/dealer/invite/${token}`, { body: { name: 'X Y', phone: '08035550010', password: 'green mango table 4' } })).status, 404, 'single use');
+  const mine = await call('POST', '/api/dealer/cars', { cookie: lister, form: carForm(makeVin(700), { title: '2013 Lexus ES 350', status: 'hidden' }) });
+  assert.strictEqual(mine.status, 201, JSON.stringify(mine.json));
+  const list = (await call('GET', '/api/dealer/cars', { cookie: lister })).json.cars;
+  assert.deepStrictEqual(list.map((c) => c.title), ['2013 Lexus ES 350'], 'a lister sees only the cars they added');
+  const other = (await call('GET', '/api/dealer/cars', { cookie: ade.cookie })).json.cars.find((c) => c.title !== '2013 Lexus ES 350');
+  assert.strictEqual((await call('GET', `/api/dealer/cars/${other.id}`, { cookie: lister })).status, 404);
+  assert.strictEqual((await call('POST', `/api/dealer/cars/${other.id}/status`, { cookie: lister, body: { status: 'sold' } })).status, 404);
+  assert.strictEqual((await call('GET', '/api/dealer/team', { cookie: lister })).status, 403);
+  assert.strictEqual((await call('POST', '/api/dealer/team', { cookie: lister, body: { email: 'x@example.com', role: 'lister' } })).status, 403);
+  const biz = new FormData(); biz.append('businessName', 'Hijack Ltd');
+  assert.strictEqual((await call('POST', '/api/dealer', { cookie: lister, form: biz })).status, 403, 'only the owner changes the business');
+  assert.strictEqual((await call('GET', '/api/dealer/team', { cookie: ade.cookie })).json.members.length, 2);
+  assert.strictEqual((await call('POST', '/api/dealer/team', { cookie: tunde.cookie, body: { email: 'y@example.com', role: 'lister' } })).status, 403, 'private sellers have no team');
+});
+
+test('unusual sign-ins: a seller signing in on a new device needs an emailed code; then that browser is trusted', async () => {
+  const login = (cookie) => fetch(B + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'korrect', 'x-forwarded-for': '10.7.7.7', ...(cookie ? { cookie } : {}) }, body: JSON.stringify({ email: 'ade@example.com', password: 'blue horse river 7' }) });
+  const r1 = await login();
+  const j1 = await r1.json();
+  assert.deepStrictEqual([r1.status, j1.code], [202, 'STEP_UP']);
+  assert.ok(!(r1.headers.getSetCookie() || []).some((c) => c.startsWith('kc_session=')), 'no session yet');
+  await wait(100);
+  const bad = await call('POST', '/api/auth/login/code', { body: { ticket: j1.ticket, code: '000000' } });
+  assert.strictEqual(bad.status, 400);
+  const good = await fetch(B + '/api/auth/login/code', { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'korrect', 'x-forwarded-for': '10.7.7.8' }, body: JSON.stringify({ ticket: j1.ticket, code: loginCodeFor('ade@example.com') }) });
+  assert.strictEqual(good.status, 200);
+  const cookies = good.headers.getSetCookie().map((c) => c.split(';')[0]);
+  assert.ok(cookies.some((c) => c.startsWith('kc_session=')) && cookies.some((c) => c.startsWith('kc_td=')));
+  await wait(100);
+  assert.match(log, /New sign-in to your Korrect Cars seller account/);
+  const r2 = await login(cookies.find((c) => c.startsWith('kc_td=')));
+  assert.strictEqual(r2.status, 200, 'the trusted browser signs straight in');
+  const away = await fetch(B + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'korrect', 'x-forwarded-for': '10.7.7.9', 'cf-ipcountry': 'GB', cookie: cookies.find((c) => c.startsWith('kc_td=')) }, body: JSON.stringify({ email: 'ade@example.com', password: 'blue horse river 7' }) });
+  assert.strictEqual(away.status, 202, 'from outside Nigeria a code is asked again');
+});
+
+test('every dealer route keeps sellers apart: another seller\'s car id is "not found"', async () => {
+  const kemiCar = (await call('GET', '/api/dealer/cars', { cookie: kemi.cookie })).json.cars[0];
+  for (const [m, p, body] of [['GET', `/api/dealer/cars/${kemiCar.id}`], ['POST', `/api/dealer/cars/${kemiCar.id}/status`, { status: 'sold' }]]) {
+    assert.strictEqual((await call(m, p, { cookie: ade.cookie, body })).status, 404, `${m} ${p}`);
+  }
+  const f = carForm(kemiCar.vin);
+  assert.strictEqual((await call('PUT', `/api/dealer/cars/${kemiCar.id}`, { cookie: ade.cookie, form: f })).status, 404);
+  assert.ok(!(await call('GET', '/api/dealer/cars', { cookie: ade.cookie })).json.cars.some((c) => c.id === kemiCar.id));
+  assert.ok(!(await call('GET', '/api/dealer/leads', { cookie: ade.cookie })).json.leads.some((l) => l.car_id === kemiCar.id));
+  assert.strictEqual((await call('GET', '/api/dealer/cars', {})).status, 403, 'signed out');
 });

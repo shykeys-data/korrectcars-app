@@ -90,7 +90,7 @@ function Body({ car, onClose }) {
       {!sold && hasPrice(car) && <div className="qv-monthly">Pay small small from about <b>{naira(plan.monthly)}/mo</b> <span>(estimate)</span></div>}
       <Specs car={car} />
       <div className="seller-line"><SellerBadge type={car.seller_type} long /></div>
-      <div className="qv-where">{car.seller ? `Sold by ${car.seller}` : 'Listed on Korrect Cars'}{car.state ? ` · ${[car.lga, car.state].filter(Boolean).join(', ')}` : ''} · listed with its VIN</div>
+      <div className="qv-where">{car.seller ? <>Sold by {car.seller_slug ? <Link to={'/dealers/' + car.seller_slug}>{car.seller}</Link> : car.seller}</> : 'Listed on Korrect Cars'}{car.state ? ` · ${[car.lga, car.state].filter(Boolean).join(', ')}` : ''} · listed with its VIN</div>
       <div className="qv-actions">
         <Link to={url} className="btn btn-red btn-sm" onClick={onClose}>View full details</Link>
         {!sold && <a className="btn btn-wa btn-sm" href={sellerWa(car, cfg, `Hello ${sellerName(car)}, I saw this on Korrect Cars. I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${window.location.origin}${url}`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}

@@ -5,4 +5,4 @@ const hasPrice = (c) => Number(c && c.price) > 0;
 const naira = (n) => '\u20a6' + Math.round(Number(n) || 0).toLocaleString('en-NG');
 const priceText = (c) => (hasPrice(c) ? naira(c.price) : 'Call for price');
 const priced = (cars) => (cars || []).filter(hasPrice);
-module.exports = { hasPrice, priceText, priced, CALL_FOR_PRICE: 'Call for price' };
+module.exports = { hasPrice, priceText, priced, naira, CALL_FOR_PRICE: 'Call for price' };

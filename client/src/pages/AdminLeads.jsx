@@ -31,6 +31,7 @@ export function Leads({ onChange }) {
           </div>
           <div className="small lead-body">
             {e.car_title && <div>Car: <Link to={'/cars/' + e.car_slug} target="_blank">{e.car_title}</Link>{e.car_price ? ` · ${naira(e.car_price)}` : ''}</div>}
+            {e.seller_name && <div className="small">Sent to the seller, <b>{e.seller_name}</b> ({e.seller_status === 'new' ? 'not replied yet' : e.seller_status}). This is your copy.</div>}
             {e.offer_amount ? <div>Offer: <b>{naira(e.offer_amount)}</b></div> : null}{e.preferred_date ? <div>Preferred day: {e.preferred_date}</div> : null}
             {e.bnpl_monthly ? <div>Estimate: deposit {naira(e.bnpl_deposit)}, {e.bnpl_months} months, about {naira(e.bnpl_monthly)}/month</div> : null}
             {e.message && <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{e.message}</div>}

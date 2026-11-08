@@ -1,6 +1,8 @@
 // API for everyone (mounted at /api): site config, car list and detail, search facets, enquiries (leads),
 // Pay Small Small estimate (bnplPlan), blog and pages, and accounts: register, verify email, sign in, reset, two-step codes.
 const express = require('express');
+const stepup = require('../lib/stepup');
+const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const config = require('../config');
 const catalog = require('../lib/catalog');
@@ -96,6 +98,24 @@ r.post('/auth/login', authLimit, validate('login'), async (req, res) => {
   }
   await q('UPDATE users SET failed_logins = 0, lock_until = NULL WHERE id = ?', [user.id]);
   if (!user.email_verified) return res.status(403).json({ error: 'Please confirm your email first. Check your inbox (and spam folder) for the link.', unverified: true });
+  // Sellers: an emailed code first when the sign-in looks unusual (new device, wrong passwords, outside Nigeria)
+  const reason = isStaff(user) ? null : await stepup.riskReason(req, user, user.failed_logins || 0);
+  if (reason) {
+    await stepup.sendCode(user, reason);
+    const ticket = jwt.sign({ sub: user.id, p: 'stepup' }, config.jwtSecret, { expiresIn: 600 });
+    return res.status(202).json({ code: 'STEP_UP', ticket, email: user.email.replace(/^(.).*(@.*)$/, '$1•••$2'), reason });
+  }
+  issueSession(res, user);
+  res.json({ user: await withDealer(publicUser(user)) });
+});
+// Second half of an unusual sign-in: the emailed code. The browser is then trusted for 90 days.
+r.post('/auth/login/code', authLimit, async (req, res) => {
+  let t; try { t = jwt.verify(String((req.body && req.body.ticket) || ''), config.jwtSecret); } catch (_e) { t = null; }
+  if (!t || t.p !== 'stepup') return res.status(400).json({ error: 'This sign-in has expired. Please sign in again.', restart: true });
+  const user = await one('SELECT * FROM users WHERE id = ?', [t.sub]);
+  if (!user || user.disabled) return res.status(400).json({ error: 'This sign-in has expired. Please sign in again.', restart: true });
+  if (!(await stepup.checkCode(user.id, String((req.body && req.body.code) || '').replace(/\D/g, '')))) return res.status(400).json({ error: 'That code is wrong or has expired.' });
+  await stepup.trust(req, res, user);
   issueSession(res, user);
   res.json({ user: await withDealer(publicUser(user)) });
 });
@@ -118,6 +138,9 @@ r.post('/auth/reset', authLimit, async (req, res) => {
   // Clicking the emailed link also proves the email address
   await q('UPDATE users SET password_hash = ?, token_version = token_version + 1, failed_logins = 0, lock_until = NULL, email_verified = 1 WHERE id = ?', [await bcrypt.hash(pw, 12), row.user_id]);
   const user = await one('SELECT * FROM users WHERE id = ?', [row.user_id]);
+  // A reset logs every other device out of the seller check: only this browser (which just used the emailed link) is trusted
+  await stepup.forgetDevices(user.id);
+  await stepup.trust(req, res, user, { quiet: true });
   mail.send({ to: user.email, ...mail.templates.passwordChanged(user.name.split(' ')[0]) }).catch(() => {});
   issueSession(res, user);
   res.json({ user: publicUser(user) });
@@ -191,7 +214,9 @@ r.get('/cars/facets', async (_req, res) => res.json(await facets()));
 const SELLER = ', (SELECT d.business_name FROM dealers d WHERE d.id = cars.dealer_id) AS seller, (SELECT d.whatsapp FROM dealers d WHERE d.id = cars.dealer_id) AS seller_whatsapp, (SELECT d.phone FROM dealers d WHERE d.id = cars.dealer_id) AS seller_phone'
   // What kind of seller (badge): dealer = Verified Dealer (CAC checked), verified = Verified Seller (ID checked),
   // private = Private Seller, not verified by Korrect Cars. Cars with no dealer are Korrect Cars' own stock (a dealer).
-  + ", (SELECT CASE WHEN d.kind = 'personal' THEN CASE WHEN d.status = 'approved' THEN 'verified' ELSE 'private' END ELSE 'dealer' END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_type";
+  + ", (SELECT CASE WHEN d.kind = 'personal' THEN CASE WHEN d.status = 'approved' THEN 'verified' ELSE 'private' END ELSE 'dealer' END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_type"
+  // The seller's public page (dealers and Verified Sellers only; Korrect Cars' own stock and private sellers have none)
+  + ", (SELECT CASE WHEN d.id <> 1 AND d.status = 'approved' THEN d.slug END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_slug";
 const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured, created_at'
   // A car is where its dealer is (one location per dealer for now; branches may come later)
   + ', (SELECT d.state FROM dealers d WHERE d.id = cars.dealer_id) AS state, (SELECT d.lga FROM dealers d WHERE d.id = cars.dealer_id) AS lga'
@@ -201,7 +226,8 @@ const STOCK_MAX = 2000;
 async function listCars(query = {}) {
   const where = [`status IN ${PUBLIC_STATUSES}`]; const p = [];
   const add = (sql, v) => { where.push(sql); p.push(v); };
-  const { make, model, body, condition, minPrice, maxPrice, yearMin, yearMax, sort, featured, search, limit, state, lga, verified } = query;
+  const { make, model, body, condition, minPrice, maxPrice, yearMin, yearMax, sort, featured, search, limit, state, lga, verified, dealer } = query;
+  if (dealer) add("dealer_id IN (SELECT id FROM dealers WHERE slug = ? AND status = 'approved' AND id <> 1)", String(dealer).slice(0, 120));
   if (verified === '1') where.push("(dealer_id IS NULL OR dealer_id NOT IN (SELECT id FROM dealers WHERE kind = 'personal' AND status <> 'approved'))");
   if (make) add('make = ?', String(make));
   if (model) add('model = ?', String(model));
@@ -232,8 +258,9 @@ async function carDetail(slug) {
   const similar = await q(`SELECT id, slug, title, make, model, body, year, price, old_price, mileage, photos, status${SELLER} FROM cars
     WHERE id <> ? AND status = 'available' AND (body = ? OR make = ?) ORDER BY ABS(price - ?) LIMIT 3`, [car.id, car.body, car.make, car.price]);
   // Who sells it: buyers pay this business, so the car page names it (the "Stay safe" note)
-  const seller = car.dealer_id ? await one('SELECT business_name, whatsapp, phone, state, lga, kind, status FROM dealers WHERE id = ?', [car.dealer_id]) : null;
+  const seller = car.dealer_id ? await one('SELECT id, slug, business_name, whatsapp, phone, state, lga, kind, status FROM dealers WHERE id = ?', [car.dealer_id]) : null;
   car.seller_type = !seller || seller.kind !== 'personal' ? 'dealer' : seller.status === 'approved' ? 'verified' : 'private';
+  car.seller_slug = seller && seller.id !== 1 && seller.status === 'approved' ? seller.slug : null;
   car.seller = (seller && seller.business_name) || 'Korrect Cars';
   car.seller_whatsapp = (seller && seller.whatsapp) || null; car.seller_phone = (seller && seller.phone) || null;
   car.state = (seller && seller.state) || null; car.lga = (seller && seller.lga) || null;
@@ -252,6 +279,31 @@ r.post('/cars/:id/view', limiter(10, 120), async (req, res) => {
 });
 
 // ---------- Enquiries (viewing, offer, Pay Small Small, contact) ----------
+
+// ---------- Public seller pages (/dealers/:slug): approved dealers and Verified Sellers ----------
+// Not Korrect Cars itself (the whole site is its page) and not private sellers (we have not checked who they are).
+// Search engines index a page only once the seller has 3 cars for sale (thin pages stay out).
+const SELLER_INDEX_MIN = 3;
+async function sellerPage(slug) {
+  const d = await one(`SELECT id, slug, kind, business_name, state, lga, address, about, whatsapp, phone, verified_at, created_at
+    FROM dealers WHERE slug = ? AND status = 'approved' AND id <> 1`, [String(slug).slice(0, 120)]);
+  if (!d) return null;
+  const cars = await listCars({ dealer: d.slug, limit: 'all' });
+  const sold = Number((await one("SELECT COUNT(*) AS n FROM cars WHERE dealer_id = ? AND status = 'sold'", [d.id])).n) || 0;
+  const live = cars.filter((c) => c.status === 'available').length;
+  return {
+    seller: { slug: d.slug, kind: d.kind || 'business', type: d.kind === 'personal' ? 'verified' : 'dealer', name: d.business_name, state: d.state, lga: d.lga,
+      address: d.kind === 'personal' ? null : d.address, about: d.about, whatsapp: d.whatsapp, phone: d.phone,
+      verifiedAt: d.verified_at, joinedAt: d.created_at, carsForSale: live, carsSold: sold, indexable: live >= SELLER_INDEX_MIN },
+    cars
+  };
+}
+r.get('/dealers/:slug', async (req, res) => {
+  const d = settings.current().marketplace ? await sellerPage(req.params.slug) : null;
+  if (!d) return res.status(404).json({ error: 'Seller not found' });
+  res.json(d);
+});
+
 // "Report this listing": anyone may report (signed in or not); staff see it in "Reported listings"
 r.post('/cars/:id/report', limiter(60, 10, 'Too many reports from this connection. Please call us instead.'), async (req, res) => {
   if (!/^\d{1,10}$/.test(String(req.params.id))) return res.status(404).json({ error: 'Car not found' });
@@ -269,11 +321,14 @@ r.post('/cars/:id/report', limiter(60, 10, 'Too many reports from this connectio
 r.post('/enquiries', limiter(60, 8, 'Too many messages sent. Please call or WhatsApp us instead.'), validate('enquiry'), async (req, res) => {
   const v = req.valid;
   if (v.website) return res.json({ ok: true }); // honeypot
-  let carId = null; let bnpl = [null, null, null];
+  let carId = null; let bnpl = [null, null, null]; let seller = null;
   if (v.car) {
-    const car = await one('SELECT id, price FROM cars WHERE id = ?', [v.car]);
+    const car = await one('SELECT id, price, title, slug, dealer_id FROM cars WHERE id = ?', [v.car]);
     if (!car) return res.status(400).json({ error: 'Car not found' });
     carId = car.id;
+    // Viewings, offers and questions on another seller's car go to that seller; Pay Small Small stays with
+    // Korrect Cars (we work with the credit partners). Staff always keep a copy in Leads.
+    if (car.dealer_id && Number(car.dealer_id) !== 1 && v.type !== 'bnpl') seller = car;
     if (v.type === 'bnpl' && Number(car.price) > 0) {
       const plan = bnplPlan(Number(car.price), v.deposit, v.months);
       bnpl = [plan.deposit, plan.months, plan.monthly];
@@ -281,9 +336,10 @@ r.post('/enquiries', limiter(60, 8, 'Too many messages sent. Please call or What
   }
   // Signed-in customers can follow the request in My account
   const userId = req.user ? req.user.id : null;
-  await q(`INSERT INTO enquiries (car_id, type, name, phone, email, message, offer_amount, preferred_date, bnpl_deposit, bnpl_months, bnpl_monthly, user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [carId, v.type, v.name, v.phone, v.email || null, v.message || null, v.offerAmount || null, v.preferredDate || null, ...bnpl, userId]);
-  res.status(201).json({ ok: true, tracked: !!userId });
+  await q(`INSERT INTO enquiries (car_id, type, name, phone, email, message, offer_amount, preferred_date, bnpl_deposit, bnpl_months, bnpl_monthly, user_id, dealer_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [carId, v.type, v.name, v.phone, v.email || null, v.message || null, v.offerAmount || null, v.preferredDate || null, ...bnpl, userId, seller ? seller.dealer_id : null]);
+  if (seller) require('../lib/leads').tellSeller(seller, v).catch((e) => console.error('Seller lead email failed:', e.message));
+  res.status(201).json({ ok: true, tracked: !!userId, seller: seller ? true : undefined });
 });
 
 // Pay Small Small: minimum deposit, then a flat markup on the balance spread over the months
@@ -348,4 +404,4 @@ r.get('/pages/:slug', async (req, res) => {
 });
 
 module.exports = r;
-Object.assign(module.exports, { bnplPlan, publicConfig, facets, listCars, carDetail, publicUser, withDealer, PUBLIC_POST_COLS });
+Object.assign(module.exports, { sellerPage, SELLER_INDEX_MIN, bnplPlan, publicConfig, facets, listCars, carDetail, publicUser, withDealer, PUBLIC_POST_COLS });

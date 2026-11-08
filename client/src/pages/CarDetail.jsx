@@ -93,8 +93,8 @@ export function CarDetail({ slug }) {
               {sellerPhone(car, cfg) && <a className="btn btn-dark" href={'tel:' + sellerPhone(car, cfg).replace(/\s/g, '')}>Call {car.seller || 'the seller'}: {sellerPhone(car, cfg)}</a>}
               <button className={'btn ' + (saved.has(car.id) ? 'btn-saved' : 'btn-line')} aria-pressed={saved.has(car.id)} onClick={() => saved.toggle(car.id)}>{saved.has(car.id) ? 'Saved ✓' : 'Save this car'}</button>
             </div>
-            <div style={{ marginTop: 14 }}><SellerBadge type={car.seller_type} long /> <span className="small muted">{(SELLER_TYPES[car.seller_type] || SELLER_TYPES.dealer)[2]}</span></div>
-            {!sold && <p className="small muted" style={{ margin: '8px 0 0' }}>Sold by {car.seller || 'a verified dealer'}{car.state ? <> in {[car.lga, car.state].filter(Boolean).join(', ')}</> : null}. Contact them to view the car. Inspect it and its papers before you pay.</p>}
+            <div style={{ marginTop: 14 }}><SellerBadge type={car.seller_type} long /> <span className="small muted">{(SELLER_TYPES[car.seller_type] || SELLER_TYPES.dealer)[2]} <Link to="/how-we-check-sellers">How we check sellers</Link></span></div>
+            {!sold && <p className="small muted" style={{ margin: '8px 0 0' }}>Sold by {car.seller_slug ? <Link to={'/dealers/' + car.seller_slug}>{car.seller}</Link> : (car.seller || 'a verified dealer')}{car.state ? <> in {[car.lga, car.state].filter(Boolean).join(', ')}</> : null}. Contact them to view the car. Inspect it and its papers before you pay.</p>}
           </div>
           {cfg && cfg.swap && <div className="box">
             <h3 style={{ fontSize: 22 }}>Want to change your car?</h3>

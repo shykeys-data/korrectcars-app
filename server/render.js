@@ -96,12 +96,23 @@ const PSS_FAQ = [
   ['Can I get a car on Pay Small Small outside Lagos?', 'Yes. Korrect Cars delivers anywhere in Nigeria. Apply online, and once a credit partner approves you we arrange delivery to your city.']
 ];
 
+// "Sold by …" in plain words, from the data, for search engines and AI assistants (the car page's opening summary)
+function soldBy(car) {
+  const where = [car.lga, car.state].filter(Boolean).join(', ');
+  if (!car.dealer_id || Number(car.dealer_id) === 1) return 'Sold by Korrect Cars, an online car dealer in Lagos.';
+  const name = car.seller_slug ? `<a href="/dealers/${esc(car.seller_slug)}">${esc(car.seller)}</a>` : esc(car.seller);
+  const what = { dealer: 'a car dealer whose CAC registration Korrect Cars has checked', verified: 'a Verified Seller (a person selling their own car; Korrect Cars has checked their ID)',
+    private: 'a private seller. Korrect Cars has not checked who this seller is: see the car and its papers before you pay anything' }[car.seller_type] || 'a seller on Korrect Cars';
+  return `Sold by ${name}${where ? ` in ${esc(where)}` : ''}, ${what}.`;
+}
 function orgLd() {
   const st = require('./lib/settings').current();
   return {
     '@context': 'https://schema.org', '@type': 'AutoDealer', '@id': config.siteUrl + '/#dealer', name: 'Korrect Cars', url: config.siteUrl + '/',
     logo: config.siteUrl + '/img/logo.svg', image: config.siteUrl + DEFAULT.image, email: st.email, telephone: st.phones,
-    description: 'Online car dealer in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through credit partners and delivery anywhere in Nigeria.',
+    description: require('./lib/settings').current().marketplace
+      ? 'Car marketplace and online car dealer in Lagos. Korrect Cars sells its own inspected, VIN-verified tokunbo cars and lists cars from car dealers whose CAC registration it has checked and from people selling their own car (each listing shows whether the seller was checked). One live listing per VIN. Pay Small Small through credit partners and delivery anywhere in Nigeria.'
+      : 'Online car dealer in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through credit partners and delivery anywhere in Nigeria.',
     areaServed: [{ '@type': 'City', name: 'Lagos' }, { '@type': 'Country', name: 'Nigeria' }], address: { '@type': 'PostalAddress', addressLocality: 'Lagos', addressCountry: 'NG' },
     openingHoursSpecification: [{ '@type': 'OpeningHoursSpecification', dayOfWeek: config.hoursSpec.days, opens: config.hoursSpec.opens, closes: config.hoursSpec.closes }],
     sameAs: st.instagram ? [`https://www.instagram.com/${st.instagram}/`] : []
@@ -265,7 +276,7 @@ async function renderPage(req, nonce) {
         : clip(`${car.title} for sale in ${car.location || 'Lagos'} ${hasPrice(car) ? 'at ' + priceText(car) : '(call for price)'}${pss}. ${extra}`, 160);
       meta = { ...meta, title: sold ? `Sold: ${car.title} — See Similar Cars in ${placeOf(car)} | Korrect Cars` : (car.seo_title || `${car.title} for Sale in ${placeOf(car)}${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars`), desc, image: (car.photos || [])[0] || DEFAULT.image };
       const similarHtml = (d.similar || []).length ? `<h2>${sold ? 'Similar cars in stock' : 'Similar cars'}</h2><ul>` + d.similar.map((x) => `<li><a href="/cars/${esc(x.slug)}">${esc(x.title)}</a> — ${esc(priceText(x))}</li>`).join('') + '</ul>' : '';
-      body = `<h1>${esc(car.title)}</h1>${(car.photos || [])[0] ? `<img class="ssr-hero" src="${esc(rs(car.photos[0], 800))}" alt="${esc(car.title)}" width="800" height="600">` : ''}<p><strong>${esc(priceText(car))}</strong>${sold ? ' — SOLD' : ''}</p>`
+      body = `<h1>${esc(car.title)}</h1>${(car.photos || [])[0] ? `<img class="ssr-hero" src="${esc(rs(car.photos[0], 800))}" alt="${esc(car.title)}" width="800" height="600">` : ''}<p><strong>${esc(priceText(car))}</strong>${sold ? ' — SOLD' : ''}</p><p>${soldBy(car)}</p>`
         + (sold ? `<p>This car has been sold. See <a href="/cars/${slugify(car.make)}/${slugify(car.model)}">every ${esc(car.make)} ${esc(car.model)} for sale</a> or <a href="/cars">all cars in stock</a>.</p>` + similarHtml : '')
         + String(car.description || '').split(/\n\n+/).map((x) => `<p>${esc(x)}</p>`).join('')
         + (car.features && car.features.length ? '<ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
@@ -318,22 +329,56 @@ async function renderPage(req, nonce) {
         let faqs = []; try { faqs = JSON.parse(page.content); } catch (_e) { /* not JSON */ }
         const pairs = faqs.map((f) => [f.q || f.question, strip(f.a || f.answer)]).filter(([q, a]) => q && a && (swapOn || !/swap/i.test(q)));
         if (pairs.length) { ld.push(faqLd(pairs)); body += pairs.map(([q, a]) => `<h2>${esc(q)}</h2><p>${esc(a)}</p>`).join(''); }
-      } else { meta = { ...meta, title: `${page.title} | Korrect Cars`, desc: clip(strip(page.content), 160) }; body = `<h1>${esc(page.title)}</h1>${safeHtml(page.content)}`; }
+      } else {
+        meta = { ...meta, title: `${page.title} | Korrect Cars`, desc: clip(strip(page.content), 160) }; body = `<h1>${esc(page.title)}</h1>${safeHtml(page.content)}`;
+        if (m[1] === 'privacy-policy' && require('./lib/settings').current().marketplace) body += `<h2>${esc(copy.PRIVACY_MARKETPLACE.h1)}</h2>` + copyHtml(copy.PRIVACY_MARKETPLACE, { h1: false });
+      }
     }
   }
 
   // Partner dealer pages (only while the switch is on). The join page may be found by search; the rest are private.
   const dealersOn = !!require('./lib/settings').current().marketplace;
-  if (dealersOn && p === '/dealers/join') meta = { ...meta, title: 'Sell your cars on Korrect Cars | Partner dealers', desc: 'Verified car dealers can list their cars on Korrect Cars. Free to join; we check every dealer\'s CAC papers before their cars go live.' };
+  m = p.match(/^\/dealers\/([a-z0-9-]+)$/);
+  if (dealersOn && m && !['join', 'invite'].includes(m[1])) {
+    known = true;
+    const d = await pub.sellerPage(m[1]);
+    if (!d) { status = 404; noindex = true; meta.title = 'Seller not found | Korrect Cars'; }
+    else {
+      const sl = d.seller; const where = [sl.lga, sl.state].filter(Boolean).join(', ');
+      boot['/dealers/' + m[1]] = d;
+      const kindText = sl.type === 'dealer' ? 'Verified car dealer' : 'Verified Seller';
+      meta = { ...meta, title: `${sl.name} — ${kindText}${where ? ' in ' + where : ''} | Korrect Cars`,
+        desc: clip(`${sl.name}: ${sl.carsForSale} ${sl.carsForSale === 1 ? 'car' : 'cars'} for sale on Korrect Cars${where ? ' in ' + where : ''}. ${sl.type === 'dealer' ? 'CAC registration checked by Korrect Cars' : 'ID checked by Korrect Cars'}${sl.verifiedAt ? ' on ' + String(sl.verifiedAt).slice(0, 10) : ''}.`, 160) };
+      if (!sl.indexable) noindex = true;
+      const avail = d.cars.filter((c) => c.status === 'available');
+      body = `<h1>${esc(sl.name)}</h1><p>${esc(kindText)}${where ? ` in ${esc(where)}` : ''}. ${sl.type === 'dealer' ? 'Korrect Cars checked this business\'s CAC registration' : 'Korrect Cars checked this seller\'s ID'}${sl.verifiedAt ? ` on ${esc(String(sl.verifiedAt).slice(0, 10))}` : ''}. ${sl.carsForSale} ${sl.carsForSale === 1 ? 'car' : 'cars'} for sale, ${sl.carsSold} sold on Korrect Cars.</p>`
+        + (sl.about ? String(sl.about).split(/\n\n+/).map((x) => `<p>${esc(x)}</p>`).join('') : '')
+        + '<ul class="ssr-cars">' + avail.map((c) => `<li><a href="/cars/${esc(c.slug)}"><span>${esc(c.title)}</span></a> <b>${esc(priceText(c))}</b></li>`).join('') + '</ul>';
+      ld.push({ '@context': 'https://schema.org', '@type': sl.type === 'dealer' ? 'AutoDealer' : 'Person', name: sl.name, url: meta.url,
+        ...(sl.type === 'dealer' ? { address: { '@type': 'PostalAddress', streetAddress: sl.address || undefined, addressLocality: sl.lga || undefined, addressRegion: sl.state || undefined, addressCountry: 'NG' },
+          areaServed: sl.state ? { '@type': 'State', name: sl.state } : undefined, description: sl.about || undefined } : { homeLocation: { '@type': 'Place', address: { '@type': 'PostalAddress', addressRegion: sl.state || undefined, addressCountry: 'NG' } } }) });
+      ld.push(listLd(avail));
+    }
+  }
+  if (dealersOn && p === '/how-we-check-sellers') {
+    known = true;
+    meta = { ...meta, title: 'How Korrect Cars checks car sellers | Verified Dealers and Sellers', desc: clip(copy.SELLERS.lead, 160) };
+    body = copyHtml(copy.SELLERS);
+    const f = copyFaq(copy.SELLERS); if (f.length) ld.push(faqLd(f));
+    ld.push(crumbsLd([['How we check sellers', p]]));
+  }
+  if (dealersOn && p === '/dealers/join') meta = { ...meta, title: 'Sell your car on Korrect Cars | Dealers and private sellers', desc: 'Car dealers and people selling their own car can list on Korrect Cars. Free to join; we check every dealer\'s CAC papers, and buyers see who has been checked.' };
+  if (dealersOn && p === '/dealers/invite') noindex = true;
   if (dealersOn && /^\/dealer(\/cars\/(new|\d+))?$/.test(p)) noindex = true;
   known = known || /^\/(compare|account|login|register|verify-email|forgot-password|reset-password)$/.test(p) || (swapOn && /^\/swap\/(new|\d+)$/.test(p))
-    || (dealersOn && /^\/(dealers\/join|dealer|dealer\/cars\/(new|\d+))$/.test(p));
+    || (dealersOn && /^\/(dealers\/join|dealers\/invite|dealer|dealer\/cars\/(new|\d+))$/.test(p));
   if (!known) { status = 404; noindex = true; meta.title = 'Page not found | Korrect Cars'; }
 
   const img = /^https?:/.test(meta.image) ? meta.image : config.siteUrl + meta.image;
   const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
   // Staff visits (the staff area, or anyone signed in with a staff role) are left out of Google Analytics
   const staff = isAdmin || !!(req.user && req.user.role && req.user.role !== 'user');
+  const kcNpa = "if(kcD==='denied'){(window.adsbygoogle=window.adsbygoogle||[]).requestNonPersonalizedAds=1;}";
   const head = [
     `<title>${esc(meta.title)}</title>`,
     preload,
@@ -347,7 +392,8 @@ async function renderPage(req, nonce) {
     config.adsenseClient ? `<meta name="google-adsense-account" content="${esc(config.adsenseClient)}">` : '',
     // Analytics and ads load after the page has shown (first scroll, tap or key, or 3.5 s after load), so their
     // ~400 KB of scripts never slow the first view. Page views are queued in dataLayer until gtag arrives.
-    config.gaId && !staff ? `<script nonce="${nonce}">window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(config.gaId)}');</script>` : '',
+    // Cookie choice (Google Consent Mode): "Decline" on the cookie bar turns off analytics cookies and personalised ads
+    (config.gaId && !staff) || (config.adsenseClient && !noindex) ? `<script nonce="${nonce}">window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}var kcC=null;try{kcC=localStorage.getItem('kc_consent');}catch(e){}var kcD=kcC==='no'?'denied':'granted';gtag('consent','default',{ad_storage:kcD,ad_user_data:kcD,ad_personalization:kcD,analytics_storage:kcD});${kcNpa}${config.gaId && !staff ? `gtag('js',new Date());gtag('config','${esc(config.gaId)}');` : ''}</script>` : '',
     (config.gaId && !staff) || (config.adsenseClient && !noindex) ? `<script nonce="${nonce}">(function(){var done=false,urls=${json([config.gaId && !staff ? 'https://www.googletagmanager.com/gtag/js?id=' + config.gaId : null, config.adsenseClient && !noindex ? 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + config.adsenseClient : null].filter(Boolean))};
 function go(){if(done)return;done=true;urls.forEach(function(u){var s=document.createElement('script');s.async=true;s.src=u;if(/googlesyndication/.test(u))s.crossOrigin='anonymous';document.head.appendChild(s);});}
 ['scroll','pointerdown','keydown','touchstart'].forEach(function(e){addEventListener(e,go,{once:true,passive:true});});
