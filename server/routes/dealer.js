@@ -333,16 +333,17 @@ r.get('/vin-check', requireDealer, limiter(15, 120), async (req, res) => {
 
 r.get('/cars', requireDealer, async (req, res) => {
   const { lagosDay } = require('../lib/views');
-  const today = lagosDay(); const weekAgo = lagosDay(Date.now() - 6 * 86400000);
+  const today = lagosDay(); const weekAgo = lagosDay(Date.now() - 6 * 86400000); const monthAgo = lagosDay(Date.now() - 29 * 86400000);
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 19).replace('T', ' ');
-  // Per car: views today, in the last 7 days and all time (cars.views), and buyer requests (viewings, offers, Pay Small Small)
+  // Per car: views today, in the last 7 days, the last 30 days and all time (cars.views), and buyer requests (viewings, offers, Pay Small Small)
   const cars = await q(`SELECT ${CAR_COLS},
       (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = c0.id AND v.day = ?) AS views_today,
       (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = c0.id AND v.day >= ?) AS views_week,
+      (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = c0.id AND v.day >= ?) AS views_month,
       (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = c0.id) AS enquiries,
       (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = c0.id AND e.created_at >= ?) AS enquiries_week
-    FROM cars c0 WHERE dealer_id = ?${scope(req, 'c0').sql} ORDER BY id DESC LIMIT 500`, [today, weekAgo, sevenDaysAgo, req.dealer.id, ...scope(req, 'c0').p]);
-  for (const c of cars) for (const k of ['views', 'views_today', 'views_week', 'enquiries', 'enquiries_week']) c[k] = Number(c[k]) || 0;
+    FROM cars c0 WHERE dealer_id = ?${scope(req, 'c0').sql} ORDER BY id DESC LIMIT 500`, [today, weekAgo, monthAgo, sevenDaysAgo, req.dealer.id, ...scope(req, 'c0').p]);
+  for (const c of cars) for (const k of ['views', 'views_today', 'views_week', 'views_month', 'enquiries', 'enquiries_week']) c[k] = Number(c[k]) || 0;
   res.json({ cars, liveLimit: await liveLimit(req.dealer), liveCars: await liveCount(req.dealer.id) });
 });
 

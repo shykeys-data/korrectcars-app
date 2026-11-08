@@ -320,7 +320,7 @@ test('views: once per buyer per car per day; bots and the dealer team are not co
   assert.strictEqual((await bot.json()).result, 'bot');
   assert.strictEqual((await call('GET', `/api/cars/${car.slug}`)).status, 200, 'opening the page data no longer counts by itself');
   const after = (await call('GET', '/api/dealer/cars', { cookie: ade.cookie })).json.cars.find((c) => c.id === car.id);
-  assert.deepStrictEqual([after.views - before.views, after.views_today - before.views_today, after.views_week - before.views_week], [2, 2, 2]);
+  assert.deepStrictEqual([after.views - before.views, after.views_today - before.views_today, after.views_week - before.views_week, after.views_month - before.views_month], [2, 2, 2, 2]);
   const st = (await call('GET', '/api/dealer/stats', { cookie: ade.cookie })).json;
   assert.strictEqual(st.daily.length, 30);
   assert.ok(st.today >= 2 && st.week >= st.today && st.month >= st.week && st.total >= st.month);

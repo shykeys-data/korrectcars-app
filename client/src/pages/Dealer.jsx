@@ -314,9 +314,9 @@ function ViewsPanel({ s }) {
   return (
     <div className="box">
       <h2 style={{ marginBottom: 4 }}>Views of your cars</h2>
-      <p className="small muted" style={{ marginTop: 0 }}>Each buyer counts once per car per day. Search engines, our staff and your own team are not counted.</p>
+      <p className="small muted" style={{ marginTop: 0 }}>How many times buyers opened your cars' pages. Each buyer counts once per car per day; search engines, our staff and your own team are not counted.</p>
       <div className="kpis" style={{ marginBottom: 12 }}>
-        {[['Today', s.today], ['Last 7 days', s.week], ['Last 30 days', s.month], ['All time', s.total], ['Buyer requests', s.enquiries]].map(([l, v]) => (
+        {[['Today', s.today], ['This week (7 days)', s.week], ['This month (30 days)', s.month], ['All time', s.total], ['Buyer requests', s.enquiries]].map(([l, v]) => (
           <div key={l} className="kpi"><div className="small muted">{l}</div><div className="v">{Number(v).toLocaleString('en-NG')}</div></div>))}
       </div>
       <div className="small" aria-live="polite" style={{ minHeight: 22 }}><b>{dayName(shown.day)}</b>: {shown.views} view{shown.views === 1 ? '' : 's'}</div>
@@ -371,10 +371,10 @@ export function DealerHome() {
       <div className="box">
         <h2>Your cars</h2>
         {cars.loading && !cars.data ? <Loading /> : !list.length ? <p className="muted">No cars yet. {canList && <Link to="/dealer/cars/new">Add your first car</Link>}</p> : (
-          <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th className="num">Views today</th><th className="num">Last 7 days</th><th className="num">All time</th><th className="num">Buyer requests</th><th>Status</th><th /></tr></thead><tbody>
+          <div className="scroll-x"><table className="tbl"><thead><tr><th>Car</th><th>Price</th><th className="num">Views today</th><th className="num">This week</th><th className="num">This month</th><th className="num">All time</th><th className="num">Buyer requests</th><th>Status</th><th /></tr></thead><tbody>
             {list.map((c) => <tr key={c.id}>
               <td><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><img className="thumb" src={rs(firstPhoto(c), 400)} alt="" /><div><b>{c.title}</b><div className="small muted">VIN …{String(c.vin || '').slice(-6)} · added {date(c.created_at)}</div></div></div></td>
-              <td>{priceText(c)}</td><td className="num">{c.views_today}</td><td className="num">{c.views_week}</td><td className="num">{c.views}</td><td className="num">{c.enquiries}{c.enquiries_week ? <span className="small muted"> ({c.enquiries_week} this week)</span> : null}</td><td><Tag s={c.status} map={carStatus} /></td>
+              <td>{priceText(c)}</td><td className="num">{c.views_today}</td><td className="num">{c.views_week}</td><td className="num">{c.views_month}</td><td className="num">{c.views}</td><td className="num">{c.enquiries}{c.enquiries_week ? <span className="small muted"> ({c.enquiries_week} this week)</span> : null}</td><td><Tag s={c.status} map={carStatus} /></td>
               <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {c.status === 'available' && <Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link>}{' '}
                 {canList && <Link to={'/dealer/cars/' + c.id} className="btn btn-dark btn-sm">Edit</Link>}{' '}
