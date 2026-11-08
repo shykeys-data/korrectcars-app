@@ -217,12 +217,21 @@ const SELLER = ', (SELECT d.business_name FROM dealers d WHERE d.id = cars.deale
   + ", (SELECT CASE WHEN d.kind = 'personal' THEN CASE WHEN d.status = 'approved' THEN 'verified' ELSE 'private' END ELSE 'dealer' END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_type"
   // The seller's public page (dealers and Verified Sellers only; Korrect Cars' own stock and private sellers have none)
   + ", (SELECT CASE WHEN d.id <> 1 AND d.status = 'approved' THEN d.slug END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_slug";
-const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured, created_at'
+const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured, created_at, boost_until, boost_rank'
   // A car is where its dealer is (one location per dealer for now; branches may come later)
   + ', (SELECT d.state FROM dealers d WHERE d.id = cars.dealer_id) AS state, (SELECT d.lga FROM dealers d WHERE d.id = cars.dealer_id) AS lga'
   // Who sells it, and how buyers reach them (their WhatsApp and phone from sign-up)
   + SELLER;
 const STOCK_MAX = 2000;
+// Boosted cars (a paid plan): "Featured" on the card and first in the recommended order, while boost_until is ahead
+const boostNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+const toDate = (v) => (v instanceof Date ? v : new Date(String(v).replace(' ', 'T') + (/Z$|[+-]\d\d:?\d\d$/.test(String(v)) ? '' : 'Z')));
+function boostFlag(c) {
+  if (!c) return c;
+  c.boosted = !!(c.boost_until && c.status === 'available' && toDate(c.boost_until) > new Date()) ? Number(c.boost_rank) || 1 : 0;
+  delete c.boost_until; delete c.boost_rank;
+  return c;
+}
 async function listCars(query = {}) {
   const where = [`status IN ${PUBLIC_STATUSES}`]; const p = [];
   const add = (sql, v) => { where.push(sql); p.push(v); };
@@ -235,7 +244,7 @@ async function listCars(query = {}) {
   if (condition) add('car_condition = ?', String(condition));
   if (state) add('dealer_id IN (SELECT id FROM dealers WHERE state = ?)', String(state));
   if (lga) add('dealer_id IN (SELECT id FROM dealers WHERE lga = ?)', String(lga));
-  if (featured === '1') where.push("featured = 1 AND status = 'available'");
+  if (featured === '1') { where.push("(featured = 1 OR boost_until > ?) AND status = 'available'"); p.push(boostNow()); }
   if (minPrice) add('price >= ?', Math.max(1, Number(minPrice) || 0));
   if (maxPrice) add('price > 0 AND price <= ?', Number(maxPrice) || 1e12);
   if (yearMin) add('year >= ?', Number(yearMin) || 0);
@@ -245,7 +254,7 @@ async function listCars(query = {}) {
   // limit=all: the whole public stock for the cars pages, which filter it in the browser and show 24 at a time
   // ("Show more"). Card fields only, so it stays small; past about 1,000 cars, move the filters to the server.
   const lim = limit === 'all' ? STOCK_MAX : Math.min(Math.max(Number(limit) || 60, 1), 100);
-  return (await q(`SELECT ${CAR_COLS} FROM cars WHERE ${where.join(' AND ')} ORDER BY (status = 'sold') ASC, ${sorts[sort] || 'price DESC'} LIMIT ${lim}`, p)).map((c) => { const x = cleanCar(c); if (Array.isArray(x.photos) && x.photos.length > 8) x.photos = x.photos.slice(0, 8); return x; });
+  return (await q(`SELECT ${CAR_COLS} FROM cars WHERE ${where.join(' AND ')} ORDER BY (status = 'sold') ASC, ${sorts[sort] || 'price DESC'} LIMIT ${lim}`, p)).map((c) => { const x = boostFlag(cleanCar(c)); if (Array.isArray(x.photos) && x.photos.length > 8) x.photos = x.photos.slice(0, 8); return x; });
 }
 r.get('/cars', async (req, res) => res.json({ cars: await listCars(req.query) }));
 
@@ -265,7 +274,7 @@ async function carDetail(slug) {
   car.seller_whatsapp = (seller && seller.whatsapp) || null; car.seller_phone = (seller && seller.phone) || null;
   car.state = (seller && seller.state) || null; car.lga = (seller && seller.lga) || null;
   for (const k of ['vin', 'old_slug', 'vin_photo', 'vehicle_id_ref', 'live_key', 'created_by', 'reviewed_by', 'reviewed_at']) delete car[k]; // staff only
-  cleanCar(car); similar.forEach(cleanCar);
+  boostFlag(cleanCar(car)); similar.forEach(cleanCar);
   return moved ? { car, similar, movedTo: car.slug } : { car, similar };
 }
 r.get('/cars/:slug', async (req, res) => {

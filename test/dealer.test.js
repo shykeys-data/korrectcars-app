@@ -76,7 +76,7 @@ async function staff() {
   const email = 'reviewer@example.com';
   await call('POST', '/api/auth/register', { body: { name: 'Staff Reviewer', email, phone: '08012345678', password: 'testpass123' } });
   const db = sqlite(); db.prepare('UPDATE users SET email_verified = 1 WHERE email = ?').run(email); db.close();
-  execFileSync(process.execPath, [path.join(ROOT, 'server/tools-make-staff.js'), email, 'editor'], { env: ENV, stdio: 'pipe' });
+  execFileSync(process.execPath, [path.join(ROOT, 'server/tools-make-staff.js'), email, 'sales'], { env: ENV, stdio: 'pipe' });
   let cookie = (await call('POST', '/api/auth/login', { body: { email, password: 'testpass123' } })).cookie;
   const s = await call('POST', '/api/auth/2fa/setup', { cookie });
   cookie = (await call('POST', '/api/auth/2fa/enable', { cookie, body: { code: totp.hotp(s.json.secret, Math.floor(Date.now() / 30000)) } })).cookie;
@@ -594,4 +594,52 @@ test('every dealer route keeps sellers apart: another seller\'s car id is "not f
   assert.ok(!(await call('GET', '/api/dealer/cars', { cookie: ade.cookie })).json.cars.some((c) => c.id === kemiCar.id));
   assert.ok(!(await call('GET', '/api/dealer/leads', { cookie: ade.cookie })).json.leads.some((l) => l.car_id === kemiCar.id));
   assert.strictEqual((await call('GET', '/api/dealer/cars', {})).status, 403, 'signed out');
+});
+
+// ---------- Milestone 6 (Nov 2026): boosts ----------
+test('boost prices: Jiji less 20% for 30 days, shorter plans cost more per day, VAT on top', () => {
+  const b = require('../server/lib/boosts');
+  const basic = b.quote('basic', 30);
+  assert.deepStrictEqual([basic.amount, basic.vat, basic.total], [12799, 960, 13759]);
+  assert.strictEqual(b.quote('enterprise_lux', 30).amount, 426399);
+  assert.ok(b.quote('basic', 7).perDay > basic.perDay && b.quote('basic', 365).perDay < basic.perDay);
+  assert.strictEqual(b.quote('basic', 5), null);
+  assert.strictEqual(b.quote('gold', 30), null);
+});
+
+test('boosts: staff give a plan; the seller boosts cars up to the plan; boosted cars show as Featured and come first', async () => {
+  const off = await call('POST', '/api/dealer/boosts', { cookie: ade.cookie, body: { plan: 'basic', days: 30 } });
+  assert.deepStrictEqual([off.status, off.json.code], [503, 'PAY_OFF'], 'no Paystack key: online payment is off');
+  const cars = (await call('GET', '/api/dealer/cars', { cookie: ade.cookie })).json.cars.filter((c) => c.status === 'available');
+  assert.strictEqual((await call('POST', `/api/dealer/cars/${cars[0].id}/boost`, { cookie: ade.cookie, body: { on: true } })).json.code, 'NO_PLAN');
+  const adeId = (() => { const db = sqlite(); const id = db.prepare("SELECT id FROM dealers WHERE business_name = 'Ade Motors Ltd'").get().id; db.close(); return id; })();
+  assert.strictEqual((await call('POST', '/api/admin/listings/boosts/grant', { cookie: ade.cookie, body: { dealerId: adeId, plan: 'basic', days: 30, note: 'test' } })).status, 403, 'sellers cannot give themselves a plan');
+  assert.strictEqual((await call('POST', '/api/admin/listings/boosts/grant', { cookie: staffCookie, body: { dealerId: adeId, plan: 'basic', days: 30, note: 'paid by transfer' } })).status, 201);
+  const info = (await call('GET', '/api/dealer/boosts', { cookie: ade.cookie })).json;
+  assert.deepStrictEqual([info.active.name, info.active.cars, info.boosted], ['Basic', 1, 0]);
+  assert.strictEqual((await call('POST', `/api/dealer/cars/${cars[0].id}/boost`, { cookie: ade.cookie, body: { on: true } })).json.boosted, true);
+  const full = await call('POST', `/api/dealer/cars/${cars[1].id}/boost`, { cookie: ade.cookie, body: { on: true } });
+  assert.deepStrictEqual([full.status, full.json.code], [403, 'BOOST_FULL']);
+  assert.strictEqual((await call('POST', `/api/dealer/cars/${cars[0].id}/boost`, { cookie: kemi.cookie, body: { on: true } })).status, 404, 'not another seller\'s car');
+  const pub = (await call('GET', '/api/cars?limit=all')).json.cars.find((c) => c.id === cars[0].id);
+  assert.strictEqual(pub.boosted, 1);
+  assert.strictEqual(pub.boost_until, undefined, 'the end date is not shown publicly');
+  assert.ok((await call('GET', '/api/cars?featured=1')).json.cars.some((c) => c.id === cars[0].id), 'in the featured row');
+  assert.ok((await call('GET', '/api/dealer/cars', { cookie: ade.cookie })).json.cars.find((c) => c.id === cars[0].id).boosted);
+  assert.strictEqual((await call('POST', `/api/dealer/cars/${cars[0].id}/boost`, { cookie: ade.cookie, body: { on: false } })).json.boosted, false);
+  assert.strictEqual((await call('GET', '/api/cars?limit=all')).json.cars.find((c) => c.id === cars[0].id).boosted, 0);
+  const staffList = (await call('GET', '/api/admin/listings/boosts', { cookie: staffCookie })).json;
+  assert.ok(staffList.orders.some((o) => o.status === 'granted' && o.seller === 'Ade Motors Ltd'));
+});
+
+test('the Paystack webhook refuses anything without a valid signature', async () => {
+  const r = await fetch(B + '/api/payments/paystack/webhook', { method: 'POST', headers: { 'content-type': 'application/json', 'x-paystack-signature': 'abc' }, body: JSON.stringify({ event: 'charge.success', data: { reference: 'KCB-X' } }) });
+  assert.strictEqual(r.status, 401);
+  const b = require('../server/lib/boosts');
+  process.env.PAYSTACK_SECRET_KEY = 'sk_test_' + 'x'.repeat(40);
+  const raw = Buffer.from('{"event":"charge.success"}');
+  const sig = require('crypto').createHmac('sha512', process.env.PAYSTACK_SECRET_KEY).update(raw).digest('hex');
+  assert.ok(b.signatureOk(raw, sig));
+  assert.ok(!b.signatureOk(raw, sig.replace(/^./, (c) => (c === 'a' ? 'b' : 'a'))));
+  delete process.env.PAYSTACK_SECRET_KEY;
 });

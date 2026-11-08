@@ -19,7 +19,7 @@ export function CarCard({ car }) {
       <Link to={url} className="card-link">
         <div className="ph" onMouseEnter={qv ? () => qv.hoverIn(car, cardRef.current) : undefined} onMouseLeave={qv ? qv.hoverOut : undefined}>
           <img src={rs(firstPhoto(car), 800)} srcSet={srcset(firstPhoto(car))} sizes="(max-width: 640px) 80vw, 340px" alt={car.title} loading="lazy" decoding="async" width="400" height="300" />
-          {hasPrice(car) && car.old_price && !sold ? <span className="badge">Price drop</span> : null}
+          {car.boosted && !sold ? <span className="badge badge-feat">Featured</span> : hasPrice(car) && car.old_price && !sold ? <span className="badge">Price drop</span> : null}
           {sold && <div className="sold-ov">SOLD</div>}
         </div>
         <div className="bd">

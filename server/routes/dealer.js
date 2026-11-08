@@ -341,9 +341,10 @@ r.get('/cars', requireDealer, async (req, res) => {
       (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = c0.id AND v.day >= ?) AS views_week,
       (SELECT COALESCE(SUM(v.views), 0) FROM car_views_daily v WHERE v.car_id = c0.id AND v.day >= ?) AS views_month,
       (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = c0.id) AS enquiries,
-      (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = c0.id AND e.created_at >= ?) AS enquiries_week
+      (SELECT COUNT(*) FROM enquiries e WHERE e.car_id = c0.id AND e.created_at >= ?) AS enquiries_week, c0.boost_until
     FROM cars c0 WHERE dealer_id = ?${scope(req, 'c0').sql} ORDER BY id DESC LIMIT 500`, [today, weekAgo, monthAgo, sevenDaysAgo, req.dealer.id, ...scope(req, 'c0').p]);
   for (const c of cars) for (const k of ['views', 'views_today', 'views_week', 'views_month', 'enquiries', 'enquiries_week']) c[k] = Number(c[k]) || 0;
+  for (const c of cars) { const u = c.boost_until; c.boosted = !!(u && new Date(u instanceof Date ? u : String(u).replace(' ', 'T') + 'Z') > new Date()); c.boost_until = c.boosted ? u : null; }
   res.json({ cars, liveLimit: await liveLimit(req.dealer), liveCars: await liveCount(req.dealer.id) });
 });
 
@@ -586,6 +587,48 @@ r.post('/invite/:token', limiter(15, 20, 'Too many tries. Please wait 15 minutes
   if (!req.user) issueSession(res, user);
   await stepup.trust(req, res, user, { quiet: true }); // the emailed link proved the email on this browser
   res.status(201).json({ ok: true, business: inv.business_name, role: inv.role });
+});
+
+// ---------- Boosts: a plan (how many cars are boosted at once) for a number of days, paid through Paystack ----------
+const boosts = require('../lib/boosts');
+r.get('/boosts', requireDealer, async (req, res) => {
+  const orders = await q('SELECT id, plan, days, amount, vat, total, reference, status, paid_at, starts_at, ends_at, created_at FROM boost_orders WHERE dealer_id = ? ORDER BY id DESC LIMIT 20', [req.dealer.id]);
+  res.json({ plans: boosts.priceList(), vatPct: boosts.VAT_PCT, active: await boosts.activePlan(req.dealer.id), boosted: await boosts.boostedCount(req.dealer.id),
+    orders, payOnline: boosts.paystackOn(), canBuy: ['owner', 'manager'].includes(req.role) && req.dealer.status !== 'suspended' });
+});
+r.post('/boosts', requireDealer, onlyRoles('owner', 'manager'), limiter(60, 20), async (req, res) => {
+  const qt = boosts.quote(String((req.body && req.body.plan) || ''), Number(req.body && req.body.days));
+  if (!qt) return res.status(400).json({ error: 'Choose a plan and how many days.' });
+  if (!boosts.paystackOn()) return res.status(503).json({ error: 'Online payment for boosts is not switched on yet. Contact Korrect Cars to buy a boost.', code: 'PAY_OFF' });
+  const u = await one('SELECT email FROM users WHERE id = ?', [req.user.id]);
+  const reference = boosts.newReference();
+  await q('INSERT INTO boost_orders (dealer_id, user_id, plan, days, amount, vat, total, reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [req.dealer.id, req.user.id, qt.plan, qt.days, qt.amount, qt.vat, qt.total, reference]);
+  const init = await boosts.paystack('/transaction/initialize', { email: u.email, amount: qt.total * 100, currency: 'NGN', reference,
+    callback_url: `${config.siteUrl}/dealer?boost=${reference}`, metadata: { dealer_id: req.dealer.id, plan: qt.plan, days: qt.days } });
+  res.status(201).json({ url: init.authorization_url, reference });
+});
+// Back from Paystack: check the payment with Paystack (the webhook does the same; whichever comes first wins)
+r.post('/boosts/verify', requireDealer, limiter(15, 30), async (req, res) => {
+  const ref = String((req.body && req.body.reference) || '');
+  const own = await one('SELECT id FROM boost_orders WHERE reference = ? AND dealer_id = ?', [ref, req.dealer.id]);
+  if (!own) return res.status(404).json({ error: 'Not found' });
+  const out = await boosts.confirm(ref);
+  res.json({ ok: out.ok, error: out.ok ? undefined : out.error, active: await boosts.activePlan(req.dealer.id) });
+});
+// Boost or un-boost one car under the running plan
+r.post('/cars/:id/boost', requireDealer, async (req, res) => {
+  const sc = scope(req);
+  const car = isId(req.params.id) && await one(`SELECT id, status, boost_until FROM cars c WHERE c.id = ? AND c.dealer_id = ?${sc.sql}`, [req.params.id, req.dealer.id, ...sc.p]);
+  if (!car) return res.status(404).json({ error: 'Not found' });
+  if (!(req.body && req.body.on)) { await q('UPDATE cars SET boost_until = NULL, boost_rank = 0 WHERE id = ?', [car.id]); return res.json({ ok: true, boosted: false }); }
+  if (car.status !== 'available') return res.status(400).json({ error: 'Only cars for sale can be boosted.' });
+  const plan = await boosts.activePlan(req.dealer.id);
+  if (!plan) return res.status(403).json({ error: 'Buy a boost plan first.', code: 'NO_PLAN' });
+  const used = Number((await one('SELECT COUNT(*) AS n FROM cars WHERE dealer_id = ? AND boost_until > ? AND id <> ?', [req.dealer.id, boosts.sqlTime(), car.id])).n);
+  if (plan.cars != null && used >= plan.cars) return res.status(403).json({ error: `Your ${plan.name} plan boosts ${plan.cars} car${plan.cars === 1 ? '' : 's'} at a time. Un-boost one, or choose a bigger plan.`, code: 'BOOST_FULL' });
+  await q('UPDATE cars SET boost_until = ?, boost_rank = ? WHERE id = ?', [plan.endsAt, plan.rank, car.id]);
+  res.json({ ok: true, boosted: true });
 });
 
 module.exports = r;

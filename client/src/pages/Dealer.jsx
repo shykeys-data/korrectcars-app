@@ -2,7 +2,7 @@
 // -> business papers), the dealer's home page with their cars, and the add / edit car form, which starts with the VIN.
 // Everything is checked again on the server; the VIN rules come from the same file the server uses.
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, priceText, date, api, firstPhoto, rs, shrinkPhoto, waLink, forgetBoot, ContactUs } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, priceText, date, api, naira, firstPhoto, rs, shrinkPhoto, waLink, forgetBoot, ContactUs } from '../lib/core.jsx';
 import { Loading, SellerBadge } from '../components/Bits.jsx';
 import { check as checkVin } from '../../../server/lib/vehicle-id.js';
 import { STATES, lgasOf } from '../../../server/lib/ng-lgas.js';
@@ -350,6 +350,7 @@ export function DealerHome() {
   const carStatus = personal && d.status !== 'approved' ? { ...CAR_STATUS, pending: ['Waiting for our check', 'tag-warn'] } : CAR_STATUS;
   const canList = !['rejected', 'suspended'].includes(d.status);
   const list = (cars.data && cars.data.cars) || [];
+  const boost = async (c, on) => { try { await api(`/dealer/cars/${c.id}/boost`, { method: 'POST', body: { on } }); cars.reload(); } catch (e) { window.alert(e.message); } };
   const setStatus = async (c, status) => { try { await api(`/dealer/cars/${c.id}/status`, { method: 'POST', body: { status } }); cars.reload(); } catch (e) { window.alert(e.message); } };
   return (
     <div className="wrap sec-sm">
@@ -366,6 +367,7 @@ export function DealerHome() {
         <div className="box kpi"><div className="small muted">Cars for sale</div><div className="v">{d.liveCars}{d.liveLimit ? <span className="small muted"> / {d.liveLimit}</span> : null}</div>{d.liveLimit ? <div className="small muted">{!personal ? 'limit for your first 3 months' : d.status === 'approved' ? 'limit for Verified Sellers' : 'limit until your ID is checked'}</div> : null}</div>
         <div className="box kpi"><div className="small muted">All your cars</div><div className="v">{list.length}</div></div>
       </div>
+      <BoostPanel onChange={cars.reload} />
       <BuyerRequests />
       <ViewsPanel s={stats.data} />
       <div className="box">
@@ -378,6 +380,7 @@ export function DealerHome() {
               <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {c.status === 'available' && <Link to={'/cars/' + c.slug} className="btn btn-line btn-sm" target="_blank">View</Link>}{' '}
                 {canList && <Link to={'/dealer/cars/' + c.id} className="btn btn-dark btn-sm">Edit</Link>}{' '}
+                {canList && c.status === 'available' && (c.boosted ? <button className="btn btn-saved btn-sm" title="Click to stop boosting this car" onClick={() => boost(c, false)}>Boosted ✓</button> : <button className="btn btn-line btn-sm" onClick={() => boost(c, true)}>Boost</button>)}{' '}
                 {canList && ['available', 'pending'].includes(c.status) && <button className="btn btn-line btn-sm" onClick={() => setStatus(c, 'sold')}>Mark sold</button>}
                 {canList && ['sold', 'hidden'].includes(c.status) && <button className="btn btn-line btn-sm" onClick={() => setStatus(c, 'available')}>Put back on sale</button>}
               </td>
@@ -386,6 +389,51 @@ export function DealerHome() {
       </div>
       {!personal && ['owner', 'manager'].includes(d.role) && <TeamPanel />}
       {d.role && d.role !== 'owner' && <p className="small muted">You are a {d.role} in this team{d.role === 'lister' ? ': you see and edit the cars you added, and their buyer requests' : ''}.</p>}
+    </div>
+  );
+}
+
+
+// Boosts: plans by how many cars are boosted at once, for 7 days to a year; paid through Paystack (VAT added)
+const DAYS_TEXT = { 7: '7 days', 14: '14 days', 30: '30 days', 90: '3 months', 180: '6 months', 365: '1 year' };
+function BoostPanel({ onChange }) {
+  const { query, go } = useRouter();
+  const { data, reload } = useApi('/dealer/boosts');
+  const [open, setOpen] = useState(false); const [days, setDays] = useState(30);
+  const [err, setErr] = useState(''); const [msg, setMsg] = useState(''); const [busy, setBusy] = useState('');
+  const back = query.get('boost');
+  useEffect(() => { // back from Paystack: confirm the payment, then tidy the address
+    if (!back) return;
+    api('/dealer/boosts/verify', { method: 'POST', body: { reference: back } })
+      .then((d) => { if (d.ok) { setMsg(`Payment received: your ${d.active ? d.active.name : ''} plan is on. Pick the cars to boost below.`); reload(); if (onChange) onChange(); } else setErr(d.error || 'The payment was not completed.'); })
+      .catch((e) => setErr(e.message)).finally(() => go('/dealer', { replace: true, keepScroll: true }));
+  }, [back]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!data) return null;
+  const buy = async (plan) => {
+    setErr(''); setBusy(plan);
+    try { const d = await api('/dealer/boosts', { method: 'POST', body: { plan, days } }); window.location.href = d.url; } catch (e) { setErr(e.message); setBusy(''); }
+  };
+  const a = data.active;
+  return (
+    <div className="box">
+      <div className="sec-head" style={{ marginBottom: 6 }}><h2 style={{ margin: 0 }}>Boost your cars</h2>
+        {data.canBuy && <button className="btn btn-dark btn-sm" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? 'Hide plans' : a ? 'Change or extend' : 'See plans'}</button>}</div>
+      {err && <div className="err" role="alert">{err}</div>}
+      {msg && <div className="okmsg" role="status">{msg}</div>}
+      {a ? <p style={{ margin: '4px 0 0' }}><span className="tag tag-ok">{a.name}</span> until <b>{date(a.endsAt)}</b> · {data.boosted} of {a.cars == null ? 'all your' : a.cars} car{a.cars === 1 ? '' : 's'} boosted. Use <b>Boost</b> on a car in the list below.</p>
+        : <p className="small muted" style={{ margin: '4px 0 0' }}>Boosted cars show <span className="badge-inline">Featured</span>, come first on the cars pages and on the home page, and get more views.</p>}
+      {open && <>
+        <div className="pills" role="group" aria-label="How long" style={{ margin: '14px 0 10px' }}>{Object.entries(DAYS_TEXT).map(([d, l]) => <button key={d} type="button" className={'pill' + (days === Number(d) ? ' on' : '')} onClick={() => setDays(Number(d))}>{l}</button>)}</div>
+        <div className="scroll-x"><table className="tbl"><thead><tr><th>Plan</th><th className="num">Cars boosted at once</th><th className="num">Price</th><th className="num">With VAT ({data.vatPct}%)</th><th className="num">Per day</th><th /></tr></thead><tbody>
+          {data.plans.map((p) => { const q = p.prices.find((x) => x.days === days); return <tr key={p.key}>
+            <td><b>{p.name}</b></td><td className="num">{p.cars == null ? 'All' : p.cars}</td><td className="num">{naira(q.amount)}</td><td className="num">{naira(q.total)}</td><td className="num small muted">{naira(q.perDay)}</td>
+            <td style={{ textAlign: 'right' }}><button className="btn btn-red btn-sm" disabled={!!busy} onClick={() => buy(p.key)}>{busy === p.key ? 'Opening…' : 'Pay'}</button></td></tr>; })}
+        </tbody></table></div>
+        <p className="small muted">You pay securely with Paystack (card, bank transfer or USSD). The plan starts as soon as the payment is confirmed. Longer plans cost less per day.{!data.payOnline ? ' Online payment is not switched on yet: contact Korrect Cars to buy a plan.' : ''}</p>
+      </>}
+      {data.orders.length > 0 && <details style={{ marginTop: 8 }}><summary className="small">Your boost payments</summary>
+        <table className="tbl" style={{ marginTop: 8 }}><thead><tr><th>Date</th><th>Plan</th><th className="num">Paid</th><th>Status</th><th>Reference</th></tr></thead>
+          <tbody>{data.orders.map((o) => <tr key={o.id}><td>{date(o.created_at)}</td><td>{(data.plans.find((p) => p.key === o.plan) || {}).name || o.plan}, {DAYS_TEXT[o.days] || o.days + ' days'}</td><td className="num">{naira(o.total)}</td><td>{o.status === 'granted' ? 'Given by Korrect Cars' : o.status}{o.ends_at && ['paid', 'granted'].includes(o.status) ? ` · until ${date(o.ends_at)}` : ''}</td><td className="small">{o.reference}</td></tr>)}</tbody></table></details>}
     </div>
   );
 }

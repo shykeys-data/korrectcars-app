@@ -30,7 +30,8 @@ function unit(str) {
 // Returns a new array in the visitor's recommended order. `salt` gives each homepage row its own mix.
 export function recommended(cars, salt = '') {
   const seed = `${visitorId()}|${lagosDay()}|${salt}`;
-  const score = (c) => unit(`${seed}|${c.id}`) - (isNew(c) ? 0.35 : 0) - (Number(c.featured) ? 0.1 : 0);
+  // Boosted cars (a seller's paid plan) come first, higher plans first; the daily shuffle orders them among themselves
+  const score = (c) => unit(`${seed}|${c.id}`) - (isNew(c) ? 0.35 : 0) - (Number(c.featured) ? 0.1 : 0) - (Number(c.boosted) ? 10 + Number(c.boosted) : 0);
   return cars.map((c) => [score(c), c]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
 }
 

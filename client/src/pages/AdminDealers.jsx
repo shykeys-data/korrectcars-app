@@ -3,7 +3,7 @@
 // Dealers to review: Every staff role can review. Open a dealer, look at the CAC certificate (each view is
 // logged), check the CAC number on the CAC public search, then approve, ask for more, reject or pause.
 import React, { useState } from 'react';
-import { useApi, api, date, priceText } from '../lib/core.jsx';
+import { useApi, api, date, priceText, naira } from '../lib/core.jsx';
 import { Loading, Modal } from '../components/Bits.jsx';
 import { T } from './AdminShared.jsx';
 
@@ -185,6 +185,37 @@ export function Reports({ onChange }) {
             <td className="small">{date(x.created_at)}</td>
             <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{x.status === 'open' ? <><button className="btn btn-red btn-sm" onClick={() => act(x, 'hide')}>Hide car</button> <button className="btn btn-line btn-sm" onClick={() => act(x, 'dismiss')}>Dismiss</button></> : <span className="small muted">{x.status}</span>}</td>
           </tr>)}
+        </tbody></table></div>)}
+    </div>
+  );
+}
+
+// Boost plans: every order (paid online, given by staff, waiting), and give a plan by hand (e.g. paid by bank transfer)
+export function Boosts() {
+  const { data, reload } = useApi('/admin/listings/boosts');
+  const [f, setF] = useState({ dealerId: '', plan: 'basic', days: 30, note: '' }); const [err, setErr] = useState(''); const [msg, setMsg] = useState('');
+  if (!data) return <Loading />;
+  const planName = (k) => (data.plans.find((p) => p.key === k) || {}).name || k;
+  const grant = async (e) => {
+    e.preventDefault(); setErr(''); setMsg('');
+    try { await api('/admin/listings/boosts/grant', { method: 'POST', body: f }); setMsg('Plan given. It starts now.'); setF({ ...f, note: '' }); reload(); } catch (e2) { setErr(e2.message); }
+  };
+  const total = data.orders.filter((o) => o.status === 'paid').reduce((s, o) => s + Number(o.total), 0);
+  return (
+    <div className="box">
+      <h2>Boosts</h2>
+      <p className="small muted">Online payment: <b>{data.payOnline ? 'on (Paystack)' : 'off: add PAYSTACK_SECRET_KEY in the Node.js app settings'}</b> · paid online so far: <b>{naira(total)}</b> (with VAT)</p>
+      <form onSubmit={grant} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }} noValidate>
+        <select className="input" style={{ flex: 2, minWidth: 180 }} aria-label="Seller" value={f.dealerId} onChange={(e) => setF({ ...f, dealerId: e.target.value })}><option value="">Seller…</option>{data.sellers.map((d) => <option key={d.id} value={d.id}>{d.business_name}</option>)}</select>
+        <select className="input" style={{ flex: 1, minWidth: 140 }} aria-label="Plan" value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })}>{data.plans.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select>
+        <select className="input" style={{ flex: 1, minWidth: 110 }} aria-label="Days" value={f.days} onChange={(e) => setF({ ...f, days: Number(e.target.value) })}>{[7, 14, 30, 90, 180, 365].map((d) => <option key={d} value={d}>{d} days</option>)}</select>
+        <input className="input" style={{ flex: 3, minWidth: 220 }} placeholder="Why (e.g. paid by transfer, ref 1234)" aria-label="Why" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
+        <button className="btn btn-dark">Give plan</button></form>
+      {err && <div className="err" role="alert">{err}</div>}{msg && <div className="okmsg" role="status">{msg}</div>}
+      {!data.orders.length ? <p className="muted">No boost orders yet.</p> : (
+        <div className="scroll-x"><table className="tbl"><thead><tr><th>Date</th><th>Seller</th><th>Plan</th><th className="num">Total</th><th>Status</th><th>Reference</th></tr></thead><tbody>
+          {data.orders.map((o) => <tr key={o.id}><td>{date(o.created_at)}</td><td>{o.seller}</td><td>{planName(o.plan)}, {o.days} days</td><td className="num">{naira(o.total)}</td>
+            <td>{o.status === 'granted' ? `Given${o.note ? ': ' + o.note : ''}` : o.status}{o.ends_at && ['paid', 'granted'].includes(o.status) ? ` · until ${date(o.ends_at)}` : ''}</td><td className="small">{o.reference}</td></tr>)}
         </tbody></table></div>)}
     </div>
   );

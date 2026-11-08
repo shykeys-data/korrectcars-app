@@ -8,7 +8,7 @@ import { Loading } from '../components/Bits.jsx';
 import { AuthPage } from './Account.jsx';
 import { TwoFASetup, TwoFAVerify } from './AdminAuth.jsx';
 import { Cars } from './AdminCars.jsx';
-import { Dealers, CarChecks, Reports } from './AdminDealers.jsx';
+import { Dealers, CarChecks, Reports, Boosts } from './AdminDealers.jsx';
 import { Leads, Listings, STATUS_LABEL, Swaps, TYPE_LABEL } from './AdminLeads.jsx';
 import { Audit, Settings, Users } from './AdminSettings.jsx';
 import { ROLE_LABEL, STAFF, T, stTag } from './AdminShared.jsx';
@@ -19,7 +19,7 @@ import { ROLE_LABEL, STAFF, T, stTag } from './AdminShared.jsx';
 const ALL_TABS = [
   ['overview', 'Overview', 'admin sales editor', 'Today'], ['leads', 'Leads', 'admin sales', 'Today'],
   ['cars', 'Cars', 'admin sales editor', 'Stock'], ['dealers', 'Sellers to review', 'admin sales editor', 'Stock'],
-  ['checks', 'Cars to check', 'admin sales editor', 'Stock'], ['reports', 'Reported listings', 'admin sales editor', 'Stock'],
+  ['checks', 'Cars to check', 'admin sales editor', 'Stock'], ['reports', 'Reported listings', 'admin sales editor', 'Stock'], ['boosts', 'Boosts', 'admin sales', 'Stock'],
   ['listings', 'Swap listings', 'admin sales', 'Swap'], ['swaps', 'Swaps & fees', 'admin sales', 'Swap'],
   ['blog', 'Guides', 'admin editor', 'Content'], ['market', 'Market figures', 'admin editor', 'Content'],
   ['users', 'Staff & users', 'admin', 'Admin'], ['settings', 'Settings', 'admin', 'Admin'], ['audit', 'Activity log', 'admin', 'Admin']];
@@ -51,7 +51,7 @@ function NoAccess({ user }) {
 function Console({ user }) {
   const { setUser, cfg } = useApp();
   const rk = roleKey(user.role);
-  const TABS = ALL_TABS.filter((t) => t[2].split(' ').includes(rk) && ((cfg && cfg.swap) || !['listings', 'swaps'].includes(t[0])) && ((cfg && cfg.marketplace) || !['dealers', 'checks'].includes(t[0])));
+  const TABS = ALL_TABS.filter((t) => t[2].split(' ').includes(rk) && ((cfg && cfg.swap) || !['listings', 'swaps'].includes(t[0])) && ((cfg && cfg.marketplace) || !['dealers', 'checks', 'boosts'].includes(t[0])));
   const [tab, setTab] = useState('overview');
   const stats = useApi('/admin/stats');
   const logout = async () => { await api('/auth/logout', { method: 'POST' }); setUser(null); };
@@ -77,6 +77,7 @@ function Console({ user }) {
           {tab === 'dealers' && <Dealers onChange={stats.reload} isAdmin={user.role === 'admin'} />}
           {tab === 'checks' && <CarChecks onChange={stats.reload} />}
           {tab === 'reports' && <Reports onChange={stats.reload} />}
+          {tab === 'boosts' && <Boosts />}
           {tab === 'settings' && <Settings />}
           {tab === 'listings' && <Listings onChange={stats.reload} />}
           {tab === 'swaps' && <Swaps />}

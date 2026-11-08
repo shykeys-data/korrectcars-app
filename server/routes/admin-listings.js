@@ -3,7 +3,7 @@
 // Reported listings: buyers' reports from "Report this listing"; staff hide the car in one click or dismiss the report.
 const express = require('express');
 const { q, one } = require('../db');
-const { audit } = require('../lib/security');
+const { audit, requireStaff } = require('../lib/security');
 const mail = require('../lib/mail');
 const seo = require('../lib/seo');
 
@@ -78,6 +78,30 @@ r.post('/reports/:id', async (req, res) => {
   }
   await audit(req, action === 'hide' ? 'Reported car hidden' : 'Report dismissed', `${rep.title} (${REASONS[rep.reason] || rep.reason})`);
   res.json({ ok: true });
+});
+
+// ---------- Boost plans: every order, and staff can grant a plan (e.g. paid by bank transfer, or a promotion) ----------
+const boosts = require('../lib/boosts');
+r.get('/boosts', requireStaff('admin', 'sales'), async (_req, res) => {
+  const orders = await q(`SELECT o.*, d.business_name AS seller, d.kind FROM boost_orders o JOIN dealers d ON d.id = o.dealer_id ORDER BY o.id DESC LIMIT 300`);
+  const sellers = await q("SELECT id, business_name, kind FROM dealers WHERE id <> 1 AND status IN ('approved','unverified','pending_review') ORDER BY business_name LIMIT 1000");
+  res.json({ orders, sellers, plans: boosts.priceList(), payOnline: boosts.paystackOn() });
+});
+r.post('/boosts/grant', requireStaff('admin', 'sales'), async (req, res) => {
+  const b = req.body || {};
+  if (!isId(b.dealerId) || Number(b.dealerId) === 1) return res.status(400).json({ error: 'Choose a seller.' });
+  const qt = boosts.quote(String(b.plan || ''), Number(b.days));
+  if (!qt) return res.status(400).json({ error: 'Choose a plan and how many days.' });
+  const note = String(b.note || '').trim().slice(0, 200);
+  if (note.length < 3) return res.status(400).json({ error: 'Write why (e.g. "paid by bank transfer, ref 1234").', field: 'note' });
+  const d = await one('SELECT id, business_name FROM dealers WHERE id = ?', [b.dealerId]);
+  if (!d) return res.status(404).json({ error: 'Not found' });
+  const reference = boosts.newReference().replace('KCB-', 'KCG-');
+  const ins = await q("INSERT INTO boost_orders (dealer_id, user_id, plan, days, amount, vat, total, reference, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [d.id, req.user.id, qt.plan, qt.days, qt.amount, qt.vat, qt.total, reference, note]);
+  await boosts.activate({ id: ins.insertId, dealer_id: d.id, plan: qt.plan, days: qt.days }, 'granted');
+  await audit(req, 'Boost plan granted', `${d.business_name}: ${qt.name}, ${qt.days} days (${note})`);
+  res.status(201).json({ ok: true });
 });
 
 module.exports = r;

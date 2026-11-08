@@ -50,6 +50,17 @@ app.use(helmet({
 app.use((_req, res, next) => { res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()'); next(); });
 app.use(compression());
 app.use(cookieParser());
+// Paystack payment webhook (boosts): needs the raw body to check Paystack's signature, so it sits before the JSON parser.
+// Each event is checked again with Paystack before a plan starts, and an order is activated only once.
+app.post('/api/payments/paystack/webhook', express.raw({ type: '*/*', limit: '100kb' }), async (req, res) => {
+  const boosts = require('./lib/boosts');
+  if (!boosts.signatureOk(req.body, req.get('x-paystack-signature'))) return res.status(401).end();
+  res.status(200).end(); // answer at once; Paystack retries otherwise
+  try {
+    const ev = JSON.parse(req.body.toString('utf8'));
+    if (ev.event === 'charge.success' && ev.data && /^KCB-/.test(ev.data.reference || '')) await boosts.confirm(ev.data.reference);
+  } catch (e) { console.error('Paystack webhook failed:', e.message); }
+});
 app.use(express.json({ limit: '200kb' }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use((req, _res, next) => { if (req.body === undefined) req.body = {}; next(); }); // Express 5 leaves it undefined when there is no body
