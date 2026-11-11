@@ -32,7 +32,7 @@ export function Dealers({ onChange, isAdmin }) {
             <td style={{ textAlign: 'right' }}><button className="btn btn-dark btn-sm" onClick={() => setOpen(d.id)}>Open</button></td>
           </tr>)}
         </tbody></table></div>)}
-      {open && <DealerReview id={open} isAdmin={isAdmin} onClose={() => setOpen(null)} onDone={() => { setOpen(null); reload(); if (onChange) onChange(); }} />}
+      {open && <DealerReview id={open} isAdmin={isAdmin} onClose={() => setOpen(null)} onDone={(keep) => { if (!keep) setOpen(null); reload(); if (onChange) onChange(); }} />}
     </div>
   );
 }
@@ -75,6 +75,7 @@ function DealerReview({ id, onClose, onDone, isAdmin }) {
           {isAdmin && d.status === 'approved' && (moving
             ? <MoveCars dealer={d} onClose={() => setMoving(false)} onDone={() => { setMoving(false); reload(); }} />
             : <p style={{ marginTop: 14 }}><button className="btn btn-dark btn-sm" onClick={() => setMoving(true)}>Move cars to this dealer</button></p>)}
+          {isAdmin && !['rejected', 'suspended'].includes(d.status) && <SellerType d={d} onDone={() => { reload(); if (onDone) onDone(true); }} />}
           <h3 style={{ marginTop: 18 }}>History</h3>
           {data.events.map((e, i) => <div className="small" key={i}>{date(e.created_at)} · {e.step} → <b>{e.result}</b>{e.actor ? ` by ${e.actor}` : ''}{e.note ? `: ${e.note}` : ''}</div>)}
           <div className="field" style={{ marginTop: 18 }}><label className="f" htmlFor="dr-note">Note to the dealer (needed unless approving)</label>
@@ -90,6 +91,50 @@ function DealerReview({ id, onClose, onDone, isAdmin }) {
         </>;
       })()}
     </Modal>
+  );
+}
+
+// Administrators: switch a seller between Private Seller, Verified Seller and Verified Dealer
+const TYPE_NAME = { private: 'Private Seller', verified: 'Verified Seller', dealer: 'Verified Dealer' };
+const TYPE_HELP = { private: 'selling their own car, not checked by us · 1 live car', verified: 'ID checked · up to 5 live cars', dealer: 'CAC checked · dealer limits' };
+function SellerType({ d, onDone }) {
+  const now = d.kind !== 'personal' ? 'dealer' : d.status === 'approved' ? 'verified' : 'private';
+  const [to, setTo] = useState(''); const [f, setF] = useState({ cacType: 'BN', cacNumber: '', businessName: '', note: '' });
+  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [msg, setMsg] = useState('');
+  const save = async () => {
+    setErr('');
+    const up = to !== 'private';
+    if (!window.confirm(`Change ${d.business_name} from ${TYPE_NAME[now]} to ${TYPE_NAME[to]}?${up ? ' Any cars waiting for a check go live straight away.' : ' Their live cars stay up; the 1-car limit stops new ones.'}`)) return;
+    setBusy(true);
+    try {
+      const r = await api(`/admin/dealers/${d.id}/seller-type`, { method: 'POST', body: { type: to, ...f } });
+      setMsg(`Now a ${TYPE_NAME[r.type]}.${r.carsWentLive ? ` ${r.carsWentLive} waiting car(s) went live.` : ''}${r.type === 'private' && r.liveCars > 1 ? ` They still have ${r.liveCars} live cars; they cannot add more until they are under the limit.` : ''}`);
+      setTo(''); onDone();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div style={{ marginTop: 18 }}>
+      <h3>Seller type</h3>
+      <p className="small">Now: <b>{TYPE_NAME[now]}</b> <span className="muted">({TYPE_HELP[now]})</span></p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {Object.keys(TYPE_NAME).filter((t) => t !== now).map((t) => <button key={t} className={'btn btn-sm ' + (to === t ? 'btn-dark' : 'btn-line')} onClick={() => { setTo(t); setMsg(''); setErr(''); }}>Make {TYPE_NAME[t]}</button>)}
+      </div>
+      {to && <div style={{ marginTop: 10 }}>
+        <p className="small muted">{TYPE_NAME[to]}: {TYPE_HELP[to]}.</p>
+        {to === 'dealer' && !d.cac_number && <div className="grid2">
+          <label className="small">CAC type<select className="input" value={f.cacType} onChange={(e) => setF({ ...f, cacType: e.target.value })}><option value="BN">BN (business name)</option><option value="RC">RC (company)</option><option value="IT">IT (trustees)</option></select></label>
+          <label className="small">CAC number<input className="input" value={f.cacNumber} onChange={(e) => setF({ ...f, cacNumber: e.target.value })} placeholder="e.g. 3456789" /></label>
+        </div>}
+        {to === 'dealer' && <label className="small" style={{ display: 'block', marginTop: 8 }}>Business name (leave empty to keep "{d.business_name}")<input className="input" value={f.businessName} onChange={(e) => setF({ ...f, businessName: e.target.value })} maxLength={160} /></label>}
+        <label className="small" style={{ display: 'block', marginTop: 8 }}>Why (kept in the history; optional)<input className="input" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={400} placeholder="e.g. Showed us their CAC certificate in the office" /></label>
+        {err && <div className="err" role="alert">{err}</div>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button className="btn btn-red btn-sm" disabled={busy} onClick={save}>{busy ? 'Saving…' : `Make ${TYPE_NAME[to]}`}</button>
+          <button className="btn btn-line btn-sm" disabled={busy} onClick={() => setTo('')}>Cancel</button>
+        </div>
+      </div>}
+      {msg && <p className="ok-msg small" role="status" style={{ marginTop: 10 }}>{msg}</p>}
+    </div>
   );
 }
 

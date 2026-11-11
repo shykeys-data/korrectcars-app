@@ -634,3 +634,4 @@ r.post('/cars/:id/boost', requireDealer, async (req, res) => {
 module.exports = r;
 module.exports.membership = membership;
 module.exports.ID_TYPES = ID_TYPES;
+module.exports.cacNumber = cacNumber;

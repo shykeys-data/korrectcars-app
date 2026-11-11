@@ -95,6 +95,55 @@ r.post('/:id/decision', async (req, res) => {
   res.json({ ok: true, status: (await one('SELECT status FROM dealers WHERE id = ?', [d.id])).status, carsChanged: changed.length });
 });
 
+// Change what kind of seller this is (administrators only), e.g. a private seller who turns out to be a dealer, or the
+// other way round. private = selling their own car, not checked (1 live car); verified = Verified Seller, ID checked
+// (5 cars); dealer = Verified Dealer, CAC checked (dealer limits). Moving up to verified or dealer counts as approving
+// them, so cars waiting for a check go live. Moving down leaves live cars as they are; the lower limit stops new ones.
+const SELLER_TYPES = { private: 'Private Seller', verified: 'Verified Seller', dealer: 'Verified Dealer' };
+const typeOf = (d) => (d.kind !== 'personal' ? 'dealer' : d.status === 'approved' ? 'verified' : 'private');
+r.post('/:id/seller-type', requireStaff('admin'), async (req, res) => {
+  if (!isId(req.params.id) || req.params.id === '1') return res.status(404).json({ error: 'Not found' });
+  const to = String((req.body || {}).type || '');
+  if (!SELLER_TYPES[to]) return res.status(400).json({ error: 'Choose Private Seller, Verified Seller or Verified Dealer.' });
+  const d = await one('SELECT * FROM dealers WHERE id = ?', [req.params.id]);
+  if (!d) return res.status(404).json({ error: 'Not found' });
+  const from = typeOf(d);
+  if (from === to && (to !== 'dealer' || d.status === 'approved')) return res.status(400).json({ error: `This seller is already a ${SELLER_TYPES[to]}.` });
+  if (['rejected', 'suspended'].includes(d.status)) return res.status(400).json({ error: 'This seller is rejected or paused. Review them first, then change the type.' });
+  const note = String((req.body || {}).note || '').trim().slice(0, 400);
+  const set = {};
+  if (to === 'dealer') {
+    // A Verified Dealer shows "CAC checked" to buyers, so a CAC number must be on file
+    if (!d.cac_number) {
+      const type = String(req.body.cacType || '').toUpperCase();
+      const num = require('./dealer').cacNumber(type, req.body.cacNumber);
+      if (!num) return res.status(400).json({ error: 'A dealer needs a CAC number: RC, BN or IT, then 4 to 9 digits.', field: 'cacNumber' });
+      if (await one('SELECT id FROM dealers WHERE cac_number = ? AND cac_type = ? AND id <> ?', [num, type, d.id])) return res.status(400).json({ error: 'Another dealer already has this CAC number.', field: 'cacNumber' });
+      Object.assign(set, { cac_type: type, cac_number: num });
+    }
+    const name = String((req.body || {}).businessName || '').trim().replace(/\s+/g, ' ');
+    if (name) { if (name.length < 3 || name.length > 160) return res.status(400).json({ error: 'Enter the business name as it is on the CAC certificate.', field: 'businessName' }); set.business_name = name; }
+    Object.assign(set, { kind: 'business', status: 'approved' });
+  } else if (to === 'verified') Object.assign(set, { kind: 'personal', status: 'approved' });
+  else Object.assign(set, { kind: 'personal', status: 'unverified' });
+  const cols = Object.keys(set);
+  await q(`UPDATE dealers SET ${cols.map((c) => c + ' = ?').join(', ')}${set.status === 'approved' ? ', verified_at = COALESCE(verified_at, ?)' : ''} WHERE id = ?`,
+    [...cols.map((c) => set[c]), ...(set.status === 'approved' ? [sqlTime(0)] : []), d.id]);
+  let changed = [];
+  if (set.status === 'approved') {
+    changed = await q("SELECT * FROM cars WHERE dealer_id = ? AND status = 'pending'", [d.id]);
+    await q("UPDATE cars SET status = 'available' WHERE dealer_id = ? AND status = 'pending'", [d.id]);
+  }
+  const live = Number((await one("SELECT COUNT(*) AS n FROM cars WHERE dealer_id = ? AND status IN ('available','reserved')", [d.id])).n);
+  const text = `${SELLER_TYPES[from]} → ${SELLER_TYPES[to]}${note ? ': ' + note : ''}`;
+  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'seller_type', ?, ?, ?)", [d.id, to, req.user.id, text]);
+  await audit(req, 'Changed seller type', `${set.business_name || d.business_name}: ${text}`);
+  for (const c of changed) seo.notify(seo.carPaths(c));
+  for (const c of changed) require('../lib/searches').notifyNewCar({ ...c, status: 'available' });
+  seo.notify(['/dealers/' + d.slug]);
+  res.json({ ok: true, type: to, carsWentLive: changed.length, liveCars: live });
+});
+
 // Hand cars over to an approved dealer (e.g. Korrect Cars' stock to Buffy). Administrators only.
 // The car keeps its web address, photos, views and VIN; the "one live listing per VIN" check simply follows it.
 // Staff codes at the end of the title and stock number (e.g. "BF") are removed, since the car is now the dealer's own.

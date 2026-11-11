@@ -651,3 +651,32 @@ test('the boost plan fees page lists every plan for 7 days to 1 year (readable w
   for (const s of ['7 days', '14 days', '30 days', '3 months', '6 months', '1 year', 'Enterprise Lux', '₦12,799', '₦4,499', '"@type":"FAQPage"']) assert.ok(html.includes(s), s);
   assert.match(await (await fetch(B + '/sitemap.xml')).text(), /\/boost-plans</);
 });
+
+test('administrators switch a seller between Private Seller, Verified Dealer and Verified Seller; other staff cannot', async () => {
+  const sola = await signUp('sola@example.com', { phone: '08035550077', personal: { name: 'Sola Bello' } });
+  assert.deepStrictEqual([sola.dealer.kind, sola.dealer.status], ['personal', 'unverified']);
+  const id = sola.dealer.id;
+  assert.strictEqual((await call('POST', `/api/admin/dealers/${id}/seller-type`, { cookie: staffCookie, body: { type: 'dealer' } })).status, 403, 'sales staff cannot');
+  const totp = require('../server/lib/totp');
+  await call('POST', '/api/auth/register', { body: { name: 'Second Admin', email: 'admin2@example.com', phone: '08012340099', password: 'testpass123' } });
+  const d2 = sqlite(); d2.prepare("UPDATE users SET email_verified = 1 WHERE email = 'admin2@example.com'").run(); d2.close();
+  execFileSync(process.execPath, [path.join(ROOT, 'server/tools-make-staff.js'), 'admin2@example.com', 'admin'], { env: ENV, stdio: 'pipe' });
+  let admin = (await call('POST', '/api/auth/login', { body: { email: 'admin2@example.com', password: 'testpass123' } })).cookie;
+  const s = await call('POST', '/api/auth/2fa/setup', { cookie: admin });
+  admin = (await call('POST', '/api/auth/2fa/enable', { cookie: admin, body: { code: totp.hotp(s.json.secret, Math.floor(Date.now() / 30000)) } })).cookie;
+  const noCac = await call('POST', `/api/admin/dealers/${id}/seller-type`, { cookie: admin, body: { type: 'dealer' } });
+  assert.deepStrictEqual([noCac.status, noCac.json.field], [400, 'cacNumber'], 'a dealer needs a CAC number');
+  const up = await call('POST', `/api/admin/dealers/${id}/seller-type`, { cookie: admin, body: { type: 'dealer', cacType: 'BN', cacNumber: '1112223', businessName: 'Sola Cars', note: 'showed CAC in the office' } });
+  assert.deepStrictEqual([up.status, up.json.type], [200, 'dealer']);
+  let me = (await call('GET', '/api/dealer/me', { cookie: sola.cookie })).json.dealer;
+  assert.deepStrictEqual([me.kind, me.status, me.businessName, me.cacNumber], ['business', 'approved', 'Sola Cars', '1112223']);
+  assert.strictEqual((await call('POST', `/api/admin/dealers/${id}/seller-type`, { cookie: admin, body: { type: 'dealer' } })).status, 400, 'already a dealer');
+  assert.strictEqual((await call('POST', `/api/admin/dealers/${id}/seller-type`, { cookie: admin, body: { type: 'private' } })).json.type, 'private');
+  me = (await call('GET', '/api/dealer/me', { cookie: sola.cookie })).json.dealer;
+  assert.deepStrictEqual([me.kind, me.status, me.liveLimit], ['personal', 'unverified', 1]);
+  assert.strictEqual((await call('POST', `/api/admin/dealers/${id}/seller-type`, { cookie: admin, body: { type: 'verified' } })).json.type, 'verified');
+  me = (await call('GET', '/api/dealer/me', { cookie: sola.cookie })).json.dealer;
+  assert.deepStrictEqual([me.kind, me.status, me.liveLimit], ['personal', 'approved', 5]);
+  const hist = (await call('GET', `/api/admin/dealers/${id}`, { cookie: admin })).json.events.filter((e) => e.step === 'seller_type').map((e) => e.note);
+  assert.deepStrictEqual(hist, ['Private Seller → Verified Seller', 'Verified Dealer → Private Seller', 'Private Seller → Verified Dealer: showed CAC in the office']);
+});
