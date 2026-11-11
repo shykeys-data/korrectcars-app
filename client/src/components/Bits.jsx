@@ -4,6 +4,9 @@ import React, { useState } from 'react';
 import { Link, naira, hasPrice, priceText, bnpl, useApp, api, firstPhoto, waLink, useLocalList, sellerWa, sellerName, rs, srcset } from '../lib/core.jsx';
 import { useQV } from './QuickView.jsx';
 
+// Every card shows the state the car is in (the seller's state; Korrect Cars' own stock is in Lagos)
+export const carState = (car) => car.state || (car.location ? String(car.location).split(',').pop().trim() : '') || 'Lagos';
+
 export function CarCard({ car }) {
   const { cfg } = useApp();
   const saved = useLocalList('kc-saved');
@@ -25,7 +28,7 @@ export function CarCard({ car }) {
         <div className="bd">
           <div className="ttl">{car.title}</div>
           <div className="seller-line"><SellerBadge type={car.seller_type} /></div>
-          <div className="meta">{[car.body, car.mileage, car.transmission && car.transmission.replace(/-Speed/i, '-spd'), car.location].filter(Boolean).slice(0, 3).map((m) => <span key={m}>{m}</span>)}</div>
+          <div className="meta">{[car.body, car.mileage, car.transmission && car.transmission.replace(/-Speed/i, '-spd')].filter(Boolean).slice(0, 2).concat(carState(car)).map((m) => <span key={m}>{m}</span>)}</div>
           <div className="price">{priceText(car)}{hasPrice(car) && car.old_price && !sold ? <span className="old">{naira(car.old_price)}</span> : null}</div>
           {!sold && hasPrice(car) && <div className="monthly">Pay small small from about <b>{naira(plan.monthly)}/mo</b></div>}
         </div>
