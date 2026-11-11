@@ -41,15 +41,29 @@ async function init() {
     return;
   }
   const mysql = require('mysql2/promise');
+  // Shared hosting caps how many database connections one user may hold, and the web server may run several app
+  // processes at once (each with its own pool). So each process keeps a small pool (DB_POOL, default 2; the host allows 8 connections per database user, and
+  // the web server runs up to 3 processes), closes
+  // connections idle for 20 s, and waits in line for a free one instead of opening more.
   const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME,
-    charset: 'utf8mb4', connectionLimit: 8, waitForConnections: true, timezone: 'Z', dateStrings: false
+    charset: 'utf8mb4', connectionLimit: Math.max(1, Number(process.env.DB_POOL) || 2), maxIdle: 1, idleTimeout: 20000,
+    waitForConnections: true, queueLimit: 200, connectTimeout: 10000, enableKeepAlive: true, timezone: 'Z', dateStrings: false
   });
   driver = {
     async query(sql, params = []) {
-      const [rows] = await pool.query(sql, safeParams(params));
-      return rows;
+      // "Too many connections" or a timed-out connect means the query never reached the database, so trying again
+      // is safe, even for writes. Two more tries, 0.3 s and 1 s later, before the visitor sees an error.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const [rows] = await pool.query(sql, safeParams(params));
+          return rows;
+        } catch (e) {
+          if (attempt >= 2 || !CONNECT_ERRORS.has(e.code)) throw e;
+          await new Promise((r) => setTimeout(r, attempt ? 1000 : 300));
+        }
+      }
     }
   };
   for (const s of schema('mysql')) await pool.query(s);
@@ -113,6 +127,9 @@ function safeParams(params = []) {
     return String(v);
   });
 }
+
+// Errors raised while connecting (before any SQL ran): safe to retry
+const CONNECT_ERRORS = new Set(['ER_CON_COUNT_ERROR', 'ER_TOO_MANY_USER_CONNECTIONS', 'ER_USER_LIMIT_REACHED', 'ETIMEDOUT', 'ECONNREFUSED']);
 
 async function q(sql, params) { const r = await driver.query(sql, params); return Array.isArray(r) ? r.map(parseRow) : r; }
 async function one(sql, params) { const r = await q(sql, params); return r[0] || null; }
