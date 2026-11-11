@@ -124,7 +124,7 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(booted('/auth/me') ? booted('/auth/me').user : undefined);
   const [catalog, setCatalog] = useState(null);
   useEffect(() => {
-    api('/config').then(setCfg).catch(() => setCfg({ whatsapp: '2348138588818', phones: ['+234 809 139 7912', '+234 813 858 8818'], email: 'info@korrectcars.com', bnpl: { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 }, swapFeePct: 2, hours: 'Mon–Sat, 8am – 6pm', instagram: 'korrectcarsofficial' }));
+    api('/config').then(setCfg).catch(() => setCfg({ whatsapp: '2348063135732', phones: ['+234 806 313 5732'], email: 'info@korrectcars.com', bnpl: { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 }, swapFeePct: 2, hours: 'Mon–Sat, 8am – 6pm', instagram: 'korrectcarsofficial' }));
     api('/auth/me').then((d) => setUser(d.user)).catch(() => setUser(null));
   }, []);
   const loadCatalog = useCallback(() => { if (!catalog) api('/catalog').then(setCatalog).catch(() => {}); }, [catalog]);
@@ -166,7 +166,7 @@ export function ContactUs({ className = 'btn btn-line', style, children = 'Conta
   };
   return <a href="#footer-contact" className={className} style={style} onClick={go}>{children}</a>;
 }
-export const waLink = (cfg, text) => `https://wa.me/${(cfg && cfg.whatsapp) || '2348138588818'}?text=${encodeURIComponent(text || 'Hello Korrect Cars')}`;
+export const waLink = (cfg, text) => `https://wa.me/${(cfg && cfg.whatsapp) || '2348063135732'}?text=${encodeURIComponent(text || 'Hello Korrect Cars')}`;
 
 export const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
