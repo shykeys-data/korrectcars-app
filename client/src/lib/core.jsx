@@ -150,7 +150,8 @@ export function useTitle(title, desc) {
 
 // Marketplace (Nov 2026): buyers contact the dealer selling the car. Korrect Cars' own numbers are only in the
 // footer (id="footer-contact"); ContactUs buttons scroll there.
-const digits = (n) => String(n || '').replace(/[^0-9]/g, '');
+// WhatsApp needs the international form: 08161562017 -> 2348161562017 (a number saved before Nov 2026 may be local)
+const digits = (n) => { const d = String(n || '').replace(/[^0-9]/g, ''); return /^0[789]\d{9}$/.test(d) ? '234' + d.slice(1) : d; };
 export const sellerWa = (car, cfg, text) => (car && digits(car.seller_whatsapp || car.seller_phone)
   ? `https://wa.me/${digits(car.seller_whatsapp || car.seller_phone)}?text=${encodeURIComponent(text || '')}` : waLink(cfg, text));
 export const sellerPhone = (car, cfg) => (car && (car.seller_phone || car.seller_whatsapp)) || ((cfg && cfg.phones) || [])[0] || '';

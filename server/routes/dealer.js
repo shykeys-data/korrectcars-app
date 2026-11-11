@@ -196,7 +196,7 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
   if (!isLga(state, lga)) return res.status(400).json({ error: `Choose the local government area (LGA) in ${state}.`, field: 'lga' });
   const address = String(b.address || '').trim().slice(0, 250);
   if (address.length < 8) return res.status(400).json({ error: 'Enter the address buyers can visit.', field: 'address' });
-  const whatsapp = b.whatsapp ? sms.toE164(b.whatsapp) : u.phone;
+  const whatsapp = b.whatsapp ? sms.toE164(b.whatsapp) : (sms.toE164(u.phone) || u.phone);
   if (!whatsapp) return res.status(400).json({ error: 'Enter a Nigerian WhatsApp number.', field: 'whatsapp' });
   const fields = { business_name: business, cac_type: type, cac_number: num, state, lga, address,
     whatsapp, phone: u.phone, email: u.email, about: String(b.about || '').trim().slice(0, 1500) || null };
@@ -262,7 +262,7 @@ r.post('/personal', requireAuth, limiter(60, 10), memory.fields([{ name: 'idDoc'
   if (!state) return res.status(400).json({ error: 'Choose the state the car is in.', field: 'state' });
   const lga = String(b.lga || '').trim();
   if (!isLga(state, lga)) return res.status(400).json({ error: `Choose the local government area (LGA) in ${state}.`, field: 'lga' });
-  const whatsapp = b.whatsapp ? sms.toE164(b.whatsapp) : u.phone;
+  const whatsapp = b.whatsapp ? sms.toE164(b.whatsapp) : (sms.toE164(u.phone) || u.phone);
   if (!whatsapp) return res.status(400).json({ error: 'Enter a Nigerian WhatsApp number.', field: 'whatsapp' });
   const idDoc = req.files && req.files.idDoc && req.files.idDoc[0];
   const selfie = req.files && req.files.selfie && req.files.selfie[0];

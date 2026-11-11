@@ -34,7 +34,7 @@ test('first start applies the dealer change and moves every car to Korrect Cars'
   const log = await startStop();
   assert.match(log, /Database change 001_dealers/);
   const db = sqlite();
-  assert.deepStrictEqual(db.prepare('SELECT id FROM schema_migrations').all().map((r) => r.id), ['001_dealers', '002_dealer_signup', '003_vehicle_ids', '004_car_moves', '005_cac_per_type', '006_car_views', '007_seller_kinds', '008_seller_leads', '009_boosts']);
+  assert.deepStrictEqual(db.prepare('SELECT id FROM schema_migrations').all().map((r) => r.id), ['001_dealers', '002_dealer_signup', '003_vehicle_ids', '004_car_moves', '005_cac_per_type', '006_car_views', '007_seller_kinds', '008_seller_leads', '009_boosts', '010_whatsapp_format']);
   const kc = db.prepare('SELECT * FROM dealers WHERE id = 1').get();
   assert.strictEqual(kc.business_name, 'Korrect Cars');
   assert.strictEqual(kc.status, 'approved');
@@ -48,7 +48,7 @@ test('a restart runs no change twice and keeps one Korrect Cars row', async () =
   const log = await startStop();
   assert.doesNotMatch(log, /Database change 001_dealers/);
   const db = sqlite();
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 9);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 10);
   assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM dealers').get().n, 1);
   db.close();
 });
