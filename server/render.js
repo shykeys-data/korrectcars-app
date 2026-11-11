@@ -207,7 +207,7 @@ async function renderPage(req, nonce) {
   if (p === '/') {
     preload = preloadTag('/img/hero.jpg', '100vw');
     ld.push(orgLd());
-    const posts = await db.q("SELECT slug, title, excerpt, image, published_at FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 3");
+    const posts = await require('./lib/memo').memo('posts:3', () => db.q("SELECT slug, title, excerpt, image, published_at FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 3"));
     boot['/posts?limit=3'] = { posts };
   }
   if (p === '/' || p === '/cars') {

@@ -1,6 +1,7 @@
 // API for everyone (mounted at /api): site config, car list and detail, search facets, enquiries (leads),
 // Pay Small Small estimate (bnplPlan), blog and pages, and accounts: register, verify email, sign in, reset, two-step codes.
 const express = require('express');
+const { memo } = require('../lib/memo');
 const stepup = require('../lib/stepup');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -202,7 +203,8 @@ function publicUser(u, mfa = false) {
 }
 
 // ---------- Cars ----------
-async function facets() {
+function facets() { return memo('cars:facets', facetsFromDb); }
+async function facetsFromDb() {
   const rows = await q(`SELECT DISTINCT make, model, body FROM cars WHERE status IN ${PUBLIC_STATUSES} ORDER BY make, model, body`);
   const makes = {};
   for (const x of rows) { ((makes[x.make] = makes[x.make] || {})[x.model] = makes[x.make][x.model] || []).push(x.body); }
@@ -232,7 +234,13 @@ function boostFlag(c) {
   delete c.boost_until; delete c.boost_rank;
   return c;
 }
-async function listCars(query = {}) {
+// The whole public stock (limit=all and no filters) is kept in memory briefly: see lib/memo.js
+function listCars(query = {}) {
+  const keys = Object.keys(query || {}).filter((k) => query[k] !== undefined && query[k] !== '');
+  if (keys.length === 1 && keys[0] === 'limit' && query.limit === 'all') return memo('cars:all', () => listCarsFromDb({ limit: 'all' }));
+  return listCarsFromDb(query);
+}
+async function listCarsFromDb(query = {}) {
   const where = [`status IN ${PUBLIC_STATUSES}`]; const p = [];
   const add = (sql, v) => { where.push(sql); p.push(v); };
   const { make, model, body, condition, minPrice, maxPrice, yearMin, yearMax, sort, featured, search, limit, state, lga, verified, dealer } = query;

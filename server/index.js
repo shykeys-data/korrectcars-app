@@ -100,6 +100,8 @@ app.get('/api/health', async (_req, res) => {
 // ---------- API ----------
 const api = express.Router();
 api.use(limiter(15, 600));
+// A change made through the API clears the in-memory copies of the stock (lib/memo.js) once it has gone through
+api.use((req, res, next) => { if (req.method !== 'GET' && req.method !== 'HEAD') res.on('finish', () => require('./lib/memo').clear()); next(); });
 api.use(loadUser);
 api.use(csrfGuard);
 api.use('/', require('./routes/public'));
