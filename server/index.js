@@ -66,6 +66,10 @@ app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use((req, _res, next) => { if (req.body === undefined) req.body = {}; next(); }); // Express 5 leaves it undefined when there is no body
 app.use(sanitizeInput);
 
+// ads.txt is answered on both korrectcars.com and www (no redirect): AdSense checks the root domain the site was added
+// under, and ad crawlers do not always follow a redirect to www.
+app.get('/ads.txt', (_req, res) => res.set('Cache-Control', 'public, max-age=3600').type('text/plain').send(process.env.ADS_TXT || 'google.com, pub-9741732903227479, DIRECT, f08c47fec0942fa0\n'));
+
 // One canonical host (keeps the www address Google already knows). HTTPS is forced by the web server (DirectAdmin "Force SSL").
 const canonicalHost = new URL(config.siteUrl).host;
 app.use((req, res, next) => {
@@ -89,7 +93,6 @@ for (const f of ['favicon.ico', 'favicon.png']) app.get('/' + f, (_req, res) => 
 app.get(/^\/(google[0-9a-f]{8,32})\.html$/, (req, res) => res.type('text/html').send(`google-site-verification: ${req.params[0]}.html`));
 // robots.txt, llms.txt (summary for AI assistants) and the IndexNow key file
 require('./lib/seo').routes(app);
-app.get('/ads.txt', (_req, res) => res.type('text/plain').send(process.env.ADS_TXT || 'google.com, pub-9741732903227479, DIRECT, f08c47fec0942fa0\n'));
 
 // ---------- Health check (for an uptime monitor): 200 when the app and the database answer, 503 when not ----------
 app.get('/api/health', async (_req, res) => {

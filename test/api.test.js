@@ -142,3 +142,9 @@ test('the VIN check explains Japanese chassis numbers instead of rejecting them'
   assert.strictEqual(r.status, 200);
   assert.deepStrictEqual([r.json.chassis, r.json.valid], [true, false]);
 });
+
+test('ads.txt is served directly (no redirect) with the AdSense publisher line', async () => {
+  const r = await fetch(B + '/ads.txt', { redirect: 'manual' });
+  assert.strictEqual(r.status, 200);
+  assert.match(await r.text(), /^google\.com, pub-9741732903227479, DIRECT, f08c47fec0942fa0/);
+});
