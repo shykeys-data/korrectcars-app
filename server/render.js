@@ -32,6 +32,7 @@ function ssrFrame(body, isAdmin) {
     + `<main id="main" class="ssr-main">${body}</main>`
     + `<footer class="ssr-foot"><p><b>Korrect Cars</b> · Online car dealer in Lagos · ${esc(st.hours || config.hours)}</p><p><a href="${wa}">WhatsApp</a> · <a href="tel:${esc(phone.replace(/\s/g, ''))}">${esc(phone)}</a> · <a href="mailto:${esc(st.email || config.email)}">${esc(st.email || config.email)}</a></p>`
     + `<p><a href="/about-us">About us</a> · <a href="/faqs">FAQs</a> · <a href="/blog">Guides</a> · <a href="/vin-check">Free VIN check</a> · <a href="/privacy-policy">Privacy policy</a> · <a href="/terms-and-conditions">Terms</a></p>`
+    + `<p>© 2026${new Date().getFullYear() > 2026 ? '–' + new Date().getFullYear() : ''} Korrect Cars. All rights reserved. Developed by <a href="https://www.youkay.com.ng" rel="noopener">YouKay Media</a> · <a href="https://www.meetoluwaseyi.com" rel="noopener">Meet Oluwaseyi</a></p>`
     + `<p class="ssr-note">This is the light version of the page. It switches to the full site when your connection allows.</p></footer></div>`;
 }
 

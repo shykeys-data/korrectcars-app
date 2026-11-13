@@ -70,9 +70,10 @@ export function Footer() {
         </div>
         <p className="small" style={{ marginTop: 28, color: '#9AA0AB' }}>Safety: see the car and check its papers before any money changes hands. Pay a dealer only into their business account, and a private seller only into an account in their own name. Never pay a deposit to hold a car you have not seen. Korrect Cars will never ask you to pay into a personal account.</p>
         <div className="legal">
-          <span>© {new Date().getFullYear()} Korrect Cars. All rights reserved.</span>
+          <span>© 2026{new Date().getFullYear() > 2026 ? '–' + new Date().getFullYear() : ''} Korrect Cars. All rights reserved.</span>
           <button type="button" className="linkbtn" onClick={() => window.dispatchEvent(new Event('kc-cookies'))}>Cookie choices</button>
           <a href={`https://www.instagram.com/${ig}/`} target="_blank" rel="noopener noreferrer">Instagram @{ig}</a>
+          <span className="credit">Developed by <a href="https://www.youkay.com.ng" target="_blank" rel="noopener">YouKay Media</a> · <a href="https://www.meetoluwaseyi.com" target="_blank" rel="noopener">Meet Oluwaseyi</a></span>
         </div>
       </div>
     </footer>
