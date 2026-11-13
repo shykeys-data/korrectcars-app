@@ -89,5 +89,15 @@ function App() {
   );
 }
 
+// Links that leave korrectcars.com (guides, footer credits, Instagram, WhatsApp, CAC search...) open in a
+// new tab so the site stays open. Set at click time, so links inside guide and page HTML are covered too.
+const OWN_HOSTS = /^(www\.)?korrectcars\.com$/i;
+document.addEventListener('click', (e) => {
+  const a = e.target && e.target.closest && e.target.closest('a[href]');
+  if (!a || !/^https?:$/.test(a.protocol) || a.host === location.host || OWN_HOSTS.test(a.hostname)) return;
+  a.target = '_blank';
+  if (!/\bnoopener\b/.test(a.rel)) a.rel = (a.rel + ' noopener').trim();
+}, true);
+
 createRoot(document.getElementById('root')).render(<App />);
 window.__kcMounted = true; // the light server page (see index.html) is no longer needed

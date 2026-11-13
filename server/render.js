@@ -32,7 +32,7 @@ function ssrFrame(body, isAdmin) {
     + `<main id="main" class="ssr-main">${body}</main>`
     + `<footer class="ssr-foot"><p><b>Korrect Cars</b> · Online car dealer in Lagos · ${esc(st.hours || config.hours)}</p><p><a href="${wa}">WhatsApp</a> · <a href="tel:${esc(phone.replace(/\s/g, ''))}">${esc(phone)}</a> · <a href="mailto:${esc(st.email || config.email)}">${esc(st.email || config.email)}</a></p>`
     + `<p><a href="/about-us">About us</a> · <a href="/faqs">FAQs</a> · <a href="/blog">Guides</a> · <a href="/vin-check">Free VIN check</a> · <a href="/privacy-policy">Privacy policy</a> · <a href="/terms-and-conditions">Terms</a></p>`
-    + `<p>© 2026${new Date().getFullYear() > 2026 ? '–' + new Date().getFullYear() : ''} Korrect Cars. All rights reserved. Developed by <a href="https://www.youkay.com.ng" rel="noopener">YouKay Media</a> · <a href="https://www.meetoluwaseyi.com" rel="noopener">Meet Oluwaseyi</a></p>`
+    + `<p>© 2026${new Date().getFullYear() > 2026 ? '–' + new Date().getFullYear() : ''} Korrect Cars. All rights reserved. Developed by <a href="https://www.youkay.com.ng" target="_blank" rel="noopener">YouKay Media</a> · <a href="https://www.meetoluwaseyi.com" target="_blank" rel="noopener">Meet Oluwaseyi</a></p>`
     + `<p class="ssr-note">This is the light version of the page. It switches to the full site when your connection allows.</p></footer></div>`;
 }
 
@@ -419,7 +419,16 @@ addEventListener('load',function(){setTimeout(go,3500);});})();</script>` : '',
   // "[email protected]" and the console logged errors). The site shows emails as plain links on purpose.
   const html = shell().replace('<!--HEAD-->', head).replace('<!--BODY-->', ssrFrame(body, isAdmin)).replace(/__NONCE__/g, nonce)
     .replace('<head>', '<head><!--email_off-->').replace(/<\/html>\s*$/, '<!--/email_off--></html>\n');
-  return { status, html };
+  return { status, html: newTabOutside(html) };
 }
 
-module.exports = { renderPage, slugify };
+// Light pages: links that leave korrectcars.com open in a new tab, same as the full site (see main.jsx).
+// Only real <a href="http..."> tags match; JSON data in the page escapes its quotes, so it is untouched.
+function newTabOutside(html) {
+  return html.replace(/<a\s([^>]*?)href="(https?:\/\/([^/"]+)[^"]*)"([^>]*)>/gi, (m, pre, url, host, post) => {
+    if (/^(www\.)?korrectcars\.com$/i.test(host) || /\starget=/i.test(' ' + pre + post)) return m;
+    return `<a ${pre}href="${url}"${post} target="_blank"${/\srel=/i.test(' ' + pre + post) ? '' : ' rel="noopener"'}>`;
+  });
+}
+
+module.exports = { renderPage, slugify, newTabOutside };
