@@ -254,6 +254,7 @@ function BusinessStep({ dealer, onDone, upgrading = false }) {
   const okLga = d.state && lgasOf(d.state).includes(d.lga) ? d.lga : '';
   const [f, setF] = useState({ businessName: d.businessName || '', cacType: d.cacType || 'RC', cacNumber: d.cacNumber || '', state: STATES.includes(d.state) ? d.state : '', lga: okLga, address: d.address || '', whatsapp: d.whatsapp || '', about: d.about || '' });
   const [cac, setCac] = useState(null); const [err, setErr] = useState(''); const [field, setField] = useState(''); const [busy, setBusy] = useState(false);
+  const [logo, setLogo] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   // Business name, CAC number, state, LGA and the CAC certificate (PDF or photo) are all required
   const CAC_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
@@ -265,17 +266,19 @@ function BusinessStep({ dealer, onDone, upgrading = false }) {
     if (!dealer && !cac) return ['cac', 'Add your CAC certificate as a PDF or a photo.'];
     if (cac && !CAC_TYPES.includes(cac.type)) return ['cac', 'The CAC certificate must be a PDF or a photo (JPG, PNG or WEBP).'];
     if (cac && cac.size > 8 * 1024 * 1024) return ['cac', 'The CAC certificate must be under 8 MB. Take a photo of it instead of a scan, or save a smaller PDF.'];
+    if (logoProblem(logo)) return ['logo', logoProblem(logo)];
     return null;
   };
   const submit = async (e) => {
     e.preventDefault(); setErr(''); setField('');
     const p = problem();
-    if (p) { setField(p[0]); setErr(p[1]); const el = document.getElementById({ businessName: 'db-name', cacNumber: 'db-cac', state: 'db-state', lga: 'db-lga', cac: 'db-file' }[p[0]]); if (el) el.focus(); return; }
+    if (p) { setField(p[0]); setErr(p[1]); const el = document.getElementById({ businessName: 'db-name', cacNumber: 'db-cac', state: 'db-state', lga: 'db-lga', cac: 'db-file', logo: 'db-logo' }[p[0]]); if (el) el.focus(); return; }
     setBusy(true);
     const fd = new FormData();
     Object.entries(f).forEach(([k, v]) => { if (v) fd.append(k, v); });
     try {
       if (cac) fd.append('cac', cac.type === 'application/pdf' ? cac : await shrinkPhoto(cac));
+      if (logo) fd.append('logo', logo);
       await api('/dealer', { method: 'POST', form: fd }); onDone();
     } catch (e2) { setErr(e2.message); setField((e2.data && e2.data.field) || ''); } finally { setBusy(false); }
   };
@@ -295,9 +298,60 @@ function BusinessStep({ dealer, onDone, upgrading = false }) {
       </div>
       <div className="field"><label className="f" htmlFor="db-addr">Address buyers can visit</label><input id="db-addr" className="input" required minLength={8} maxLength={250} value={f.address} onChange={set('address')} aria-invalid={field === 'address'} /></div>
       <div className="field"><label className="f" htmlFor="db-wa">WhatsApp for buyers (if different)</label><input id="db-wa" className="input" type="tel" value={f.whatsapp} onChange={set('whatsapp')} /></div>
+      <div className="field"><label className="f" htmlFor="db-logo">Business logo (optional)</label><LogoPicker id="db-logo" current={d.logo} file={logo} onPick={setLogo} invalid={field === 'logo'} name={f.businessName} /></div>
       <div className="field"><label className="f" htmlFor="db-about">About your business (optional)</label><textarea id="db-about" className="input" rows={3} maxLength={1500} value={f.about} onChange={set('about')} /></div>
       <div className="field"><label className="f" htmlFor="db-file">CAC certificate {!dealer && <span className="req" aria-hidden="true">*</span>}{d.status === 'more_info' ? ' (only if asked for a new one)' : ''}</label><input id="db-file" type="file" className="input" style={{ paddingTop: 12 }} accept="image/jpeg,image/png,image/webp,application/pdf" required={!dealer} onChange={(e) => setCac(e.target.files[0] || null)} aria-invalid={field === 'cac'} aria-describedby="db-file-hint" /><div id="db-file-hint" className="hint">PDF or photo (JPG, PNG or WEBP), up to 8 MB. All four corners and the RC/BN number must be readable.</div></div>
       <button className="btn btn-red btn-block" disabled={busy}>{busy ? 'Sending…' : 'Send for review'}</button>
+    </form>
+  );
+}
+
+// ---------- Business logo ----------
+// JPG, PNG or WEBP up to 2 MB. Not resized here, so a PNG keeps its see-through background; the server makes the small copies.
+const LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const LOGO_MAX = 2 * 1024 * 1024;
+const logoProblem = (f) => (!f ? null : !LOGO_TYPES.includes(f.type) ? 'The logo must be a JPG, PNG or WEBP image.' : f.size > LOGO_MAX ? 'The logo must be under 2 MB.' : null);
+function LogoPicker({ id, current, file, onPick, invalid, name }) {
+  const [preview, setPreview] = useState(null);
+  useEffect(() => { if (!file) { setPreview(null); return undefined; } const u = URL.createObjectURL(file); setPreview(u); return () => URL.revokeObjectURL(u); }, [file]);
+  const shown = preview || (current ? rs(current, 400) : null);
+  return (
+    <div className="logo-pick">
+      <div className="dealer-logo dealer-logo-lg" aria-hidden={!shown}>{shown ? <img src={shown} alt={`${name || 'Business'} logo${preview ? ' (not saved yet)' : ''}`} /> : <span className="muted small">No logo</span>}</div>
+      <div style={{ flex: 1, minWidth: 200 }}>
+        <input id={id} type="file" className="input" style={{ paddingTop: 12 }} accept="image/jpeg,image/png,image/webp" onChange={(e) => onPick(e.target.files[0] || null)} aria-invalid={invalid} aria-describedby={id + '-hint'} />
+        <div id={id + '-hint'} className="small muted">Square works best, at least 400 × 400 pixels. JPG, PNG or WEBP, under 2 MB. Shown on your seller page.</div>
+      </div>
+    </div>
+  );
+}
+
+// "My seller page": add, change or remove the logo at any time (owner and managers)
+function LogoPanel({ d, onChange }) {
+  const [file, setFile] = useState(null); const [err, setErr] = useState(''); const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false);
+  const upload = async (e) => {
+    e.preventDefault(); setErr(''); setMsg('');
+    const p = file ? logoProblem(file) : 'Choose a logo image first.';
+    if (p) { setErr(p); return; }
+    setBusy(true);
+    const fd = new FormData(); fd.append('logo', file);
+    try { await api('/dealer/logo', { method: 'POST', form: fd }); setFile(null); setMsg('Logo saved. It now shows on your seller page.'); onChange(); } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+  };
+  const remove = async () => {
+    setErr(''); setMsg(''); setBusy(true);
+    try { await api('/dealer/logo', { method: 'DELETE' }); setMsg('Logo removed.'); onChange(); } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+  };
+  return (
+    <form className="box" onSubmit={upload} noValidate>
+      <h2 style={{ marginTop: 0 }}>Business logo</h2>
+      {err && <div className="err" role="alert">{err}</div>}
+      {msg && <p className="note" role="status">{msg}</p>}
+      <LogoPicker id="dl-logo" current={d.logo} file={file} onPick={(f) => { setFile(f); setErr(logoProblem(f) || ''); setMsg(''); }} invalid={!!err} name={d.businessName} />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+        <button className="btn btn-red btn-sm" disabled={busy || !file}>{busy ? 'Saving…' : d.logo ? 'Change logo' : 'Add logo'}</button>
+        {d.logo && !file && <button type="button" className="btn btn-line btn-sm" disabled={busy} onClick={remove}>Remove logo</button>}
+        {d.status === 'approved' && d.slug && <Link to={'/dealers/' + d.slug} className="btn btn-line btn-sm" target="_blank">View my seller page</Link>}
+      </div>
     </form>
   );
 }
@@ -354,7 +408,7 @@ export function DealerHome() {
   const setStatus = async (c, status) => { try { await api(`/dealer/cars/${c.id}/status`, { method: 'POST', body: { status } }); cars.reload(); } catch (e) { window.alert(e.message); } };
   return (
     <div className="wrap sec-sm">
-      <div className="sec-head"><div><h1 style={{ fontSize: 40, margin: 0 }}>{d.businessName}</h1><div className="small muted">{personal ? `Selling my own car · ${[d.lga, d.state].filter(Boolean).join(', ')}` : `${d.cacType} ${d.cacNumber} · ${d.state}`}</div></div>
+      <div className="sec-head"><div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>{d.logo && <span className="dealer-logo"><img src={rs(d.logo, 400)} alt={`${d.businessName} logo`} /></span>}<div><h1 style={{ fontSize: 40, margin: 0 }}>{d.businessName}</h1><div className="small muted">{personal ? `Selling my own car · ${[d.lga, d.state].filter(Boolean).join(', ')}` : `${d.cacType} ${d.cacNumber} · ${d.state}`}</div></div></div>
         {canList && <Link to="/dealer/cars/new" className="btn btn-red">+ Add a car</Link>}</div>
       <div className="box" role="status"><span className={'tag ' + st[1]}>{st[0]}</span> <span>{st[2]}</span>
         {d.lastNote && ['more_info', 'rejected', 'suspended'].includes(d.status) && <p className="note" style={{ marginTop: 10 }}><b>Note from our team:</b> {d.lastNote}</p>}
@@ -367,6 +421,7 @@ export function DealerHome() {
         <div className="box kpi"><div className="small muted">Cars for sale</div><div className="v">{d.liveCars}{d.liveLimit ? <span className="small muted"> / {d.liveLimit}</span> : null}</div>{d.liveLimit ? <div className="small muted">{!personal ? 'limit for your first 3 months' : d.status === 'approved' ? 'limit for Verified Sellers' : 'limit until your ID is checked'}</div> : null}</div>
         <div className="box kpi"><div className="small muted">All your cars</div><div className="v">{list.length}</div></div>
       </div>
+      {!personal && ['owner', 'manager'].includes(d.role) && <LogoPanel d={d} onChange={me.reload} />}
       <BoostPanel onChange={cars.reload} />
       <BuyerRequests />
       <ViewsPanel s={stats.data} />

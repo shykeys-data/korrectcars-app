@@ -20,7 +20,7 @@ fs.mkdirSync(PRIVATE_DIR, { recursive: true, mode: 0o700 });
   }
   if (moved) console.log(`Moved ${moved} private file(s) out of the app folder`);
 })();
-for (const d of [PUBLIC_DIR, path.join(PUBLIC_DIR, 'cars'), path.join(PUBLIC_DIR, 'swap'), path.join(PUBLIC_DIR, 'blog')]) fs.mkdirSync(d, { recursive: true });
+for (const d of [PUBLIC_DIR, path.join(PUBLIC_DIR, 'cars'), path.join(PUBLIC_DIR, 'swap'), path.join(PUBLIC_DIR, 'blog'), path.join(PUBLIC_DIR, 'logos')]) fs.mkdirSync(d, { recursive: true });
 
 // Files are held in memory, checked by their real bytes (not the name), then written
 const memory = multer({

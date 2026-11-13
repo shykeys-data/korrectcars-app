@@ -126,7 +126,7 @@ const liveCount = async (dealerId, exceptCar) => Number((await one(`SELECT COUNT
 const dealerView = async (d) => (d ? {
   id: d.id, slug: d.slug, kind: d.kind || 'business', businessName: d.business_name, cacType: d.cac_type, cacNumber: d.cac_number, status: d.status,
   verifiedAt: d.verified_at, phone: d.phone, whatsapp: d.whatsapp, email: d.email, address: d.address, state: d.state, lga: d.lga,
-  about: d.about, role: d.member_role, liveLimit: await liveLimit(d), liveCars: await liveCount(d.id),
+  about: d.about, logo: d.logo_key || null, role: d.member_role, liveLimit: await liveLimit(d), liveCars: await liveCount(d.id),
   lastNote: ((await one("SELECT note FROM verification_events WHERE dealer_id = ? AND step = 'review' ORDER BY id DESC LIMIT 1", [d.id])) || {}).note || null
 } : null);
 
@@ -177,7 +177,7 @@ function cacNumber(type, raw) {
   return ['RC', 'BN', 'IT'].includes(type) && /^\d{4,9}$/.test(n) ? n : null;
 }
 
-r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount: 1 }, { name: 'extra', maxCount: 3 }]), async (req, res) => {
+r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount: 1 }, { name: 'extra', maxCount: 3 }, { name: 'logo', maxCount: 1 }]), async (req, res) => {
   if (isStaff(req.user)) return res.status(403).json({ error: 'Staff accounts cannot be dealer accounts. Sign up with a different email.' });
   const u = await one('SELECT id, name, email, phone, phone_verified_at FROM users WHERE id = ?', [req.user.id]);
   if (!u.phone_verified_at && sms.otpOn()) return res.status(403).json({ error: 'Please confirm your phone number first.', step: 'phone' });
@@ -210,6 +210,11 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
   const clash = await one('SELECT id FROM dealers WHERE cac_number = ? AND cac_type = ?', [num, type]);
   if (clash && (!existing || clash.id !== existing.id)) return res.status(409).json({ error: 'A dealer with this CAC number is already registered. If this is your business, contact us.', field: 'cacNumber' });
 
+  // Optional business logo (public, shown on the seller page); checked before anything is saved
+  const logoFile = req.files && req.files.logo && req.files.logo[0];
+  const logoKey = logoFile ? saveLogo(logoFile, business) : null;
+  const oldLogo = existing && logoKey ? existing.logo_key : null;
+
   const files = [];
   if (cac) files.push(['cac', cac]);
   for (const f of (req.files && req.files.extra) || []) files.push(['other', f]);
@@ -228,11 +233,13 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
       const ins = await q(`INSERT INTO dealers (slug, status, ${cols.join(', ')}) VALUES (?, 'pending_review', ${cols.map(() => '?').join(', ')})`, [slug, ...cols.map((c) => fields[c])]);
       dealerId = ins.insertId;
     } catch (e) {
+      if (logoKey) discard([logoKey]);
       if (/duplicate|unique/i.test(e.message)) return res.status(409).json({ error: 'A dealer with this CAC number is already registered. If this is your business, contact us.', field: 'cacNumber' });
       throw e;
     }
     await q("INSERT INTO dealer_members (dealer_id, user_id, role) VALUES (?, ?, 'owner')", [dealerId, u.id]);
   }
+  if (logoKey) { await q('UPDATE dealers SET logo_key = ? WHERE id = ?', [logoKey, dealerId]); if (oldLogo) discard([oldLogo]); }
   for (const s of saved) await q('INSERT INTO dealer_documents (dealer_id, kind, file_key, sha256, uploaded_by) VALUES (?, ?, ?, ?, ?)', [dealerId, s.kind, s.key, s.sha, u.id]);
   await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'submitted', 'pending', ?, ?)", [dealerId, u.id, upgrading ? 'Registered as a dealer (was a private seller)' : existing ? 'Sent again after "we need more"' : 'Applied']);
   mail.send({ to: u.email, ...mail.templates.dealerReceived(u.name.split(' ')[0], business) }).catch((e) => console.error('Dealer email failed:', e.message));
@@ -590,6 +597,31 @@ r.post('/invite/:token', limiter(15, 20, 'Too many tries. Please wait 15 minutes
 });
 
 // ---------- Boosts: a plan (how many cars are boosted at once) for a number of days, paid through Paystack ----------
+// ---------- Business logo (dealers only): add, change or remove at any time from "My seller page" ----------
+// Not a checked detail, so no review is needed; staff can take a logo down from "Sellers to review".
+// JPG, PNG or WEBP up to 2 MB, checked by its real bytes; shown resized (WebP) on the seller page.
+const LOGO_MAX = 2 * 1024 * 1024;
+function saveLogo(file, name) {
+  if (file.size > LOGO_MAX) { const e = new Error('The logo must be under 2 MB.'); e.status = 400; throw e; }
+  return save(file, { folder: 'logos', name: `${slugify(name) || 'dealer'}-logo` });
+}
+r.post('/logo', requireDealer, onlyRoles('owner', 'manager'), limiter(60, 20, 'Too many logo changes. Please wait an hour.'), memory.single('logo'), async (req, res) => {
+  if (isPersonal(req.dealer)) return res.status(403).json({ error: 'Logos are for registered car dealers.' });
+  if (!req.file) return res.status(400).json({ error: 'Choose a logo image (JPG, PNG or WEBP).', field: 'logo' });
+  const key = saveLogo(req.file, req.dealer.business_name);
+  await q('UPDATE dealers SET logo_key = ? WHERE id = ?', [key, req.dealer.id]);
+  if (req.dealer.logo_key) discard([req.dealer.logo_key]);
+  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'logo', 'changed', ?, ?)", [req.dealer.id, req.user.id, req.dealer.logo_key ? 'Changed the business logo' : 'Added a business logo']);
+  res.json({ logo: key });
+});
+r.delete('/logo', requireDealer, onlyRoles('owner', 'manager'), limiter(60, 20), async (req, res) => {
+  if (!req.dealer.logo_key) return res.json({ logo: null });
+  await q('UPDATE dealers SET logo_key = NULL WHERE id = ?', [req.dealer.id]);
+  discard([req.dealer.logo_key]);
+  await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'logo', 'removed', ?, 'Removed the business logo')", [req.dealer.id, req.user.id]);
+  res.json({ logo: null });
+});
+
 const boosts = require('../lib/boosts');
 r.get('/boosts', requireDealer, async (req, res) => {
   const orders = await q('SELECT id, plan, days, amount, vat, total, reference, status, paid_at, starts_at, ends_at, created_at FROM boost_orders WHERE dealer_id = ? ORDER BY id DESC LIMIT 20', [req.dealer.id]);

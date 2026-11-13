@@ -680,3 +680,51 @@ test('administrators switch a seller between Private Seller, Verified Dealer and
   const hist = (await call('GET', `/api/admin/dealers/${id}`, { cookie: admin })).json.events.filter((e) => e.step === 'seller_type').map((e) => e.note);
   assert.deepStrictEqual(hist, ['Private Seller → Verified Seller', 'Verified Dealer → Private Seller', 'Private Seller → Verified Dealer: showed CAC in the office']);
 });
+
+// ---------- Dealer logo (Nov 2026): add at sign-up or later from "My seller page"; staff can take it down ----------
+test('dealer logo: given at sign-up, changed or removed later, shown on the seller page; checked by its bytes and size', async () => {
+  // At sign-up, alongside the business details
+  const sf = await signUp('logo-signup@example.com', { business: 'Logo Motors Ltd', cac: '8810001', phone: '08066660001' });
+  assert.strictEqual(sf.dealer.logo, null, 'no logo unless one is added');
+  const f = new FormData();
+  for (const [k, val] of Object.entries({ businessName: 'Logo Motors Ltd', cacType: 'RC', cacNumber: '8810002', state: 'Lagos', lga: 'Ikeja', address: '3 Oba Akran Avenue, Ikeja' })) f.append(k, val);
+  f.append('cac', new Blob([PNG], { type: 'image/png' }), 'cac.png');
+  f.append('logo', new Blob([PNG], { type: 'image/png' }), 'logo.png');
+  const second = await signUp('logo-signup2@example.com', { business: 'Other Name Ltd', cac: '8810003', phone: '08066660003' });
+  const db0 = sqlite(); db0.prepare("UPDATE dealers SET status = 'more_info' WHERE id = ?").run(second.dealer.id); db0.close(); // "we need more": the form can be sent again
+  const withLogo = await call('POST', '/api/dealer', { cookie: second.cookie, form: f });
+  assert.strictEqual(withLogo.status, 200, JSON.stringify(withLogo.json));
+  assert.match(String(withLogo.json.dealer.logo), /^\/uploads\/logos\/logo-motors-ltd-logo-[a-f0-9]{6}\.png$/);
+
+  // Later, from "My seller page" (Ade is approved): add, refuse bad files, change, remove
+  const send = (file, name, cookie = ade.cookie) => { const fd = new FormData(); fd.append('logo', file, name); return call('POST', '/api/dealer/logo', { cookie, form: fd }); };
+  assert.strictEqual((await send(new Blob(['not a picture'], { type: 'image/png' }), 'logo.png')).status, 400, 'checked by its real bytes, not the name');
+  assert.strictEqual((await send(new Blob([PNG, Buffer.alloc(2 * 1024 * 1024)], { type: 'image/png' }), 'big.png')).status, 400, 'over 2 MB is refused');
+  assert.strictEqual((await call('POST', '/api/dealer/logo', { cookie: ade.cookie, form: new FormData() })).status, 400, 'no file');
+  const added = await send(new Blob([PNG], { type: 'image/png' }), 'ade.png');
+  assert.strictEqual(added.status, 200, JSON.stringify(added.json));
+  assert.strictEqual((await fetch(B + added.json.logo)).status, 200, 'the logo is served');
+  const slug = adeSlug();
+  assert.strictEqual((await call('GET', `/api/dealers/${slug}`)).json.seller.logo, added.json.logo);
+  const html = await (await fetch(`${B}/dealers/${slug}`)).text();
+  assert.match(html, /<img class="ssr-logo-img" src="\/r\/400\/logos\/ade-motors-ltd-logo-[a-f0-9]{6}\.webp"/);
+  assert.match(html, /"logo":"[^"]+\/uploads\/logos\/ade-motors-ltd-logo-/, 'the logo is in the AutoDealer structured data');
+  const changed = await send(new Blob([PNG], { type: 'image/png' }), 'ade2.png');
+  assert.notStrictEqual(changed.json.logo, added.json.logo);
+  assert.strictEqual((await fetch(B + added.json.logo)).status, 404, 'the old logo file is deleted');
+  if (lister) assert.strictEqual((await send(new Blob([PNG], { type: 'image/png' }), 'x.png', lister)).status, 403, 'listers cannot change the logo');
+  assert.strictEqual((await call('POST', '/api/dealer/logo', { form: new FormData() })).status, 403, 'signed out');
+
+  // Staff can take a logo down; it is logged
+  const id = (await call('GET', '/api/dealer/me', { cookie: ade.cookie })).json.dealer.id;
+  assert.strictEqual((await call('POST', `/api/admin/dealers/${id}/remove-logo`, { cookie: ade.cookie })).status, 403, 'dealers cannot use the staff route');
+  assert.strictEqual((await call('POST', `/api/admin/dealers/${id}/remove-logo`, { cookie: staffCookie })).status, 200);
+  assert.strictEqual((await call('GET', '/api/dealer/me', { cookie: ade.cookie })).json.dealer.logo, null);
+  const ev = (await call('GET', `/api/admin/dealers/${id}`, { cookie: staffCookie })).json.events.filter((e) => e.step === 'logo').map((e) => e.note);
+  assert.deepStrictEqual(ev, ['Logo taken down by Korrect Cars', 'Changed the business logo', 'Added a business logo']);
+
+  // The dealer can add one again, then remove it themselves
+  assert.strictEqual((await send(new Blob([PNG], { type: 'image/png' }), 'again.png')).status, 200);
+  assert.strictEqual((await call('DELETE', '/api/dealer/logo', { cookie: ade.cookie })).json.logo, null);
+  assert.strictEqual((await call('GET', `/api/dealers/${slug}`)).json.seller.logo, null);
+});

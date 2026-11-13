@@ -19,6 +19,8 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 - **Pay Small Small:** an instalment calculator (40% minimum deposit, 6 to 48 month terms) and a 3-step application sent to credit partners
 - **Korrect Swap:** peer-to-peer car exchange, with private document uploads visible only to staff
 - **Accounts** with email verification, plus two-factor login (TOTP)
+- **Dealer logos:** dealers add a logo when they register their business or later from My seller page (owner or manager; JPG, PNG or WEBP under 2 MB, checked by its real bytes). It shows on their public seller page and in its AutoDealer structured data; staff can take one down from Sellers to review
+- **Links that leave the site** open in a new tab, everywhere (one rule in `client/src/main.jsx`, and `newTabOutside` in `server/render.js` for the light pages)
 - **Admin dashboard** for cars, swaps, content and site settings
 - **SEO:** server-rendered pages, JSON-LD structured data and an XML sitemap
 - **Image handling:** uploads resized and converted to WebP
@@ -53,6 +55,7 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 1. Copy `.env.example` to `.env` and fill in your MySQL details.
 2. Install and build: `npm ci` (exact versions from package-lock.json), then `node client/build.js`.
 3. Start: `node app.js`.
+4. Tests: `npm test` (starts the app on a temporary SQLite database; no MySQL or internet needed).
 
 Real credentials live only in `.env` and server environment variables, never in this repository.
 

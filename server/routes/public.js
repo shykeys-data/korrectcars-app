@@ -302,7 +302,7 @@ r.post('/cars/:id/view', limiter(10, 120), async (req, res) => {
 // Search engines index a page only once the seller has 3 cars for sale (thin pages stay out).
 const SELLER_INDEX_MIN = 3;
 async function sellerPage(slug) {
-  const d = await one(`SELECT id, slug, kind, business_name, state, lga, address, about, whatsapp, phone, verified_at, created_at
+  const d = await one(`SELECT id, slug, kind, business_name, state, lga, address, about, whatsapp, phone, verified_at, created_at, logo_key
     FROM dealers WHERE slug = ? AND status = 'approved' AND id <> 1`, [String(slug).slice(0, 120)]);
   if (!d) return null;
   const cars = await listCars({ dealer: d.slug, limit: 'all' });
@@ -311,7 +311,7 @@ async function sellerPage(slug) {
   return {
     seller: { slug: d.slug, kind: d.kind || 'business', type: d.kind === 'personal' ? 'verified' : 'dealer', name: d.business_name, state: d.state, lga: d.lga,
       address: d.kind === 'personal' ? null : d.address, about: d.about, whatsapp: d.whatsapp, phone: d.phone,
-      verifiedAt: d.verified_at, joinedAt: d.created_at, carsForSale: live, carsSold: sold, indexable: live >= SELLER_INDEX_MIN },
+      logo: d.kind === 'personal' ? null : d.logo_key || null, verifiedAt: d.verified_at, joinedAt: d.created_at, carsForSale: live, carsSold: sold, indexable: live >= SELLER_INDEX_MIN },
     cars
   };
 }

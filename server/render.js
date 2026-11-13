@@ -352,10 +352,12 @@ async function renderPage(req, nonce) {
         desc: clip(`${sl.name}: ${sl.carsForSale} ${sl.carsForSale === 1 ? 'car' : 'cars'} for sale on Korrect Cars${where ? ' in ' + where : ''}. ${sl.type === 'dealer' ? 'CAC registration checked by Korrect Cars' : 'ID checked by Korrect Cars'}${sl.verifiedAt ? ' on ' + String(sl.verifiedAt).slice(0, 10) : ''}.`, 160) };
       if (!sl.indexable) noindex = true;
       const avail = d.cars.filter((c) => c.status === 'available');
-      body = `<h1>${esc(sl.name)}</h1><p>${esc(kindText)}${where ? ` in ${esc(where)}` : ''}. ${sl.type === 'dealer' ? 'Korrect Cars checked this business\'s CAC registration' : 'Korrect Cars checked this seller\'s ID'}${sl.verifiedAt ? ` on ${esc(String(sl.verifiedAt).slice(0, 10))}` : ''}. ${sl.carsForSale} ${sl.carsForSale === 1 ? 'car' : 'cars'} for sale, ${sl.carsSold} sold on Korrect Cars.</p>`
+      body = (sl.logo ? `<img class="ssr-logo-img" src="/r/400/logos/${esc(sl.logo.split('/').pop().replace(/\.\w+$/, ''))}.webp" alt="${esc(sl.name)} logo" width="96" height="96">` : '')
+        + `<h1>${esc(sl.name)}</h1><p>${esc(kindText)}${where ? ` in ${esc(where)}` : ''}. ${sl.type === 'dealer' ? 'Korrect Cars checked this business\'s CAC registration' : 'Korrect Cars checked this seller\'s ID'}${sl.verifiedAt ? ` on ${esc(String(sl.verifiedAt).slice(0, 10))}` : ''}. ${sl.carsForSale} ${sl.carsForSale === 1 ? 'car' : 'cars'} for sale, ${sl.carsSold} sold on Korrect Cars.</p>`
         + (sl.about ? String(sl.about).split(/\n\n+/).map((x) => `<p>${esc(x)}</p>`).join('') : '')
         + '<ul class="ssr-cars">' + avail.map((c) => `<li><a href="/cars/${esc(c.slug)}"><span>${esc(c.title)}</span></a> <b>${esc(priceText(c))}</b></li>`).join('') + '</ul>';
       ld.push({ '@context': 'https://schema.org', '@type': sl.type === 'dealer' ? 'AutoDealer' : 'Person', name: sl.name, url: meta.url,
+        ...(sl.logo ? { logo: config.siteUrl + sl.logo, image: config.siteUrl + sl.logo } : {}),
         ...(sl.type === 'dealer' ? { address: { '@type': 'PostalAddress', streetAddress: sl.address || undefined, addressLocality: sl.lga || undefined, addressRegion: sl.state || undefined, addressCountry: 'NG' },
           areaServed: sl.state ? { '@type': 'State', name: sl.state } : undefined, description: sl.about || undefined } : { homeLocation: { '@type': 'Place', address: { '@type': 'PostalAddress', addressRegion: sl.state || undefined, addressCountry: 'NG' } } }) });
       ld.push(listLd(avail));

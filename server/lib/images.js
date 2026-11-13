@@ -7,7 +7,7 @@ const os = require('os');
 const config = require('../config');
 
 const WIDTHS = [400, 600, 800, 1200, 1600];
-const FOLDERS = { cars: 'uploads', blog: 'uploads', swap: 'uploads', site: 'uploads', img: 'dist' };
+const FOLDERS = { cars: 'uploads', blog: 'uploads', swap: 'uploads', site: 'uploads', logos: 'uploads', img: 'dist' };
 const CACHE = path.join(config.uploadsDir, 'cache');
 
 let sharp = null;
@@ -44,7 +44,7 @@ async function resized(folder, name, width) {
 }
 
 function route(app) {
-  app.get(/^\/r\/(\d{3,4})\/(cars|blog|swap|site|img)\/([A-Za-z0-9._-]{1,180})\.webp$/, async (req, res, next) => {
+  app.get(/^\/r\/(\d{3,4})\/(cars|blog|swap|site|logos|img)\/([A-Za-z0-9._-]{1,180})\.webp$/, async (req, res, next) => {
     try {
       const w = Number(req.params[0]);
       if (!WIDTHS.includes(w)) return res.status(404).end();

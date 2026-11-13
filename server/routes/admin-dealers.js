@@ -6,7 +6,7 @@ const path = require('path');
 const { q, one } = require('../db');
 const { audit, requireStaff } = require('../lib/security');
 const { publicTitle } = require('../lib/titles');
-const { PRIVATE_DIR } = require('../lib/uploads');
+const { PRIVATE_DIR, discard } = require('../lib/uploads');
 const mail = require('../lib/mail');
 const seo = require('../lib/seo');
 
@@ -97,6 +97,20 @@ r.post('/:id/decision', async (req, res) => {
 
 // Change what kind of seller this is (administrators only), e.g. a private seller who turns out to be a dealer, or the
 // other way round. private = selling their own car, not checked (1 live car); verified = Verified Seller, ID checked
+// Take down a dealer's logo (unsuitable image, someone else's brand). Any staff role; the dealer can add a new one.
+r.post('/:id/remove-logo', async (req, res) => {
+  if (!isId(req.params.id) || req.params.id === '1') return res.status(404).json({ error: 'Not found' });
+  const d = await one('SELECT id, business_name, logo_key FROM dealers WHERE id = ?', [req.params.id]);
+  if (!d) return res.status(404).json({ error: 'Not found' });
+  if (d.logo_key) {
+    await q('UPDATE dealers SET logo_key = NULL WHERE id = ?', [d.id]);
+    discard([d.logo_key]);
+    await q("INSERT INTO verification_events (dealer_id, step, result, actor_id, note) VALUES (?, 'logo', 'removed', ?, 'Logo taken down by Korrect Cars')", [d.id, req.user.id]);
+    await audit(req, 'Removed dealer logo', `${d.business_name} (#${d.id})`);
+  }
+  res.json({ ok: true });
+});
+
 // (5 cars); dealer = Verified Dealer, CAC checked (dealer limits). Moving up to verified or dealer counts as approving
 // them, so cars waiting for a check go live. Moving down leaves live cars as they are; the lower limit stops new ones.
 const SELLER_TYPES = { private: 'Private Seller', verified: 'Verified Seller', dealer: 'Verified Dealer' };

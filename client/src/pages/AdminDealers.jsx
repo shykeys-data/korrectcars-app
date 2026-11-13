@@ -65,6 +65,8 @@ function DealerReview({ id, onClose, onDone, isAdmin }) {
             <div><div className="f">People</div>{data.members.map((m) => <div key={m.id}>{m.name} <span className="small muted">({m.role}) {m.phone ? `· ${m.phone} ` : ''}{m.phone_verified_at ? '· confirmed by text' : '· not confirmed by text (email confirmed): call them to check'}</span></div>)}</div>
           </div>
           {d.about && <p className="note">{d.about}</p>}
+          {d.logo_key && <div className="row" style={{ alignItems: 'center', gap: 12 }}><img src={d.logo_key} alt={`${d.business_name} logo`} className="dealer-logo" /><div><div className="f">Logo</div><div className="small muted">Shown on their seller page. Take it down if it is unsuitable or someone else's brand.</div></div>
+            <button type="button" className="btn btn-line btn-sm" onClick={async () => { if (!window.confirm('Take this logo down?')) return; try { await api(`/admin/dealers/${id}/remove-logo`, { method: 'POST' }); onDone(); } catch (e) { setErr(e.message); } }}>Take down</button></div>}
           <h3 style={{ marginTop: 18 }}>Papers</h3>
           {!data.documents.length ? <p className="muted">No papers uploaded.</p> : data.documents.map((x) => (
             <div className="row" key={x.id}><div><b>{DOC[x.kind] || 'Other paper'}</b> <span className="small muted">({x.type}, {date(x.created_at)})</span>

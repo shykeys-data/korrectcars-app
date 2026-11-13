@@ -209,7 +209,7 @@ export async function shrinkPhoto(file, max = 2000) {
 }
 
 // Light photos: a resized WebP copy of an uploaded photo, e.g. rs('/uploads/cars/x.jpg', 800) -> /r/800/cars/x.webp
-const RS = /^\/(?:uploads\/(cars|blog|swap|site)|(img))\/([A-Za-z0-9._-]+)\.(?:jpe?g|png|webp)$/i;
+const RS = /^\/(?:uploads\/(cars|blog|swap|site|logos)|(img))\/([A-Za-z0-9._-]+)\.(?:jpe?g|png|webp)$/i;
 export function rs(url, w) {
   const m = String(url || '').match(RS);
   return m ? `/r/${w}/${m[1] || m[2]}/${m[3]}.webp` : url;

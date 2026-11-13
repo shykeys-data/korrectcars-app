@@ -1,7 +1,7 @@
 // Public seller page (/dealers/:slug): an approved dealer or Verified Seller, their checks and their cars.
 // The server sends the same facts as HTML first (render.js) for search engines and AI assistants.
 import React, { useState } from 'react';
-import { Link, useApi, useApp, useTitle, date, sellerWa } from '../lib/core.jsx';
+import { Link, useApi, useApp, useTitle, date, sellerWa, rs } from '../lib/core.jsx';
 import { CarCard, Loading, SellerBadge, SELLER_TYPES } from '../components/Bits.jsx';
 import { NotFound } from './Content.jsx';
 
@@ -21,8 +21,8 @@ export function SellerPage({ slug }) {
     <div className="wrap sec-sm">
       <div className="small muted"><Link to="/cars">Cars for sale</Link> / {s.name}</div>
       <div className="sec-head" style={{ alignItems: 'flex-end' }}>
-        <div><h1 style={{ margin: '6px 0 4px' }}>{s.name}</h1>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><SellerBadge type={s.type} long /><span className="muted">{where}</span></div></div>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>{s.logo && <span className="dealer-logo dealer-logo-lg"><img src={rs(s.logo, 400)} alt={`${s.name} logo`} width="96" height="96" /></span>}<div><h1 style={{ margin: '6px 0 4px' }}>{s.name}</h1>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><SellerBadge type={s.type} long /><span className="muted">{where}</span></div></div></div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {s.whatsapp && <a className="btn btn-wa" href={sellerWa(contact, cfg, `Hello ${s.name}, I found you on Korrect Cars.`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
           {s.phone && <a className="btn btn-dark" href={'tel:' + String(s.phone).replace(/\s/g, '')}>Call</a>}
