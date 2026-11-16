@@ -63,7 +63,7 @@ export function writeDescription(f) {
   if (!name) return '';
   const cond = { 'Foreign Used': 'foreign-used (tokunbo)', 'Nigerian Used': 'Nigerian-used', 'Brand New': 'brand new' }[f.condition] || '';
   const p1 = [];
-  p1.push(`This ${name}${f.color ? ` in ${String(f.color).toLowerCase()}` : ''} is ${cond ? `${an(cond)} ${cond} car` : 'for sale'}${f.mileage ? ` with ${f.mileage} on the clock` : ''}.`);
+  p1.push(`This ${name}${f.color ? ` in ${String(f.color).toLowerCase()}` : ''} is ${cond ? `${an(cond)} ${cond} car` : 'for sale'}${/\d/.test(String(f.mileage || '')) ? ` with ${f.mileage} on the clock` : ''}.`);
   const eng = String(f.engine || '').replace(/\s*\(\d+ hp\)$/, '');
   const bits = [eng && `${an(eng)} ${eng} engine`, f.transmission && `${an(f.transmission)} ${String(f.transmission).toLowerCase()} gearbox`, DRIVE[f.drivetrain] || (f.drivetrain ? String(f.drivetrain) : '')].filter(Boolean);
   if (bits.length) p1.push(`It has ${list(bits)}${f.fuel && !/petrol/i.test(f.fuel) && !/hybrid|diesel|electric/i.test(eng) ? `, and runs on ${String(f.fuel).toLowerCase()}` : ''}.`);

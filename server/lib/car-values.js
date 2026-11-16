@@ -8,13 +8,16 @@ const yes = (x) => x === true || x === 'true' || x === '1' || x === 'on';
 const bad = (message, field) => Object.assign(new Error(message), { status: 400, field });
 
 // A car shown for sale needs its mileage, and a price or "Call for price" (price 0). Hidden drafts and sold cars may
-// be saved without them.
-function carValues(v) {
+// be saved without them. Staff (not dealers) may list a car with the mileage "To be confirmed" while the owner gets
+// a dashboard photo; buyers then see "To be confirmed" instead of a number.
+const MILEAGE_TBC = 'To be confirmed';
+const isMileageTbc = (m) => String(m || '').trim().toLowerCase() === MILEAGE_TBC.toLowerCase();
+function carValues(v, { staff = false } = {}) {
   const call = yes(v.callForPrice);
   const price = call ? 0 : Number(v.price) || 0;
   if ((v.status || 'available') === 'available') {
     if (!call && !(price > 0)) throw bad('Enter the price, or tick "Call for price".', 'price');
-    if (!/\d/.test(String(v.mileage || ''))) throw bad('Enter the mileage (as shown on the dashboard).', 'mileage');
+    if (!/\d/.test(String(v.mileage || '')) && !(staff && isMileageTbc(v.mileage))) throw bad('Enter the mileage (as shown on the dashboard).', 'mileage');
   }
   return {
     title: v.title, make: v.make, model: v.model, body: v.body, trim_level: v.trim || null, year: v.year || null, price,
@@ -37,4 +40,4 @@ function inspectionJson(raw) {
   return data.items.length ? JSON.stringify(data) : null;
 }
 
-module.exports = { carValues, rowsFromText, inspectionJson };
+module.exports = { carValues, rowsFromText, inspectionJson, MILEAGE_TBC, isMileageTbc };

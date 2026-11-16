@@ -56,7 +56,7 @@ r.get('/cars', carTeam, async (_req, res) => res.json({ cars: await q('SELECT c.
 const { carValues } = require('../lib/car-values');
 
 r.post('/cars', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'), async (req, res) => {
-  const v = carValues(req.valid);
+  const v = carValues(req.valid, { staff: true });
   // Every VIN goes through the register: one live listing per car, across Korrect Cars and partner dealers
   let ref = null;
   if (v.vin) { const reg = await registry.refFor(v.vin); ref = reg.ref; v.vin = reg.v.value; }
@@ -77,7 +77,7 @@ r.put('/cars/:id', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'),
   if (!isId(req.params.id)) return res.status(404).json({ error: 'Not found' });
   const car = await one('SELECT id, photos, status, vin, vehicle_id_ref, dealer_id FROM cars WHERE id = ?', [req.params.id]);
   if (!car) return res.status(404).json({ error: 'Not found' });
-  const v = carValues(req.valid);
+  const v = carValues(req.valid, { staff: true });
   // A partner dealer's car stays waiting until the dealer is approved, even if staff edit it
   if (car.dealer_id !== 1 && v.status === 'available') {
     const d = await one('SELECT status FROM dealers WHERE id = ?', [car.dealer_id]);

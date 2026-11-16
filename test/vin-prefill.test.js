@@ -84,3 +84,13 @@ test('"Write it for me" uses only what the form says; picking an engine sets its
   assert.match(p.specsText, /Engine: 2\.5L 4-cylinder hybrid/);
   assert.deepStrictEqual([parseMileage('45,000 km'), joinMileage('68000', 'miles')], [{ num: '45000', unit: 'km' }, '68,000 miles']);
 });
+
+// Staff may list a car with mileage "To be confirmed"; dealers may not
+test('car-values: mileage "To be confirmed" is staff-only', () => {
+  const { carValues } = require('../server/lib/car-values');
+  const base = { title: 'X', make: 'Toyota', model: 'Camry', body: 'Sedan', price: '8000000', status: 'available' };
+  assert.throws(() => carValues({ ...base, mileage: 'To be confirmed' }), /mileage/i);
+  assert.equal(carValues({ ...base, mileage: 'To be confirmed' }, { staff: true }).mileage, 'To be confirmed');
+  assert.throws(() => carValues({ ...base, mileage: 'unknown' }, { staff: true }), /mileage/i);
+  assert.equal(carValues({ ...base, mileage: '75,421 miles' }).mileage, '75,421 miles');
+});

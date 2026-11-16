@@ -17,17 +17,26 @@ export function PriceField({ f, setF, id = 'cf' }) {
   );
 }
 
-export function MileageField({ f, setF, id = 'cf' }) {
+// Staff can tick "To be confirmed" while the owner sends a dashboard photo (allowTbc); dealers always enter a number
+export const MILEAGE_TBC = 'To be confirmed';
+export function MileageField({ f, setF, id = 'cf', allowTbc = false }) {
   const m = parseMileage(f.mileage);
+  const tbc = allowTbc && String(f.mileage || '').trim().toLowerCase() === MILEAGE_TBC.toLowerCase();
   return (
     <div className="field"><label className="f" htmlFor={id + '-mileage'}>Mileage <span className="req" aria-hidden="true">*</span></label>
       <div style={{ display: 'flex', gap: 8 }}>
-        <input id={id + '-mileage'} className="input" inputMode="numeric" required value={m.num ? Number(m.num).toLocaleString('en-NG') : ''} placeholder="As shown on the dashboard"
+        <input id={id + '-mileage'} className="input" inputMode="numeric" required={!tbc} disabled={tbc} value={tbc ? '' : m.num ? Number(m.num).toLocaleString('en-NG') : ''}
+          placeholder={tbc ? 'Buyers will see "To be confirmed"' : 'As shown on the dashboard'}
           onChange={(e) => setF((p) => ({ ...p, mileage: joinMileage(e.target.value, parseMileage(p.mileage).unit) }))} />
-        <select className="input" style={{ width: 110 }} aria-label="Unit" value={m.unit} onChange={(e) => setF((p) => ({ ...p, mileage: joinMileage(parseMileage(p.mileage).num, e.target.value) }))}>
+        <select className="input" style={{ width: 110 }} aria-label="Unit" value={m.unit} disabled={tbc} onChange={(e) => setF((p) => ({ ...p, mileage: joinMileage(parseMileage(p.mileage).num, e.target.value) }))}>
           <option value="miles">miles</option><option value="km">km</option>
         </select>
       </div>
+      {allowTbc && (
+        <label className="small" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+          <input type="checkbox" checked={tbc} onChange={(e) => setF((p) => ({ ...p, mileage: e.target.checked ? MILEAGE_TBC : '' }))} /> Mileage to be confirmed (no dashboard photo yet)
+        </label>
+      )}
     </div>
   );
 }

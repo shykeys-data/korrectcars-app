@@ -61,9 +61,9 @@ async function llmsTxt() {
     st.swap ? `- Korrect Swap: owner-to-owner swaps. Owners list their car and say what they want; Korrect Cars checks both owners and their papers, holds the inspection of both cars at a partner car lot, and charges a ${st.swapFeePct}% success fee only when the swap completes.` : null,
     '',
     `## Cars in stock (updated ${today})`,
-    ...avail.map((c) => { if (!(Number(c.price) > 0)) return `- [${c.title}](${u('/cars/' + c.slug)}): call for price${c.year ? `, ${c.year}` : ''}${c.body ? `, ${c.body}` : ''}${c.mileage ? `, ${c.mileage}` : ''}`;
+    ...avail.map((c) => { if (!(Number(c.price) > 0)) return `- [${c.title}](${u('/cars/' + c.slug)}): call for price${c.year ? `, ${c.year}` : ''}${c.body ? `, ${c.body}` : ''}${/\d/.test(String(c.mileage || '')) ? `, ${c.mileage}` : ''}`;
       const pl = require('../routes/public').bnplPlan(Number(c.price), 0, 24);
-      return `- [${c.title}](${u('/cars/' + c.slug)}): ${naira(c.price)}${c.year ? `, ${c.year}` : ''}${c.body ? `, ${c.body}` : ''}${c.mileage ? `, ${c.mileage}` : ''}${c.transmission ? `, ${c.transmission}` : ''}; Pay Small Small from about ${naira(pl.monthly)}/month (${naira(pl.deposit)} deposit, ${pl.months} months, estimate)`; }),
+      return `- [${c.title}](${u('/cars/' + c.slug)}): ${naira(c.price)}${c.year ? `, ${c.year}` : ''}${c.body ? `, ${c.body}` : ''}${/\d/.test(String(c.mileage || '')) ? `, ${c.mileage}` : ''}${c.transmission ? `, ${c.transmission}` : ''}; Pay Small Small from about ${naira(pl.monthly)}/month (${naira(pl.deposit)} deposit, ${pl.months} months, estimate)`; }),
     avail.length ? '' : '- No cars listed right now. Contact us on WhatsApp.',
     '## Prices by model',
     ...Object.entries(models).map(([k, prices]) => {

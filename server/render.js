@@ -286,7 +286,7 @@ async function renderPage(req, nonce) {
         + (sold ? '' : `<p>View it at a partner car lot in Lagos, or have it delivered anywhere in Nigeria.</p>${similarHtml}`);
       ld.push({ '@context': 'https://schema.org', '@type': 'Car', name: car.title, brand: { '@type': 'Brand', name: car.make }, model: car.model,
         vehicleModelDate: String(car.year || ''), bodyType: car.body, color: car.color || undefined, vehicleTransmission: car.transmission || undefined,
-        fuelType: car.fuel || undefined, mileageFromOdometer: car.mileage || undefined,
+        fuelType: car.fuel || undefined, mileageFromOdometer: /\d/.test(String(car.mileage || '')) ? car.mileage : undefined,
         image: (car.photos || []).slice(0, 5).map((u) => config.siteUrl + u), description: desc, itemCondition: 'https://schema.org/UsedCondition',
         offers: !hasPrice(car) ? undefined : { '@type': 'Offer', price: Number(car.price), priceCurrency: 'NGN', availability: car.status === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock', url: meta.url, seller: car.dealer_id && car.dealer_id !== 1 && car.seller ? { '@type': car.seller_type === 'dealer' ? 'AutoDealer' : 'Person', name: car.seller, address: { '@type': 'PostalAddress', addressRegion: car.state || undefined, addressCountry: 'NG' } } : { '@id': config.siteUrl + '/#dealer' } } });
       ld.push(crumbsLd([['Cars for sale', '/cars'], [car.make, `/cars/${slugify(car.make)}`], [car.model, `/cars/${slugify(car.make)}/${slugify(car.model)}`], [car.title, `/cars/${car.slug}`]]));
