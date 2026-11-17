@@ -1,7 +1,7 @@
 // Home page: the banner with the search box, trust tiles, "Shop by budget" links and the category rows
 // (buildRows uses server/lib/categories.js; a row shows only with MIN_HOME cars and a car appears in at most 2 rows).
 import React, { useState, useMemo } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, priced, date, waLink, slugify, rs, srcset, ContactUs } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, priced, date, waLink, slugify, rs, srcset, ContactUs, useLocalList, track } from '../lib/core.jsx';
 import { CarCard, BnplCalc } from '../components/Bits.jsx';
 import { CATEGORIES, MIN_HOME, budgets } from '../../../server/lib/categories.js';
 import { recommended, newestFirst } from '../lib/rank.js';
@@ -140,6 +140,8 @@ export default function Home() {
 
       <VinBand />
 
+      <RecentlyViewed all={all} />
+
       <section className="sec">
         <div className="wrap">
           <div className="sec-head"><div><div className="eyebrow">In stock now · {all.length} cars</div><h2>Find your next car</h2></div><Link to="/cars" className="btn btn-line">See all cars</Link></div>
@@ -256,5 +258,23 @@ export default function Home() {
         </div>
       </section>
     </>
+  );
+}
+
+// "Recently viewed" (Nov 2026): the last cars this visitor opened, still for sale, newest first. Lives in this
+// browser only (rememberViewed in core.jsx), so it works without an account and shows nothing to first-time visitors.
+function RecentlyViewed({ all }) {
+  const viewed = useLocalList('kc-viewed', 12);
+  const byId = new Map(all.map((c) => [Number(c.id), c]));
+  const cars = viewed.list.map((id) => byId.get(Number(id))).filter(Boolean).slice(0, 4);
+  if (!cars.length) return null;
+  return (
+    <section className="sec recent" aria-labelledby="recent-h">
+      <div className="wrap">
+        <div className="sec-head"><div><div className="eyebrow">Pick up where you left off</div><h2 id="recent-h">Recently viewed</h2></div>
+          <button type="button" className="btn btn-line btn-sm" onClick={() => { viewed.clear(); track('recently_viewed_clear'); }}>Clear</button></div>
+        <div className="cards recent-row" onClick={(e) => { if (e.target.closest('a')) track('recently_viewed_click'); }}>{cars.map((c) => <CarCard key={c.id} car={c} />)}</div>
+      </div>
+    </section>
   );
 }

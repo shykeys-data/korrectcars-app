@@ -1,7 +1,7 @@
 // One car's page: photos, price, Pay Small Small estimate, inspection notes, enquiry form and similar cars.
 import React, { useState, useEffect } from 'react';
 import { placeOf } from '../../../server/lib/places.js';
-import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, rs, srcset, api } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, rs, srcset, api, rememberViewed } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal, SellerBadge, SELLER_TYPES } from '../components/Bits.jsx';
 
 
@@ -36,6 +36,7 @@ export function CarDetail({ slug }) {
   const carId = data && data.car && data.car.id;
   useEffect(() => {
     if (!carId) return;
+    rememberViewed(carId); // for the "Recently viewed" row on the home page
     const day = new Date(Date.now() + 3600000).toISOString().slice(0, 10); const k = `kc-view:${carId}`;
     try { if (localStorage.getItem(k) === day) return; localStorage.setItem(k, day); } catch (_e) { /* private mode: the server still drops repeats */ }
     api(`/cars/${carId}/view`, { method: 'POST' }).catch(() => {});

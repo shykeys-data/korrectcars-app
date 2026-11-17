@@ -173,6 +173,13 @@ export const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/
 // Saved cars and the compare list live in this browser; saved cars also sync to the account
 const readLocal = (key) => { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (_e) { return []; } };
 function writeLocal(key, list) { try { localStorage.setItem(key, JSON.stringify(list)); } catch (_e) { /* private mode */ } window.dispatchEvent(new Event('kc-local')); }
+// Recently viewed cars (Nov 2026): newest first, kept in this browser only (no account, nothing sent to the server)
+export function rememberViewed(id) {
+  const n = Number(id); if (!n) return;
+  writeLocal('kc-viewed', [n, ...readLocal('kc-viewed').filter((x) => Number(x) !== n)].slice(0, 12));
+}
+// Google Analytics event, only when the visitor accepted analytics (gtag is loaded after consent)
+export const track = (name, params) => { try { if (window.gtag) window.gtag('event', name, params || {}); } catch (_e) { /* never break the page */ } };
 export function useLocalList(key, max = 50) {
   const app = useContext(AppCtx);
   const synced = key === 'kc-saved' && app && app.user;

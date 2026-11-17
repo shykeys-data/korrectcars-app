@@ -392,7 +392,7 @@ input[type=range]{width:100%;height:32px;accent-color:var(--red);cursor:pointer}
 .qv-grab{width:44px;height:5px;border-radius:3px;background:#C9CDD4;margin:8px auto}
 .qv-close{position:absolute;top:14px;right:12px;z-index:2;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.94);font-size:26px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .qv-sheet .qv-photos{aspect-ratio:4/3}
-.qv-strip{display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+.qv-strip{display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:16px;scrollbar-width:none}
 .qv-strip::-webkit-scrollbar{display:none}
 .qv-strip img{flex:0 0 100%;width:100%;height:100%;object-fit:cover;scroll-snap-align:center}
 @media(min-width:700px){.qv-back{align-items:center;justify-content:center}.qv-sheet{width:min(520px,94vw);border-radius:18px}}
@@ -448,7 +448,7 @@ input[type=range]{width:100%;height:32px;accent-color:var(--red);cursor:pointer}
 .row-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:14px}
 .row-head h3{font-size:clamp(24px,3vw,30px);margin:0}
 .row-more{font-weight:700;text-decoration:none;white-space:nowrap}
-.rail{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 3 * 20px) / 4);gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:10px;scrollbar-width:thin}
+.rail{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 3 * 20px) / 4);gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:16px;padding-bottom:10px;scrollbar-width:thin}
 .rail>*{scroll-snap-align:start;display:flex}
 .rail .card{width:100%}
 @media(max-width:1100px){.rail{grid-auto-columns:calc((100% - 2 * 20px) / 3)}}
@@ -613,3 +613,14 @@ details.faq p{margin:8px 0 0;color:var(--ink2)}
 .dealer-logo-lg{width:96px;height:96px}
 .logo-pick{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 .ssr-logo-img{width:96px;height:96px;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff}
+
+/* Save-search prompt (Cars page): a small card bottom-right, above the Compare bar when that is open */
+.ss-prompt{position:fixed;right:16px;bottom:16px;z-index:60;width:min(360px,calc(100vw - 32px));background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.18);animation:ssin .25s ease-out}
+.ss-prompt.raised{bottom:84px}
+.ss-prompt .ss-x{position:absolute;top:6px;right:8px;background:none;border:0;font-size:16px;line-height:1;padding:8px;cursor:pointer;color:var(--muted,#71717a)}
+@keyframes ssin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.ss-prompt{animation:none}}
+/* Recently viewed: one swipeable row on phones (not 4 tall cards stacked), the normal grid on wider screens */
+@media (max-width:700px){.recent-row{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:16px;-webkit-overflow-scrolling:touch;padding-bottom:6px;margin:0 -16px;padding-left:16px;padding-right:16px}.recent-row>*{flex:0 0 78%;scroll-snap-align:start}}
+/* If the cookie bar is still open (e.g. straight back from sign-in), keep the alert card clear of it */
+body:has(.cookie-bar) .ss-prompt{bottom:auto;top:84px}

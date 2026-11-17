@@ -1,7 +1,7 @@
 // Cars for sale: the stock list with filters (make, model, year, body, budget, sort), saved searches and Compare.
 // The car page is in CarDetail.jsx and the Pay Small Small page in PaySmallSmall.jsx (re-exported below).
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, priced, waLink, slugify, useLocalList, bnpl, firstPhoto, api, rs } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, priced, waLink, slugify, useLocalList, bnpl, firstPhoto, api, rs, track } from '../lib/core.jsx';
 import { CarCard, Loading, SellerBadge } from '../components/Bits.jsx';
 import { pages as categoryPages } from '../../../server/lib/categories.js';
 import { recommended } from '../lib/rank.js';
@@ -186,6 +186,7 @@ export function Inventory({ makeSlug, modelSlug, category }) {
           </div>
         </div>
       </div>
+      <SaveSearchPrompt filters={f} raised={cmpCars.length > 0} />
       {cmpCars.length > 0 && (
         <div className="cmp-bar" role="region" aria-label="Compare cars">
           <div className="wrap">
@@ -200,6 +201,84 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   );
 }
 
+// ---------- Save-search prompt (Nov 2026) ----------
+// After someone has narrowed the list (make, model, body, budget, year, area) and spent a while on it (20 s, or
+// scrolled well down), one small card offers: "Get an email when a car like this arrives". Shown once per filter set,
+// never again this visit once closed or saved, and not at all without filters. Signed-out visitors sign in and come
+// back with ?kcsave=1, and the search is saved for them then.
+const ALERT_KEYS = ['make', 'model', 'body', 'condition', 'maxPrice', 'yearMin', 'yearMax', 'state', 'lga'];
+const short = (n) => (n >= 1e6 ? '₦' + (n / 1e6).toLocaleString('en-NG', { maximumFractionDigits: 1 }) + 'm' : naira(n));
+function describeSearch(f) {
+  const parts = [[f.make, f.model].filter(Boolean).join(' ') || (f.body ? f.body + 's' : 'Cars')];
+  if (f.body && (f.make || f.model)) parts.push(f.body);
+  if (f.yearMin && f.yearMax) parts.push(f.yearMin === f.yearMax ? f.yearMin : `${f.yearMin}–${f.yearMax}`);
+  else if (f.yearMin) parts.push(`${f.yearMin} or newer`); else if (f.yearMax) parts.push(`${f.yearMax} or older`);
+  if (f.condition) parts.push(f.condition);
+  if (f.maxPrice) parts.push(`under ${short(Number(f.maxPrice))}`);
+  if (f.lga || f.state) parts.push(`in ${[f.lga, f.state].filter(Boolean).join(', ')}`);
+  return parts.join(', ');
+}
+const alertFilters = (f) => Object.fromEntries(ALERT_KEYS.filter((k) => f[k]).map((k) => [k, f[k]]));
+function withSaveFlag() { const u = new URL(window.location.href); u.searchParams.set('kcsave', '1'); return u.pathname + u.search; }
+const sess = { get: (k) => { try { return sessionStorage.getItem(k); } catch (_e) { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (_e) { /* private mode */ } } };
+
+function SaveSearchPrompt({ filters, raised }) {
+  const { user } = useApp();
+  const { go } = useRouter();
+  const af = alertFilters(filters);
+  const key = JSON.stringify(af);
+  const has = Object.keys(af).length > 0;
+  const [show, setShow] = useState(false);
+  const [state, setState] = useState({ busy: false, msg: '', err: '' });
+  const save = async (why) => {
+    setState({ busy: true, msg: '', err: '' });
+    try {
+      const d = await api('/me/searches', { method: 'POST', body: { filters: af, alerts: true } });
+      setState({ busy: false, err: '', msg: d.existed ? 'You already have this search. We will email you when a match arrives.' : 'Saved. We will email you when a car like this arrives.' });
+      sess.set('kc-prompt-off', '1'); track('save_search_prompt_saved', { via: why });
+      setTimeout(() => setShow(false), 5000);
+    } catch (e) { setState({ busy: false, msg: '', err: e.message }); }
+  };
+  // Show once someone has stayed 20 s on a filtered list, or scrolled well down it
+  useEffect(() => {
+    setState({ busy: false, msg: '', err: '' }); setShow(false);
+    if (!has || sess.get('kc-prompt-off') || sess.get('kc-prompt:' + key)) return undefined;
+    let done = false;
+    let t = null;
+    const open = () => {
+      if (done) return;
+      if (document.querySelector('.cookie-bar')) { clearTimeout(t); t = setTimeout(open, 5000); return; } // wait for the cookie choice, never on top of it
+      done = true; sess.set('kc-prompt:' + key, '1'); setShow(true); track('save_search_prompt_shown');
+    };
+    t = setTimeout(open, 20000);
+    const onScroll = () => { if (window.scrollY > window.innerHeight * 1.5) open(); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { clearTimeout(t); window.removeEventListener('scroll', onScroll); };
+  }, [key]); // eslint-disable-line
+  // Back from sign-in with ?kcsave=1: save the search the visitor asked for, then tidy the address
+  useEffect(() => {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('kcsave') !== '1' || !user || !has) return;
+    u.searchParams.delete('kcsave'); window.history.replaceState(window.history.state, '', u.pathname + u.search);
+    setShow(true); save('after_sign_in');
+  }, [user && user.id, key]); // eslint-disable-line
+  if (!show || !has) return null;
+  const close = () => { setShow(false); sess.set('kc-prompt-off', '1'); track('save_search_prompt_closed'); };
+  return (
+    <div className={'ss-prompt' + (raised ? ' raised' : '')} role="dialog" aria-modal="false" aria-labelledby="ss-prompt-h">
+      <button type="button" className="ss-x" onClick={close} aria-label="Close">✕</button>
+      {state.msg ? <p className="okmsg small" role="status" style={{ margin: 0 }}>{state.msg} <Link to="/account?tab=searches">Manage alerts</Link></p> : <>
+        <p id="ss-prompt-h" style={{ margin: '0 24px 4px 0', fontWeight: 700 }}>Get an email when a car like this arrives</p>
+        <p className="small muted" style={{ margin: '0 0 10px' }}>{describeSearch(af)}. New cars come in every week.</p>
+        {state.err && <div className="err small" role="alert">{state.err}</div>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="btn btn-red btn-sm" disabled={state.busy} onClick={() => { track('save_search_prompt_click'); if (user) save('prompt'); else go('/login?next=' + encodeURIComponent(withSaveFlag())); }}>{state.busy ? 'Saving…' : user ? 'Alert me' : 'Sign in to get alerts'}</button>
+          <button type="button" className="btn btn-line btn-sm" onClick={close}>No thanks</button>
+        </div></>}
+    </div>
+  );
+}
+
 // Save the current filters to the account; we email the customer when a matching car arrives
 function SaveSearch({ filters }) {
   const { user } = useApp();
@@ -208,7 +287,7 @@ function SaveSearch({ filters }) {
   const key = JSON.stringify({ ...filters, sort: undefined });
   useEffect(() => { setState({ busy: false, msg: '', err: '' }); }, [key]);
   const save = async () => {
-    if (!user) { go('/login?next=' + encodeURIComponent(window.location.pathname + window.location.search)); return; }
+    if (!user) { go('/login?next=' + encodeURIComponent(withSaveFlag())); return; }
     setState({ busy: true, msg: '', err: '' });
     try {
       const { sort, ...rest } = filters; // eslint-disable-line no-unused-vars
