@@ -5,6 +5,7 @@ const config = require('./config');
 const JSON_COLS = new Set(['features', 'specs', 'info', 'photos', 'papers', 'wants_makes', 'wants_bodies', 'recovery_codes', 'filters', 'sources', 'covers', 'inspection']);
 
 let driver;
+let closeDb = async () => {}; // set by init(): ends the MySQL pool or closes the SQLite file
 
 function parseRow(row) {
   if (!row) return row;
@@ -19,6 +20,7 @@ async function init() {
   if (process.env.DB_DRIVER === 'sqlite') {
     const { DatabaseSync } = require('node:sqlite');
     const db = new DatabaseSync(process.env.SQLITE_FILE || ':memory:');
+    closeDb = async () => db.close();
     driver = {
       async query(sql, params = []) {
         sql = sql.replace(/NOW\(\)/g, "datetime('now')");
@@ -51,6 +53,7 @@ async function init() {
     charset: 'utf8mb4', connectionLimit: Math.max(1, Number(process.env.DB_POOL) || 2), maxIdle: 1, idleTimeout: 20000,
     waitForConnections: true, queueLimit: 200, connectTimeout: 10000, enableKeepAlive: true, timezone: 'Z', dateStrings: false
   });
+  closeDb = () => pool.end(); // on shutdown: hand every connection back to MySQL instead of leaving them open
   driver = {
     async query(sql, params = []) {
       // "Too many connections" or a timed-out connect means the query never reached the database, so trying again
@@ -185,4 +188,6 @@ function schema(kind) {
   ].filter(Boolean);
 }
 
-module.exports = { init, q, one, J, config };
+const close = () => closeDb();
+
+module.exports = { init, q, one, J, config, close };

@@ -17,17 +17,20 @@ const sqlite = () => new (require('node:sqlite').DatabaseSync)(DBFILE);
 async function startStop() {
   const app = spawn(process.execPath, ['app.js'], { cwd: ROOT, env: ENV, stdio: ['ignore', 'pipe', 'pipe'] });
   let log = ''; app.stdout.on('data', (d) => { log += d; }); app.stderr.on('data', (d) => { log += d; });
+  let up = false;
   try {
-    for (let i = 0; i < 100; i++) {
-      try { if ((await fetch(`http://127.0.0.1:${PORT}/api/health`)).ok) return log; } catch (_e) { /* not up yet */ }
-      await new Promise((s) => setTimeout(s, 200));
+    for (let i = 0; i < 100 && !up; i++) {
+      try { up = (await fetch(`http://127.0.0.1:${PORT}/api/health`)).ok; } catch (_e) { /* not up yet */ }
+      if (!up) await new Promise((s) => setTimeout(s, 200));
     }
-    throw new Error('App did not start:\n' + log);
   } finally {
-    app.kill();
-    await new Promise((s) => app.once('exit', s));
+    app.kill(); // SIGTERM, as the restart script sends
+    lastExit = await new Promise((s) => app.once('exit', (code) => s(code)));
   }
+  if (!up) throw new Error('App did not start:\n' + log);
+  return log; // everything the app printed, including how it stopped
 }
+let lastExit = null;
 after(() => fs.rmSync(TMP, { recursive: true, force: true }));
 
 test('first start applies the dealer change and moves every car to Korrect Cars', async () => {
@@ -78,4 +81,12 @@ test('the database itself refuses a second live listing of one VIN, but sold car
   add('sold-a', 'sold'); add('hidden-a', 'hidden'); // history: any number of sold or hidden rows
   assert.throws(() => db.prepare("UPDATE cars SET status = 'available' WHERE slug = 'sold-a'").run(), /UNIQUE/);
   db.close();
+});
+
+// Clean stop (Nov 2026): old copies are stopped with SIGTERM after each deploy; they must finish and close the database
+test('SIGTERM stops the app cleanly: requests finish, database closed, exit code 0', async () => {
+  const log = await startStop();
+  assert.match(log, /SIGTERM: finishing requests, closing database connections/);
+  assert.match(log, /Stopped cleanly/);
+  assert.strictEqual(lastExit, 0);
 });

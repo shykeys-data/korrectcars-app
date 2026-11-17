@@ -56,7 +56,8 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 1. Copy `.env.example` to `.env` and fill in your MySQL details.
 2. Install and build: `npm ci` (exact versions from package-lock.json), then `node client/build.js`.
 3. Start: `node app.js`.
-4. Tests: `npm test` (starts the app on a temporary SQLite database; no MySQL or internet needed).
+4. Restart after a deploy with `bash scripts/restart-app.sh <app folder> <site>/api/health`, not only `touch tmp/restart.txt`: LiteSpeed can leave old copies of the app running (old code, open database connections; the host allows 8 per user). The script waits for the new copy to answer, then stops the old ones; the app stops cleanly on SIGTERM.
+5. Tests: `npm test` (starts the app on a temporary SQLite database; no MySQL or internet needed).
 
 Real credentials live only in `.env` and server environment variables, never in this repository.
 

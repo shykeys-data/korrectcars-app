@@ -207,8 +207,24 @@ db.init()
     const c = await db.one('SELECT COUNT(*) AS n FROM cars');
     if (!Number(c.n)) console.log('Seeded live data:', await require('./seed').seed());
     try { const n = await require('./lib/registry').backfill(); if (n) console.log(`VINs registered: ${n} car(s)`); } catch (e) { console.warn('VIN register check skipped:', e.message); }
-    app.listen(config.port, () => console.log(`Korrect Cars running on port ${config.port}`));
+    server = app.listen(config.port, () => console.log(`Korrect Cars running on port ${config.port}`));
   })
   .catch((e) => { console.error('Database connection failed:', e.message); process.exit(1); });
+
+// Clean stop (Nov 2026). The web server (LiteSpeed) starts a new copy of the app on each deploy and may leave old copies
+// running, each holding database connections; the host allows 8 per database user ("Too many connections").
+// On SIGTERM/SIGINT a copy stops taking requests, lets the ones in progress finish (10 s at most), closes its
+// database connections and exits. scripts/restart-app.sh sends SIGTERM to the old copies after each deploy.
+let server = null; let stopping = false;
+function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`${signal}: finishing requests, closing database connections`);
+  setTimeout(() => process.exit(0), 10000).unref();
+  const closed = server ? new Promise((done) => { server.close(done); if (server.closeIdleConnections) server.closeIdleConnections(); }) : Promise.resolve();
+  closed.then(() => db.close()).catch((e) => console.error('Shutdown:', e.message)).finally(() => { console.log('Stopped cleanly'); process.exit(0); });
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 module.exports = app;
