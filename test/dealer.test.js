@@ -728,3 +728,27 @@ test('dealer logo: given at sign-up, changed or removed later, shown on the sell
   assert.strictEqual((await call('DELETE', '/api/dealer/logo', { cookie: ade.cookie })).json.logo, null);
   assert.strictEqual((await call('GET', `/api/dealers/${slug}`)).json.seller.logo, null);
 });
+
+// ---------- Settings page (Nov 2026 bug): on/off switches must load as 'on'/'off', or the form shows "Off" ----------
+test('settings form: Partner dealers and Swap load as on/off, and saving the form unchanged keeps them on', async () => {
+  const totp = require('../server/lib/totp');
+  await call('POST', '/api/auth/register', { body: { name: 'Settings Admin', email: 'admin3@example.com', phone: '08012340077', password: 'testpass123' } });
+  const d3 = sqlite(); d3.prepare("UPDATE users SET email_verified = 1 WHERE email = 'admin3@example.com'").run(); d3.close();
+  execFileSync(process.execPath, [path.join(ROOT, 'server/tools-make-staff.js'), 'admin3@example.com', 'admin'], { env: ENV, stdio: 'pipe' });
+  let admin = (await call('POST', '/api/auth/login', { body: { email: 'admin3@example.com', password: 'testpass123' } })).cookie;
+  const s = await call('POST', '/api/auth/2fa/setup', { cookie: admin });
+  admin = (await call('POST', '/api/auth/2fa/enable', { cookie: admin, body: { code: totp.hotp(s.json.secret, Math.floor(Date.now() / 30000)) } })).cookie;
+
+  assert.strictEqual((await call('PUT', '/api/admin/settings', { cookie: admin, body: { marketplace: 'on', swap: 'on' } })).status, 200);
+  const form = (await call('GET', '/api/admin/settings', { cookie: admin })).json;
+  for (const [k, f] of Object.entries(form.fields)) {
+    if (f.type !== 'choice') continue;
+    assert.ok(f.options.some(([o]) => o === form.values[k]), `${k} loads as one of its options, not ${JSON.stringify(form.values[k])}`);
+  }
+  assert.deepStrictEqual([form.values.marketplace, form.values.swap], ['on', 'on']);
+  // What the page sends back when someone only edits another field
+  const saved = await call('PUT', '/api/admin/settings', { cookie: admin, body: { ...form.values, hours: 'Mon–Sat, 8am – 6pm' } });
+  assert.strictEqual(saved.status, 200, JSON.stringify(saved.json));
+  const after = (await call('GET', '/api/admin/settings', { cookie: admin })).json.values;
+  assert.deepStrictEqual([after.marketplace, after.swap], ['on', 'on'], 'saving the page does not switch them off');
+});

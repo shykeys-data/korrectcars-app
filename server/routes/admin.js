@@ -376,7 +376,14 @@ r.put('/market', contentTeam, validate('market'), async (req, res) => {
 r.get('/audit', adminOnly, async (_req, res) => res.json({ audit: await q('SELECT * FROM audit ORDER BY id DESC LIMIT 300') }));
 
 // ---------- Settings (owner only) ----------
-r.get('/settings', adminOnly, (_req, res) => { const v = settings.current(); res.json({ fields: settings.FIELDS, values: { ...v, swap: v.swap ? 'on' : 'off' } }); });
+// On/off switches are true/false inside the app; the form's dropdowns need 'on'/'off', or the browser shows the
+// first option ("Off") and a save would send true back. Every on/off switch is converted, so a new one can't miss it.
+r.get('/settings', adminOnly, (_req, res) => {
+  const v = settings.current();
+  const form = { ...v };
+  for (const [k, f] of Object.entries(settings.FIELDS)) if (f.type === 'choice' && typeof v[k] === 'boolean') form[k] = v[k] ? 'on' : 'off';
+  res.json({ fields: settings.FIELDS, values: form });
+});
 r.put('/settings', adminOnly, async (req, res) => {
   const saved = await settings.save(req.body || {});
   await audit(req, 'Changed settings', Object.keys(saved).join(', '));
