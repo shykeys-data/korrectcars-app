@@ -42,6 +42,8 @@ esbuild.build({
     .map((i) => `<link rel="modulepreload" href="/assets/${path.relative(path.join(out, 'assets'), path.resolve(i.path)).split(path.sep).join('/')}">`).join('\n');
   fs.writeFileSync(path.join(out, 'index.html'), fs.readFileSync(path.join(root, 'index.html'), 'utf8').replace(/__BUILD__/g, v).replace('<!--PRELOAD-->', preload));
   fs.cpSync(path.join(root, 'public'), out, { recursive: true });
+  // The service worker carries the build version, so each deploy replaces the old cached code (see client/sw.js)
+  fs.writeFileSync(path.join(out, 'sw.js'), fs.readFileSync(path.join(root, 'sw.js'), 'utf8').replace(/__BUILD__/g, v));
   // Our own copies of the two web fonts (Latin), from the @fontsource packages (open font licence)
   fs.mkdirSync(path.join(out, 'fonts'), { recursive: true });
   for (const [pkg, weights] of [['barlow-condensed', [600, 700, 800]], ['source-sans-3', [400, 600, 700]]]) {

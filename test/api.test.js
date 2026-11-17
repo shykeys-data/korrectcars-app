@@ -148,3 +148,24 @@ test('ads.txt is served directly (no redirect) with the AdSense publisher line',
   assert.strictEqual(r.status, 200);
   assert.match(await r.text(), /^google\.com, pub-9741732903227479, DIRECT, f08c47fec0942fa0/);
 });
+
+test('installable site: manifest, service worker and offline page', async () => {
+  const m = await fetch(B + '/manifest.webmanifest');
+  assert.strictEqual(m.status, 200);
+  assert.match(m.headers.get('content-type'), /manifest\+json/);
+  const j = await m.json();
+  assert.strictEqual(j.display, 'standalone');
+  assert.strictEqual(j.start_url, '/?source=app');
+  assert.ok(j.icons.some((i) => i.sizes === '512x512' && i.purpose === 'maskable'), 'has a maskable icon');
+  for (const i of j.icons) assert.ok(fs.existsSync(path.join(ROOT, 'client/public', i.src)), 'icon file exists: ' + i.src);
+  const sw = await fetch(B + '/sw.js');
+  if (fs.existsSync(path.join(ROOT, 'dist/sw.js'))) {
+    assert.strictEqual(sw.status, 200);
+    assert.strictEqual(sw.headers.get('cache-control'), 'no-cache');
+    const code = await sw.text();
+    assert.doesNotMatch(code, /__BUILD__/, 'build version filled in');
+    assert.match(code, /\/api\//, 'API requests are left alone');
+  }
+  const home = await (await fetch(B + '/')).text();
+  assert.match(home, /rel="manifest" href="\/manifest\.webmanifest"/);
+});

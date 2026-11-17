@@ -93,6 +93,8 @@ for (const f of ['favicon.ico', 'favicon.png']) app.get('/' + f, (_req, res) => 
 app.get(/^\/(google[0-9a-f]{8,32})\.html$/, (req, res) => res.type('text/html').send(`google-site-verification: ${req.params[0]}.html`));
 // robots.txt, llms.txt (summary for AI assistants) and the IndexNow key file
 require('./lib/seo').routes(app);
+// Installable site: manifest, service worker and offline page
+require('./lib/pwa').routes(app);
 
 // ---------- Health check (for an uptime monitor): 200 when the app and the database answer, 503 when not ----------
 app.get('/api/health', async (_req, res) => {

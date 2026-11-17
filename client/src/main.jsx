@@ -25,6 +25,7 @@ const DealerInvite = lazy(() => import('./pages/Dealer.jsx').then((m) => ({ defa
 const DealerCarForm = lazy(() => import('./pages/Dealer.jsx').then((m) => ({ default: m.DealerCarForm })));
 const Lazy = ({ children }) => <Suspense fallback={<div className="loading">Loading…</div>}>{children}</Suspense>;
 import { QuickViewProvider } from './components/QuickView.jsx';
+import { InstallApp } from './components/InstallApp.jsx';
 
 // /cars/toyota is a make page; /cars/2018-toyota-camry-se is a single car
 function CarOrMake({ slug }) {
@@ -84,6 +85,7 @@ function App() {
         <QuickViewProvider><main id="main"><Routes /></main></QuickViewProvider>
         <Footer />
         <CookieBar />
+        <InstallApp />
       </AppProvider>
     </Router>
   );

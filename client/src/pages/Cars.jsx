@@ -247,7 +247,7 @@ function SaveSearchPrompt({ filters, raised }) {
     let t = null;
     const open = () => {
       if (done) return;
-      if (document.querySelector('.cookie-bar')) { clearTimeout(t); t = setTimeout(open, 5000); return; } // wait for the cookie choice, never on top of it
+      if (document.querySelector('.cookie-bar, .install-card')) { clearTimeout(t); t = setTimeout(open, 5000); return; } // wait for the cookie choice (or the install card), never on top of them
       done = true; sess.set('kc-prompt:' + key, '1'); setShow(true); track('save_search_prompt_shown');
     };
     t = setTimeout(open, 20000);
