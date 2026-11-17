@@ -752,3 +752,58 @@ test('settings form: Partner dealers and Swap load as on/off, and saving the for
   const after = (await call('GET', '/api/admin/settings', { cookie: admin })).json.values;
   assert.deepStrictEqual([after.marketplace, after.swap], ['on', 'on'], 'saving the page does not switch them off');
 });
+
+// ---------- Saved-car alerts (Nov 2026): price drop, sold (with similar cars), new photos; no repeats; switch off ----------
+test('saved-car alerts: emails on a real price drop, new photos and sold; never twice; not when switched off', async () => {
+  const buyer = 'saver@example.com';
+  await call('POST', '/api/auth/register', { body: { name: 'Sade Saver', email: buyer, phone: '08012340055', password: 'testpass123' } });
+  const db = sqlite(); db.prepare('UPDATE users SET email_verified = 1 WHERE email = ?').run(buyer); db.close();
+  const me = (await call('POST', '/api/auth/login', { body: { email: buyer, password: 'testpass123' } })).cookie;
+  const d0 = sqlite(); const was = d0.prepare("SELECT verified_at FROM dealers WHERE business_name = 'Ade Motors Ltd'").get().verified_at;
+  d0.prepare("UPDATE dealers SET verified_at = '2025-01-01 00:00:00' WHERE business_name = 'Ade Motors Ltd'").run(); d0.close(); // past the new-dealer limit for this test
+  const added = await call('POST', '/api/dealer/cars', { cookie: ade.cookie, form: carForm(makeVin(901), { title: '2017 Toyota Camry XLE', year: '2017', price: '10000000' }) });
+  assert.strictEqual(added.status, 201, JSON.stringify(added.json));
+  const id = added.json.car.id;
+  assert.strictEqual((await call('POST', `/api/me/saved/${id}`, { cookie: me })).status, 200);
+  assert.strictEqual((await call('GET', '/api/me/saved', { cookie: me })).json.alerts, true, 'on by default');
+
+  const mails = (kind) => (log.match(new RegExp(`To: ${buyer} \\| ${kind}`, 'g')) || []).length;
+  const settle = () => new Promise((s) => setTimeout(s, 600));
+  const edit = (extra, photo = false) => {
+    const f = carForm(makeVin(901), { title: '2017 Toyota Camry XLE', year: '2017', ...extra });
+    if (!photo) { f.delete('photos'); }
+    return call('PUT', `/api/dealer/cars/${id}`, { cookie: ade.cookie, form: f });
+  };
+
+  // A small change (₦20,000) is not a price drop worth an email
+  assert.strictEqual((await edit({ price: '9980000' })).status, 200); await settle();
+  assert.strictEqual(mails('Price drop'), 0);
+  // A real drop: one email, with old and new price
+  await edit({ price: '9000000' }); await settle();
+  assert.strictEqual(mails('Price drop: 2017 Toyota Camry XLE is now ₦9,000,000 \\(was ₦9,980,000\\)'), 1);
+  // Same price again (other edits): no repeat
+  await edit({ price: '9000000', mileage: '61,000 miles' }); await settle();
+  assert.strictEqual(mails('Price drop'), 1);
+  // New photos: one email, then nothing more for a week
+  await edit({ price: '9000000' }, true); await settle();
+  assert.strictEqual(mails('New photos: 2017 Toyota Camry XLE'), 1);
+  await edit({ price: '9000000' }, true); await settle();
+  assert.strictEqual(mails('New photos'), 1, 'at most once a week');
+
+  // Switched off: nothing
+  assert.strictEqual((await call('POST', '/api/me/car-alerts', { cookie: me, body: { on: false } })).json.alerts, false);
+  await edit({ price: '8500000' }); await settle();
+  assert.strictEqual(mails('Price drop'), 1, 'no email while alerts are off');
+  await call('POST', '/api/me/car-alerts', { cookie: me, body: { on: true } });
+
+  // Sold: one email naming similar cars still for sale; never a second time
+  assert.strictEqual((await call('POST', `/api/dealer/cars/${id}/status`, { cookie: ade.cookie, body: { status: 'sold' } })).status, 200); await settle();
+  assert.strictEqual(mails('The 2017 Toyota Camry XLE you saved has been sold'), 1);
+  const soldMail = log.slice(log.lastIndexOf(`To: ${buyer} | The 2017 Toyota Camry XLE you saved has been sold`));
+  assert.match(soldMail.slice(0, 1500), /Similar cars still for sale:\n- /, 'lists similar cars');
+  await call('POST', `/api/dealer/cars/${id}/status`, { cookie: ade.cookie, body: { status: 'available' } });
+  await call('POST', `/api/dealer/cars/${id}/status`, { cookie: ade.cookie, body: { status: 'sold' } }); await settle();
+  assert.strictEqual(mails('The 2017 Toyota Camry XLE you saved has been sold'), 1, 'sold email only once');
+  assert.strictEqual((log.match(new RegExp(`To: ${'ade@example.com'} \\| (Price drop|New photos|The 2017)`, 'g')) || []).length, 0, 'the seller who made the change is not emailed');
+  const d1 = sqlite(); d1.prepare("UPDATE dealers SET verified_at = ? WHERE business_name = 'Ade Motors Ltd'").run(was); d1.close();
+});

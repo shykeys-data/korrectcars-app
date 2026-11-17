@@ -32,7 +32,14 @@ r.get('/saved', async (req, res) => {
   const cars = list.length ? await q(`SELECT ${CARD_COLS} FROM cars WHERE status <> 'hidden' AND id IN (${list.map(() => '?').join(',')})`, list) : [];
   const order = new Map(list.map((id, i) => [id, i]));
   cars.sort((a, b) => order.get(Number(a.id)) - order.get(Number(b.id))); cars.forEach(cleanCar);
-  res.json({ ids: cars.map((c) => Number(c.id)), cars });
+  const u = await one('SELECT car_alerts FROM users WHERE id = ?', [req.user.id]);
+  res.json({ ids: cars.map((c) => Number(c.id)), cars, alerts: !u || u.car_alerts !== 0 });
+});
+// Saved-car alerts on or off: emails when a saved car drops in price, is sold or gets new photos
+r.post('/car-alerts', limiter(15, 30), async (req, res) => {
+  const on = !!(req.body && req.body.on);
+  await q('UPDATE users SET car_alerts = ? WHERE id = ?', [on ? 1 : 0, req.user.id]);
+  res.json({ alerts: on });
 });
 // Merge the cars saved on this device into the account (used right after sign-in)
 r.put('/saved', limiter(15, 60), async (req, res) => {

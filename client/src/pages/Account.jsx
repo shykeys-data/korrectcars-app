@@ -170,7 +170,25 @@ function SavedCars({ user }) {
   const cars = ((d.data && d.data.cars) || []).filter((c) => saved.has(Number(c.id)));
   if (d.loading && !d.data) return <Loading />;
   if (!cars.length) return <div className="empty box"><h3>No saved cars yet</h3><p className="muted">Tap Save on any car and it shows up here on every device you sign in on.</p><Link to="/cars" className="btn btn-red">Browse cars</Link></div>;
-  return <div><h2 style={{ marginTop: 0 }}>Saved cars <span className="muted" style={{ fontSize: 18 }}>({cars.length})</span></h2><div className="cards">{cars.map((c) => <CarCard key={c.id} car={c} />)}</div></div>;
+  return <div><h2 style={{ marginTop: 0 }}>Saved cars <span className="muted" style={{ fontSize: 18 }}>({cars.length})</span></h2>
+    <CarAlertsSwitch user={user} on={d.data ? d.data.alerts !== false : true} />
+    <div className="cards">{cars.map((c) => <CarCard key={c.id} car={c} />)}</div></div>;
+}
+
+// Emails when a saved car drops in price, is sold (with similar cars) or gets new photos
+function CarAlertsSwitch({ user, on }) {
+  const [val, setVal] = useState(null); const [err, setErr] = useState('');
+  const cur = val === null ? on : val;
+  const flip = async (next) => { setErr(''); setVal(next); try { await api('/me/car-alerts', { method: 'POST', body: { on: next } }); } catch (e) { setVal(!next); setErr(e.message); } };
+  return (
+    <div className="box" style={{ padding: '12px 16px', marginBottom: 16 }}>
+      <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+        <input type="checkbox" checked={cur} onChange={(e) => flip(e.target.checked)} style={{ marginTop: 4 }} />
+        <span><b>Email me about my saved cars</b><span className="small muted" style={{ display: 'block' }}>We email <b>{user.email}</b> when a saved car drops in price, gets new photos or is sold. When one sells, we suggest similar cars.</span></span>
+      </label>
+      {err && <div className="err" role="alert">{err}</div>}
+    </div>
+  );
 }
 
 function SavedSearches({ user }) {

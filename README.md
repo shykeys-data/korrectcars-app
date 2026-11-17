@@ -20,6 +20,7 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 - **Korrect Swap:** peer-to-peer car exchange, with private document uploads visible only to staff
 - **Accounts** with email verification, plus two-factor login (TOTP)
 - **Dealer logos:** dealers add a logo when they register their business or later from My seller page (owner or manager; JPG, PNG or WEBP under 2 MB, checked by its real bytes). It shows on their public seller page and in its AutoDealer structured data; staff can take one down from Sellers to review
+- **Saved-car alerts:** signed-in buyers get an email when a car they saved drops in price (by ₦50,000 or more, never twice for the same price), gets new photos (at most weekly) or is sold (once, with up to 3 similar cars). The seller who made the change is not emailed; buyers switch it off in Account > Saved cars (`server/lib/car-alerts.js`, migration 012)
 - **Links that leave the site** open in a new tab, everywhere (one rule in `client/src/main.jsx`, and `newTabOutside` in `server/render.js` for the light pages)
 - **Admin dashboard** for cars, swaps, content and site settings. Staff can list a car with mileage "To be confirmed" (tick the box under Mileage) while the owner sends a dashboard photo; buyers see "To be confirmed" and no mileage goes into the structured data. Dealers must always enter a number
 - **SEO:** server-rendered pages, JSON-LD structured data and an XML sitemap

@@ -12,6 +12,7 @@ const { requireStaff, audit } = require('../lib/security');
 const settings = require('../lib/settings');
 const seo = require('../lib/seo');
 const searches = require('../lib/searches');
+const carAlerts = require('../lib/car-alerts');
 const MAX_PHOTOS = 20; // photos per save (more can be added by editing the car)
 const { memory, save, discard, PRIVATE_DIR } = require('../lib/uploads');
 
@@ -97,6 +98,7 @@ r.put('/cars/:id', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'),
   const saved = await one('SELECT * FROM cars WHERE id = ?', [car.id]);
   seo.notify(seo.carPaths(saved));
   if (car.status !== 'available' && saved.status === 'available') searches.notifyNewCar(saved); // e.g. a hidden car goes on sale
+  carAlerts.onCarChange(car, saved, req.user.id); // price drop, sold or new photos: email people who saved it (in the background)
   res.json({ car: saved });
 });
 

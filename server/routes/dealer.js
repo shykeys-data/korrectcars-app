@@ -435,6 +435,7 @@ r.post('/cars', requireDealer, limiter(60, 60, 'Too many cars added in an hour. 
 r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (req, res) => {
   const car = isId(req.params.id) && await one(`SELECT id, photos, status, vin, vehicle_id_ref, reviewed_at FROM cars c WHERE c.id = ? AND c.dealer_id = ?${scope(req).sql}`, [req.params.id, req.dealer.id, ...scope(req).p]);
   if (!car) return res.status(404).json({ error: 'Not found' });
+  const before = await one('SELECT * FROM cars WHERE id = ?', [car.id]); // for saved-car alerts (price, status, photos)
   if (!req.valid.vin) return res.status(422).json({ code: 'VIN_INVALID', error: 'Enter the VIN (or chassis number).', field: 'vin' });
   const v = carValues(req.valid);
   v.location = whereFrom(req.dealer, v.location);
@@ -463,6 +464,7 @@ r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (re
   const saved = await one(`SELECT ${CAR_COLS} FROM cars WHERE id = ?`, [car.id]);
   if (saved.status === 'available') require('../lib/seo').notify(require('../lib/seo').carPaths(saved));
   if (car.status !== 'available' && saved.status === 'available') require('../lib/searches').notifyNewCar(saved);
+  require('../lib/car-alerts').onCarChange(before, await one('SELECT * FROM cars WHERE id = ?', [car.id]), req.user.id); // price drop, sold or new photos
   res.json({ car: saved, warnings: reg.v.warnings });
 });
 
@@ -475,7 +477,9 @@ r.post('/cars/:id/status', requireDealer, async (req, res) => {
   const status = statusFor(String(req.body.status || ''), req.dealer, car);
   if (!['pending', 'available'].includes(car.status)) await checkLimit(req.dealer, status, car.id);
   const row = await one('SELECT vehicle_id_ref FROM cars WHERE id = ?', [car.id]);
+  const before = await one('SELECT * FROM cars WHERE id = ?', [car.id]);
   await registry.guarded(row.vehicle_id_ref, req.dealer.id, () => q('UPDATE cars SET status = ? WHERE id = ? AND dealer_id = ?', [status, car.id, req.dealer.id]));
+  require('../lib/car-alerts').onCarChange(before, await one('SELECT * FROM cars WHERE id = ?', [car.id]), req.user.id); // e.g. marked sold
   res.json({ ok: true, status });
 });
 
