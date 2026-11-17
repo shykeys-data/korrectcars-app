@@ -1,6 +1,7 @@
 // Site frame: Header (menu, Sell a car, account), Footer, and the floating WhatsApp button (all screen sizes).
 import React, { useState, useEffect } from 'react';
 import { Link, useRouter, useApp, waLink, api, booted } from '../lib/core.jsx';
+import { useCanInstall, openInstall } from './InstallApp.jsx';
 
 // Dealers have a dealer page; people selling their own car have a seller page
 const sellerPage = (u) => (u.dealer && u.dealer.kind === 'personal' ? 'My seller page' : 'My dealer page');
@@ -14,6 +15,7 @@ export function Header() {
   const { path, go } = useRouter();
   const { cfg, user, setUser } = useApp();
   const [open, setOpen] = useState(false);
+  const canInstall = useCanInstall();
   const signOut = async (e) => { e.preventDefault(); try { await api('/auth/logout', { method: 'POST' }); } catch (_e) { /* ignore */ } setUser(null); go('/'); };
   useEffect(() => setOpen(false), [path]);
   return (
@@ -24,6 +26,7 @@ export function Header() {
           {NAV.filter(([to]) => to !== '/swap' || swapOn(cfg)).map(([to, label, cls]) => <Link key={to} to={to} className={[path.startsWith(to) ? 'on' : '', cls || ''].join(' ').trim()}>{label}</Link>)}
           {user && user.dealer ? <Link to="/dealer" className="m-only">{sellerPage(user)}</Link> : dealersOn(cfg) && <Link to="/dealers/join" className="m-only">Sell a car: dealers and private sellers</Link>}
           {user ? <><Link to="/account" className="m-only">My account</Link><a href="/" className="m-only" onClick={signOut}>Sign out</a></> : <Link to="/login" className="m-only">Sign in</Link>}
+          {canInstall && <a href="#get-app" className="m-only" onClick={(e) => { e.preventDefault(); setOpen(false); openInstall(); }}>Get the app</a>}
         </nav>
         <div className="right">
           {user && user.dealer ? <Link to="/dealer" className={'acct dealers-link' + (/^\/dealer/.test(path) ? ' on' : '')}>{sellerPage(user)}</Link>
@@ -41,6 +44,7 @@ export function Footer() {
   const phones = (cfg && cfg.phones) || [];
   const email = (cfg && cfg.email) || 'info@korrectcars.com';
   const ig = (cfg && cfg.instagram) || 'korrectcarsofficial';
+  const canInstall = useCanInstall();
   return (
     <footer className="foot" id="footer">
       <div className="wrap">
@@ -51,7 +55,7 @@ export function Footer() {
           </div>
           <div>
             <h2 className="foot-h">Buy</h2>
-            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/vin-check">Free VIN check</Link></li>{dealersOn(cfg) && <li><Link to="/how-we-check-sellers">How we check sellers</Link></li>}{dealersOn(cfg) && <li><Link to="/boost-plans">Boost plan fees</Link></li>}{swapOn(cfg) && <><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></>}{cfg && cfg.marketplace && <li><Link to="/dealers/join">Dealers: sell with us</Link></li>}</ul>
+            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/vin-check">Free VIN check</Link></li>{canInstall && <li><a href="#get-app" onClick={(e) => { e.preventDefault(); openInstall(); }}>Get the Korrect Cars app</a></li>}{dealersOn(cfg) && <li><Link to="/how-we-check-sellers">How we check sellers</Link></li>}{dealersOn(cfg) && <li><Link to="/boost-plans">Boost plan fees</Link></li>}{swapOn(cfg) && <><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></>}{cfg && cfg.marketplace && <li><Link to="/dealers/join">Dealers: sell with us</Link></li>}</ul>
           </div>
           <div>
             <h2 className="foot-h">Company</h2>

@@ -40,9 +40,17 @@ async function cacheFirst(req, name, max) {
   return res;
 }
 
+// A phone on a weak signal often drops one request and gets the next, so try a page twice before going offline
+async function fetchTwice(req) {
+  try { return await fetch(req); } catch (err) {
+    await new Promise((r) => setTimeout(r, 1500));
+    return fetch(req);
+  }
+}
+
 async function page(req, url) {
   try {
-    const res = await fetch(req);
+    const res = await fetchTwice(req);
     if (res.ok && res.type === 'basic' && PUBLIC_PAGE.test(url.pathname)) {
       const copy = res.clone();
       caches.open(PAGES).then((c) => c.put(url.pathname + url.search, copy)).then(() => trim(PAGES, 30)).catch(() => {});

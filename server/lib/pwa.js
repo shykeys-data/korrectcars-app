@@ -21,6 +21,9 @@ function manifest() {
     background_color: '#ffffff',
     theme_color: '#16181D',
     categories: ['shopping', 'lifestyle'],
+    // Lets Chrome tell the site "this phone already has the app" (navigator.getInstalledRelatedApps), so we stop offering it
+    related_applications: [{ platform: 'webapp', url: config.siteUrl.replace(/\/$/, '') + '/manifest.webmanifest' }],
+    prefer_related_applications: false,
     icons: [icon('icon-192.png', 192, 'any'), icon('icon-512.png', 512, 'any'), icon('maskable-192.png', 192, 'maskable'), icon('maskable-512.png', 512, 'maskable')],
     shortcuts: [
       { name: 'Cars for sale', url: '/cars?source=app', icons: [icon('icon-192.png', 192)] },

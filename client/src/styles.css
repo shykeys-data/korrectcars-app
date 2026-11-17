@@ -624,3 +624,6 @@ details.faq p{margin:8px 0 0;color:var(--ink2)}
 @media (max-width:700px){.recent-row{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:16px;-webkit-overflow-scrolling:touch;padding-bottom:6px;margin:0 -16px;padding-left:16px;padding-right:16px}.recent-row>*{flex:0 0 78%;scroll-snap-align:start}}
 /* If the cookie bar is still open (e.g. straight back from sign-in), keep the alert card clear of it */
 body:has(.cookie-bar) .ss-prompt{bottom:auto;top:84px}
+/* Thumb-sized targets on the alert and install cards (44px minimum) */
+.ss-prompt .btn-sm{min-height:44px}
+.ss-prompt .ss-x{top:2px;right:2px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:0}
