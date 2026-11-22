@@ -300,7 +300,12 @@ test('a car for sale needs its mileage, and a price or "Call for price"; such ca
   assert.strictEqual((await call('GET', `/api/cars/${r.json.car.slug}`)).json.car.seller, 'Ade Motors Ltd', 'the car page names the business buyers pay');
   const page = (await call('GET', `/api/cars/${r.json.car.slug}`)).json.car;
   assert.deepStrictEqual([page.seller_whatsapp, page.state], ['+2348031234567', 'Lagos'], "buyers reach the dealer's own WhatsApp");
-  assert.ok((await call('GET', '/api/cars')).json.cars.find((c) => c.slug === r.json.car.slug).seller_whatsapp, 'car cards too');
+  // Lists carry no seller numbers (only Korrect Cars' one number is in list pages); a tap on a card still reaches the dealer
+  const card = (await call('GET', '/api/cars')).json.cars.find((c) => c.slug === r.json.car.slug);
+  assert.deepStrictEqual([card.seller_whatsapp, card.seller_phone, card.seller_contact], [undefined, undefined, 1], 'no dealer number in lists');
+  const go = await fetch(`${B}/api/wa/${r.json.car.slug}?text=Hi`, { redirect: 'manual', headers: { 'x-forwarded-for': '10.9.9.9' } });
+  assert.strictEqual(go.status, 302);
+  assert.match(go.headers.get('location'), /^https:\/\/wa\.me\/2348031234567\?text=Hi$/, "the card's WhatsApp opens the dealer's own chat");
   assert.doesNotMatch(html, /"Offer","price":0/, 'no ₦0 offer for search engines');
   // Quick status change cannot put a car without mileage on sale
   const d = await call('POST', `/api/dealer/cars/${draft.json.car.id}/status`, { cookie: ade.cookie, body: { status: 'available' } });

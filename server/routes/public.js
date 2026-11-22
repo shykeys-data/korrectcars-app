@@ -213,7 +213,10 @@ async function facetsFromDb() {
 }
 r.get('/cars/facets', async (_req, res) => res.json(await facets()));
 
-const SELLER = ', (SELECT d.business_name FROM dealers d WHERE d.id = cars.dealer_id) AS seller, (SELECT d.whatsapp FROM dealers d WHERE d.id = cars.dealer_id) AS seller_whatsapp, (SELECT d.phone FROM dealers d WHERE d.id = cars.dealer_id) AS seller_phone'
+// Lists carry only Korrect Cars' number. A partner seller's own number is shown on their car's page alone; from a
+// list, "WhatsApp" goes through /api/wa/:slug, which looks the number up when tapped (so it is not in the page).
+const SELLER = ', (SELECT d.business_name FROM dealers d WHERE d.id = cars.dealer_id) AS seller'
+  + ", (SELECT CASE WHEN d.id <> 1 AND COALESCE(NULLIF(d.whatsapp, ''), d.phone, '') <> '' THEN 1 ELSE 0 END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_contact"
   // What kind of seller (badge): dealer = Verified Dealer (CAC checked), verified = Verified Seller (ID checked),
   // private = Private Seller, not verified by Korrect Cars. Cars with no dealer are Korrect Cars' own stock (a dealer).
   + ", (SELECT CASE WHEN d.kind = 'personal' THEN CASE WHEN d.status = 'approved' THEN 'verified' ELSE 'private' END ELSE 'dealer' END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_type"
@@ -285,6 +288,15 @@ async function carDetail(slug) {
   boostFlag(cleanCar(car)); similar.forEach(cleanCar);
   return moved ? { car, similar, movedTo: car.slug } : { car, similar };
 }
+// WhatsApp from a car card: opens a chat with the car's seller (their own number, or Korrect Cars' for our stock)
+r.get('/wa/:slug', async (req, res) => {
+  const car = await one("SELECT id, dealer_id FROM cars WHERE slug = ? AND status IN ('available','reserved')", [String(req.params.slug)]);
+  const d = car && car.dealer_id ? await one('SELECT id, whatsapp, phone FROM dealers WHERE id = ?', [car.dealer_id]) : null;
+  const st = require('../lib/settings').current();
+  const num = String((d && d.id !== 1 && (d.whatsapp || d.phone)) || st.whatsapp || config.whatsapp).replace(/\D/g, '').replace(/^0/, '234');
+  res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex');
+  res.redirect(302, `https://wa.me/${num}?text=${encodeURIComponent(String(req.query.text || 'Hello').slice(0, 500))}`);
+});
 r.get('/cars/:slug', async (req, res) => {
   const d = await carDetail(req.params.slug);
   if (!d) return res.status(404).json({ error: 'Car not found' });

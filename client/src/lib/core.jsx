@@ -157,7 +157,9 @@ export function useTitle(title, desc) {
 // WhatsApp needs the international form: 08161562017 -> 2348161562017 (a number saved before Nov 2026 may be local)
 const digits = (n) => { const d = String(n || '').replace(/[^0-9]/g, ''); return /^0[789]\d{9}$/.test(d) ? '234' + d.slice(1) : d; };
 export const sellerWa = (car, cfg, text) => (car && digits(car.seller_whatsapp || car.seller_phone)
-  ? `https://wa.me/${digits(car.seller_whatsapp || car.seller_phone)}?text=${encodeURIComponent(text || '')}` : waLink(cfg, text));
+  ? `https://wa.me/${digits(car.seller_whatsapp || car.seller_phone)}?text=${encodeURIComponent(text || '')}`
+  // A partner's car in a list: the number is looked up when tapped (lists carry only Korrect Cars' number)
+  : car && car.seller_contact && car.slug ? `/api/wa/${encodeURIComponent(car.slug)}?text=${encodeURIComponent(text || '')}` : waLink(cfg, text));
 export const sellerPhone = (car, cfg) => (car && (car.seller_phone || car.seller_whatsapp)) || ((cfg && cfg.phones) || [])[0] || '';
 export const sellerName = (car) => (car && car.seller) || 'the seller';
 export function ContactUs({ className = 'btn btn-line', style, children = 'Contact Korrect Cars' }) {
