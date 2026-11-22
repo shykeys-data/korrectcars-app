@@ -29,9 +29,9 @@ esbuild.build({
   outdir: next, jsx: 'automatic', loader: { '.jsx': 'jsx' }, external: ['/fonts/*', '/img/*'], // served as they are from client/public
   define: { 'process.env.NODE_ENV': '"production"' }, legalComments: 'none', logLevel: 'info',
   nodePaths: [path.join(root, 'node_modules')], metafile: true,
-  // Preact runs the same components as React in about a tenth of the code, so phones show the page sooner.
-  // KC_REACT=1 builds with React itself (fallback if a page ever misbehaves).
-  alias: process.env.KC_REACT ? {} : { react: 'preact/compat', 'react-dom': 'preact/compat', 'react-dom/client': 'preact/compat/client', 'react/jsx-runtime': 'preact/jsx-runtime' }
+  // React by default. KC_PREACT=1 builds with Preact (much smaller), but the admin console froze in a loop under
+  // Preact on 22 Nov 2026, so it stays off until that is found and covered by a browser test.
+  alias: !process.env.KC_PREACT ? {} : { react: 'preact/compat', 'react-dom': 'preact/compat', 'react-dom/client': 'preact/compat/client', 'react/jsx-runtime': 'preact/jsx-runtime' }
 }).then((result) => {
   // metafile paths point at the side folder; the same names end up in dist/assets
   for (const k of Object.keys(result.metafile.outputs)) { const o = result.metafile.outputs[k]; delete result.metafile.outputs[k]; result.metafile.outputs[k.split('assets-next').join('assets')] = o; for (const i of o.imports || []) i.path = i.path.split('assets-next').join('assets'); }
