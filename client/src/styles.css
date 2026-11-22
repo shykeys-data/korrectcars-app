@@ -352,6 +352,7 @@ input[type=range]{width:100%;height:32px;accent-color:var(--red);cursor:pointer}
 /* Phone: contact bar always visible on a car page */
 .car-bar{display:none}
 @media(max-width:980px){
+  .car-fab{display:none} /* the bar below already has WhatsApp; two buttons covered the text */
   .car-bar{display:flex;gap:8px;position:fixed;left:0;right:0;bottom:0;z-index:55;background:#fff;border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
   .car-bar .btn{flex:1;padding:0 10px}.car-bar .btn-wa{flex:2.2}
   body:has(.car-bar) .wa-fab{bottom:88px}

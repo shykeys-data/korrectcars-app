@@ -6,17 +6,28 @@ import './styles.css';
 import { Router, AppProvider, useRouter, match, useApp } from './lib/core.jsx';
 import { Header, Footer, CookieBar } from './components/Layout.jsx';
 import Home from './pages/Home.jsx';
-import { Inventory, CarDetail, PaySmallSmall, Compare } from './pages/Cars.jsx';
+import { Inventory, Compare } from './pages/Cars.jsx';
+import { CarDetail } from './pages/CarDetail.jsx';
 import { useApi, slugify, booted } from './lib/core.jsx';
 import { bySlug } from '../../server/lib/categories.js';
 // The staff address is only known when the page was opened at it (it is not in the site's code)
 const ADMIN_PATH = (booted('/config') || {}).adminPath || null;
-import { SwapHome, SwapListing, SwapNew } from './pages/Swap.jsx';
-import { Account, AuthPage, VerifyEmail, ForgotPassword, ResetPassword } from './pages/Account.jsx';
-import { Blog, Post, Page, Faqs, Contact, NotFound, HowWeCheckSellers } from './pages/Content.jsx';
-import { SellerPage } from './pages/Seller.jsx';
-import { BoostPlans } from './pages/BoostPlans.jsx';
-import { VinCheck, Market } from './pages/Tools.jsx';
+// Home, car lists and car pages (where most visitors land) are in the main file. Every other page is its own
+// small file, downloaded only when someone opens it, so the first visit downloads and runs less code.
+const part = (load, name) => lazy(() => load().then((m) => ({ default: m[name] })));
+const swap = () => import('./pages/Swap.jsx');
+const SwapHome = part(swap, 'SwapHome'), SwapListing = part(swap, 'SwapListing'), SwapNew = part(swap, 'SwapNew');
+const acct = () => import('./pages/Account.jsx');
+const Account = part(acct, 'Account'), AuthPage = part(acct, 'AuthPage'), VerifyEmail = part(acct, 'VerifyEmail'),
+  ForgotPassword = part(acct, 'ForgotPassword'), ResetPassword = part(acct, 'ResetPassword');
+const content = () => import('./pages/Content.jsx');
+const Blog = part(content, 'Blog'), Post = part(content, 'Post'), Page = part(content, 'Page'), Faqs = part(content, 'Faqs'),
+  Contact = part(content, 'Contact'), NotFound = part(content, 'NotFound'), HowWeCheckSellers = part(content, 'HowWeCheckSellers');
+const SellerPage = part(() => import('./pages/Seller.jsx'), 'SellerPage');
+const BoostPlans = part(() => import('./pages/BoostPlans.jsx'), 'BoostPlans');
+const tools = () => import('./pages/Tools.jsx');
+const VinCheck = part(tools, 'VinCheck'), Market = part(tools, 'Market');
+const PaySmallSmall = part(() => import('./pages/PaySmallSmall.jsx'), 'PaySmallSmall');
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 // Partner dealer pages: their own bundle, loaded only when a dealer opens them
 const DealerJoin = lazy(() => import('./pages/Dealer.jsx').then((m) => ({ default: m.DealerJoin })));
@@ -50,11 +61,11 @@ function Routes() {
   if (path === '/swap') return <SwapHome />;
   if (path === '/swap/new') return <SwapNew />;
   if ((m = match('/swap/:id', path))) return <SwapListing id={m.id} />;
-  if (/^\/dealers?(\/|$)/.test(path) && !(cfg && cfg.marketplace)) return <NotFound />; // Partner dealers switched off
-  if (path === '/dealers/join') return <Lazy><DealerJoin /></Lazy>;
-  if (path === '/dealers/invite') return <Lazy><DealerInvite /></Lazy>;
+  if (/^\/(dealers?(\/|$)|how-we-check-sellers$|boost-plans$)/.test(path) && !(cfg && cfg.marketplace)) return <NotFound />; // Partner dealers switched off (the server answers 404 too)
   if (path === '/how-we-check-sellers') return <HowWeCheckSellers />;
   if (path === '/boost-plans') return <BoostPlans />;
+  if (path === '/dealers/join') return <Lazy><DealerJoin /></Lazy>;
+  if (path === '/dealers/invite') return <Lazy><DealerInvite /></Lazy>;
   if ((m = match('/dealers/:slug', path))) return <SellerPage key={m.slug} slug={m.slug} />;
   if (path === '/dealer') return <Lazy><DealerHome /></Lazy>;
   if (path === '/dealer/cars/new') return <Lazy><DealerCarForm /></Lazy>;
@@ -82,7 +93,7 @@ function App() {
       <AppProvider>
         <a href="#main" className="sr">Skip to content</a>
         <Header />
-        <QuickViewProvider><main id="main"><Routes /></main></QuickViewProvider>
+        <QuickViewProvider><main id="main"><Lazy><Routes /></Lazy></main></QuickViewProvider>
         <Footer />
         <CookieBar />
         <InstallApp />
