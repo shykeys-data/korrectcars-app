@@ -2,7 +2,7 @@
 // without leaving the page. useQV() opens it from any car card.
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, naira, hasPrice, priceText, bnpl, useApp, waLink, useLocalList, sellerWa, sellerName, firstPhoto, rs, srcset } from '../lib/core.jsx';
+import { Link, naira, hasPrice, priceText, bnpl, bnplFrom, useApp, waLink, useLocalList, sellerWa, sellerName, firstPhoto, rs, srcset } from '../lib/core.jsx';
 import { SellerBadge } from './Bits.jsx';
 
 // Quick view for car cards.
@@ -80,7 +80,7 @@ function Body({ car, onClose }) {
   const saved = useLocalList('kc-saved');
   const cmp = useLocalList('kc-compare', 3);
   const sold = car.status === 'sold';
-  const plan = bnpl(Number(car.price), 40, 24, cfg);
+  const plan = bnplFrom(Number(car.price), cfg);
   const url = '/cars/' + car.slug;
   const isCmp = cmp.has(car.id);
   return (

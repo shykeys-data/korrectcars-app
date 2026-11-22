@@ -63,8 +63,12 @@ export function bnpl(price, depositPct, months, cfg) {
   const charge = Math.round(balance * b.markup / 100);
   const repay = balance + charge;
   const m = Math.max(b.minMonths, Math.min(b.maxMonths, months));
-  return { deposit, balance, charge, repay, months: m, monthly: Math.ceil(repay / m), pct };
+  const total = deposit + repay; // everything the buyer pays: deposit plus all the monthly payments
+  return { deposit, balance, charge, repay, months: m, monthly: Math.ceil(repay / m), pct, total, extra: Math.max(0, total - price) };
 }
+// The headline estimate shown on car cards, car pages and in search results: minimum deposit over 24 months
+// (the server's render.js and llms.txt use the same rule through bnplPlan, so every page shows the same figure)
+export const bnplFrom = (price, cfg) => bnpl(price, 0, 24, cfg);
 
 // ---------- Router (history API) ----------
 const RouterCtx = createContext({ path: '/', query: new URLSearchParams(), go: () => {} });

@@ -3,10 +3,12 @@ import React, { useState } from 'react';
 import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, bnpl, api, ContactUs } from '../lib/core.jsx';
 
 
-const PSS_FAQ = [
+// The FAQ quotes the live estimate settings (Settings > Pay Small Small), so the words always match the figures
+const pssFaq = (b) => [
   ['How does Pay Small Small work at Korrect Cars?', 'Pick a car and get an estimate of your deposit and monthly payment. Apply in minutes, and with your consent we pass your details to our credit partners. Once a credit partner approves you, Korrect Cars sells you the car.'],
   ['Who decides if I qualify?', 'Our credit partners. They check if you qualify, tell you which documents they need (usually a government ID and proof of income) and set the final deposit, charge and months.'],
-  ['Is the calculator figure final?', 'No. It is an estimate based on a 40% deposit and a 20% charge on the balance. The credit partner sets your real terms.'],
+  ['Is the calculator figure final?', `No. It is an estimate: a deposit of at least ${b.minDeposit}% of the price, then a ${b.markup}% charge on the balance, spread over ${b.minMonths} to ${b.maxMonths} months. The credit partner sets your real terms.`],
+  ['How much more do I pay than the cash price?', `In the estimate, the ${b.markup}% charge on the balance is the extra. For example, on a ₦10,000,000 car with a ${b.minDeposit}% deposit you would pay about ${naira(bnpl(10000000, b.minDeposit, 24, { bnpl: b }).extra)} more than the cash price in total. The calculator shows the total and the extra for any car before you apply.`],
   ['Can I pay off early?', 'Early payoff, rates and months are set by the credit partner. Ask them when they contact you.'],
   ['Who sees my details?', 'Korrect Cars staff and our credit partners, and only after you agree on the last step.']
 ];
@@ -65,7 +67,7 @@ export function PaySmallSmall() {
           </div>
           <div className="box">
             <h2 style={{ fontSize: 28 }}>Questions</h2>
-            {PSS_FAQ.map(([q, a]) => <details key={q} style={{ borderBottom: '1px solid var(--line)', padding: '10px 0' }}><summary style={{ fontWeight: 600, cursor: 'pointer' }}>{q}</summary><p className="small" style={{ margin: '6px 0 0' }}>{a}</p></details>)}
+            {pssFaq(b).map(([q, a]) => <details key={q} style={{ borderBottom: '1px solid var(--line)', padding: '10px 0' }}><summary style={{ fontWeight: 600, cursor: 'pointer' }}>{q}</summary><p className="small" style={{ margin: '6px 0 0' }}>{a}</p></details>)}
           </div>
         </div>
         <div className="box pss-main">
@@ -83,10 +85,11 @@ export function PaySmallSmall() {
               </select>
             </div>
             {!car && <div className="field"><label className="f" htmlFor="pss-price">Car price</label><input id="pss-price" className="input" inputMode="numeric" value={custom ? custom.toLocaleString('en-NG') : ''} onChange={(e) => setCustom(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)} /></div>}
-            <div className="field"><div className="f">Deposit you can pay <span className="muted small">(estimate)</span></div><div className="pills">{[40, 50, 60, 70].map((v) => <button key={v} type="button" className={'pill' + (pct === v ? ' on' : '')} onClick={() => setPct(v)}>{v}%</button>)}</div></div>
+            <div className="field"><div className="f">Deposit you can pay <span className="muted small">(estimate)</span></div><div className="pills">{[0, 10, 20, 30].map((x) => b.minDeposit + x).filter((v) => v <= 90).map((v) => <button key={v} type="button" className={'pill' + (pct === v ? ' on' : '')} onClick={() => setPct(v)}>{v}%</button>)}</div></div>
             <div className="field"><div className="f">Months</div><div className="pills">{[6, 12, 24, 36, 48].filter((m) => m >= b.minMonths && m <= b.maxMonths).map((m) => <button key={m} type="button" className={'pill' + (months === m ? ' on' : '')} onClick={() => setMonths(m)}>{m}</button>)}</div></div>
-            <div className="pss-est"><span>Estimate: deposit {naira(plan.deposit)} · then</span><strong>{naira(plan.monthly)} × {plan.months}</strong></div>
-            <p className="small muted">Based on a {b.minDeposit}% minimum deposit and a {b.markup}% charge on the balance. The credit partner sets your real terms.</p>
+            <div className="pss-est"><span>Estimate: deposit {naira(plan.deposit)} ({plan.pct}%) · then</span><strong>{naira(plan.monthly)} × {plan.months}</strong></div>
+            <p className="small" style={{ margin: '8px 0 0' }}>Total you pay: <b>{naira(plan.total)}</b>, which is <b>{naira(plan.extra)}</b> more than the cash price of {naira(price)}.</p>
+            <p className="small muted">Estimate: a deposit of at least {b.minDeposit}%, then a {b.markup}% charge on the balance. The credit partner sets your real terms.</p>
           </>}
           {step === 2 && <div className="grid2">
             <div className="field"><label className="f" htmlFor="pss-name">Full name</label><input id="pss-name" className="input" value={d.name} onChange={set('name')} autoComplete="name" required /></div>
@@ -102,6 +105,7 @@ export function PaySmallSmall() {
               <div><span>Car</span><b>{car ? car.title : 'Own price'} · {naira(price)}</b></div>
               <div><span>Deposit you can pay</span><b>{naira(plan.deposit)} ({plan.pct}%)</b></div>
               <div><span>Estimated monthly</span><b>{naira(plan.monthly)} × {plan.months}</b></div>
+              <div><span>Total you pay (estimate)</span><b>{naira(plan.total)} ({naira(plan.extra)} more than cash)</b></div>
               <div><span>Your details</span><b>{d.name} · {d.phone}</b></div>
             </div>
             <div className="note-grey" style={{ marginTop: 14 }}>This is an estimate. {partner.charAt(0).toUpperCase() + partner.slice(1)} check if you qualify and set the final deposit, charge and months. Korrect Cars sells you the car once a credit partner approves you.</div>

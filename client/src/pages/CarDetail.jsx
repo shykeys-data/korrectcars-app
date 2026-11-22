@@ -1,7 +1,7 @@
 // One car's page: photos, price, Pay Small Small estimate, inspection notes, enquiry form and similar cars.
 import React, { useState, useEffect } from 'react';
 import { placeOf } from '../../../server/lib/places.js';
-import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, rs, srcset, api, rememberViewed } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, bnplFrom, rs, srcset, api, rememberViewed } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal, SellerBadge, SELLER_TYPES } from '../components/Bits.jsx';
 
 
@@ -83,7 +83,7 @@ export function CarDetail({ slug }) {
           <div className="box">
             <div className="disp" style={{ fontSize: hasPrice(car) ? 46 : 36 }}>{priceText(car)}</div>
             {hasPrice(car) && car.old_price && !sold ? <div className="muted">Was <s>{naira(car.old_price)}</s></div> : null}
-            {sold ? <div className="tag tag-grey" style={{ marginTop: 8 }}>Sold</div> : !hasPrice(car) ? <div className="small muted" style={{ marginTop: 6 }}>Call or WhatsApp for the price</div> : <div className="small" style={{ color: 'var(--ok)', fontWeight: 600, marginTop: 6 }}>Pay small small from about {naira(bnpl(Number(car.price), 40, 24, cfg).monthly)}/month (estimate)</div>}
+            {sold ? <div className="tag tag-grey" style={{ marginTop: 8 }}>Sold</div> : !hasPrice(car) ? <div className="small muted" style={{ marginTop: 6 }}>Call or WhatsApp for the price</div> : <div className="small" style={{ color: 'var(--ok)', fontWeight: 600, marginTop: 6 }}>Pay small small from about {naira(bnplFrom(Number(car.price), cfg).monthly)}/month (estimate)</div>}
             <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
               <a className="btn btn-wa" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
               {!sold && <>
@@ -99,7 +99,7 @@ export function CarDetail({ slug }) {
           </div>
           {cfg && cfg.swap && <div className="box">
             <h3 style={{ fontSize: 22 }}>Want to change your car?</h3>
-            <p className="small muted">Swap it with a verified owner on Korrect Swap. We check both owners and their papers, and both cars are inspected at a partner car lot. {(cfg && cfg.swapFeePct) || 2}% fee, paid only after a successful swap.</p>
+            <p className="small muted">Swap it with a verified owner on Korrect Swap. We check both owners and their papers, and both cars are inspected at a partner car lot. A {(cfg && cfg.swapFeePct) || 2}% fee on the higher car value, paid only after a successful swap.</p>
             <Link to="/swap/new" className="btn btn-line btn-sm">List my car</Link>
           </div>}
           {car.seller_type === 'private'

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Link, useApi, useApp, useTitle, date, waLink, rs, srcset, ContactUs } from '../lib/core.jsx';
 import { Loading, ErrorBox, EnquiryForm, SellerBadge } from '../components/Bits.jsx';
 import { CopySections } from '../components/Copy.jsx';
-import { GUIDES, CONTACT, SELLERS, PRIVACY_MARKETPLACE } from '../../../server/lib/pagecopy.js';
+import { GUIDES, CONTACT, SELLERS, PRIVACY_MARKETPLACE, settingsFaq } from '../../../server/lib/pagecopy.js';
 
 // Post HTML comes from our own admin/WordPress import; strip anything executable before showing it.
 export function clean(html) {
@@ -85,18 +85,17 @@ export function Page({ slug }) {
     {slug === 'privacy-policy' && cfg && cfg.marketplace && <div className="prose"><h2>{PRIVACY_MARKETPLACE.h1}</h2><p>{PRIVACY_MARKETPLACE.lead}</p><CopySections page={PRIVACY_MARKETPLACE} /></div>}</div>;
 }
 
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 export function Faqs() {
   useTitle('Frequently Asked Questions | Korrect Cars');
   const { cfg } = useApp();
   const { data, loading } = useApi('/pages/faqs');
   let items = [];
   try { items = data ? JSON.parse(data.page.content) : []; } catch (_e) { items = []; }
-  const extra = [
-    { q: 'How does Pay Small Small work?', a: 'Pick a car and get an estimate of your deposit and monthly payment on our Pay Small Small page. Apply in minutes, and with your consent we pass your details to our credit partners. They check if you qualify and set the final terms. Once a credit partner approves you, we sell you the car.' },
-    { q: 'How does Korrect Swap work?', a: 'List your car with photos and papers. Our team verifies the owner and papers before it goes live. Owners make offers, agree any cash top-up, and both cars are inspected at a partner car lot in Lagos before anything changes hands. A success fee is due only when a swap completes.' }
-  ];
+  // Answers that depend on Settings (estimate figures, swap fee, CAC number, returns, inspection); same list as the server HTML
+  const extra = cfg ? settingsFaq(cfg).map(([q, a]) => ({ q, a: esc(a) })) : [];
   if (loading) return <Loading />;
-  const all = extra.concat(items).filter((f) => (cfg && cfg.swap) || !/swap/i.test(f.q || ''));
+  const all = extra.concat(items.filter((f) => !extra.some((x) => x.q === f.q))).filter((f) => (cfg && cfg.swap) || !/swap/i.test(f.q || ''));
   return (
     <div className="wrap sec-sm" style={{ maxWidth: 860 }}>
       <h1>Frequently asked questions</h1>

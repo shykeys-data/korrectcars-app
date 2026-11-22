@@ -14,6 +14,10 @@ const FIELDS = {
   bnplMarkup: { type: 'number', label: 'Estimate: charge on balance %', min: 0, max: 100 },
   bnplMaxMonths: { type: 'number', label: 'Estimate: longest plan (months)', min: 6, max: 96 },
   swapFeePct: { type: 'number', label: 'Swap fee %', min: 0, max: 20 },
+  // Trust details buyers look for. Each shows on the site only once filled in (nothing is made up when empty).
+  cacNumber: { type: 'text', label: 'CAC registration number (RC/BN), shown in the footer and FAQs' },
+  returnsPolicy: { type: 'longtext', label: 'Returns and after-sale policy (FAQs: "Can I return a car?")', max: 600 },
+  inspectionPromise: { type: 'longtext', label: 'What the inspection covers and what you promise if it missed something (FAQs)', max: 600 },
   internalCodes: { type: 'list', label: 'Staff-only codes at the end of car titles, hidden from customers (comma separated, e.g. BF)' },
   swap: { type: 'choice', label: 'Swap your car (Korrect Swap)', options: [['off', 'Hidden: not shown anywhere on the site'], ['on', 'Shown: menu, home page, swap pages and account tabs']] },
   marketplace: { type: 'choice', label: 'Partner dealers (marketplace)', options: [['off', 'Off: only Korrect Cars lists cars; seller sign-up is closed'], ['on', 'On: dealers and private sellers can sign up and list cars']] },
@@ -35,6 +39,7 @@ function current() {
     bankPartner: g('bankPartner', config.bankPartner),
     bnpl: { ...config.bnpl, minDeposit: num('bnplMinDeposit', config.bnpl.minDeposit), markup: num('bnplMarkup', config.bnpl.markup), maxMonths: num('bnplMaxMonths', config.bnpl.maxMonths) },
     swapFeePct: num('swapFeePct', config.swapFeePct),
+    cacNumber: String(g('cacNumber', '')).trim(), returnsPolicy: String(g('returnsPolicy', '')).trim(), inspectionPromise: String(g('inspectionPromise', '')).trim(),
     aiTraining: g('aiTraining', 'allow') === 'block' ? 'block' : 'allow',
     // Swap is being tested on staging first: shown there by default, hidden on the live site until switched on
     internalCodes: String(g('internalCodes', 'BF')).split(',').map((x) => x.trim()).filter(Boolean),
@@ -51,6 +56,7 @@ async function save(values) {
     if (f.type === 'list') v = (Array.isArray(v) ? v : String(v || '').split(',')).map((x) => String(x).trim().slice(0, 30)).filter(Boolean).slice(0, 4).join(',');
     else if (f.type === 'choice') { v = String(v); if (!f.options.some(([o]) => o === v)) throw Object.assign(new Error(`Choose an option for ${f.label}.`), { status: 400 }); }
     else if (f.type === 'number') { v = Number(v); if (!Number.isFinite(v) || v < f.min || v > f.max) throw Object.assign(new Error(`${f.label} must be between ${f.min} and ${f.max}.`), { status: 400 }); v = String(v); }
+    else if (f.type === 'longtext') v = String(v || '').replace(/\s+/g, ' ').trim().slice(0, f.max || 600);
     else v = String(v || '').trim().slice(0, 120);
     clean[k] = v;
   }

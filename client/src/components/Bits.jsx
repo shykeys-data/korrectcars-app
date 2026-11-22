@@ -1,7 +1,7 @@
 // Small shared pieces: CarCard (car tile in every list), BnplCalc (Pay Small Small estimate), EnquiryForm,
 // Loading (skeleton cards), ErrorBox and Modal.
 import React, { useState } from 'react';
-import { Link, naira, hasPrice, priceText, bnpl, useApp, api, firstPhoto, waLink, useLocalList, sellerWa, sellerName, rs, srcset } from '../lib/core.jsx';
+import { Link, naira, hasPrice, priceText, bnpl, bnplFrom, useApp, api, firstPhoto, waLink, useLocalList, sellerWa, sellerName, rs, srcset } from '../lib/core.jsx';
 import { useQV } from './QuickView.jsx';
 
 // Every card shows the state the car is in (the seller's state; Korrect Cars' own stock is in Lagos)
@@ -12,7 +12,7 @@ export function CarCard({ car }) {
   const saved = useLocalList('kc-saved');
   const cmp = useLocalList('kc-compare', 3);
   const sold = car.status === 'sold';
-  const plan = bnpl(Number(car.price), 40, 24, cfg);
+  const plan = bnplFrom(Number(car.price), cfg);
   const url = '/cars/' + car.slug;
   const isSaved = saved.has(car.id); const isCmp = cmp.has(car.id);
   const qv = useQV();
@@ -86,7 +86,7 @@ export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false })
           <input id="bnpl-m" type="range" min={b.minMonths} max={b.maxMonths} step={1} value={months} onChange={(e) => setMonths(Number(e.target.value))} aria-valuetext={`${p.months} months`} />
           <div className="ends"><span>{b.minMonths} months</span><span>{yrs(b.maxMonths)}</span></div>
         </div>
-        <p className="small muted">Estimate only, based on a {b.minDeposit}% deposit and a {b.markup}% charge on the balance. Our credit partner checks if you qualify and sets the final deposit, charge and months.</p>
+        <p className="small muted">Estimate only: a deposit of at least {b.minDeposit}%, then a {b.markup}% charge on the balance. Our credit partner checks if you qualify and sets the final deposit, charge and months.</p>
       </div>
       <div className="summary" aria-live="polite">
         <div className="small" style={{ color: '#a1a1aa' }}>Estimated monthly payment</div>
@@ -96,7 +96,8 @@ export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false })
         <div className="ln"><span>Balance</span><span>{naira(p.balance)}</span></div>
         <div className="ln"><span>Estimated {b.markup}% charge</span><span>{naira(p.charge)}</span></div>
         <div className="ln"><span>Total to repay</span><span>{naira(p.repay)}</span></div>
-        <div className="ln" style={{ borderBottom: 0 }}><span>Total cost of car</span><span>{naira(p.deposit + p.repay)}</span></div>
+        <div className="ln"><span>Total you pay</span><span>{naira(p.total)}</span></div>
+        <div className="ln" style={{ borderBottom: 0 }}><span>More than the cash price</span><span>{naira(p.extra)}</span></div>
         <Link className="btn btn-red" to={'/pay-small-small?' + new URLSearchParams(Object.entries({ car: carSlug || '', price: carSlug ? '' : String(price || ''), deposit: String(pct), months: String(p.months) }).filter(([, v]) => v))} style={{ marginTop: 8 }}>Apply through our credit partners</Link>
       </div>
     </div>

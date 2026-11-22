@@ -367,7 +367,7 @@ function bnplPlan(price, depositIn, monthsIn) {
   const deposit = Math.min(price, Math.max(minDep, Math.round(depositIn || 0)));
   const balance = price - deposit;
   const repay = Math.round(balance * (1 + b.markup / 100));
-  return { deposit, months, balance, repay, monthly: Math.ceil(repay / months) };
+  return { deposit, months, balance, repay, monthly: Math.ceil(repay / months), total: deposit + repay, extra: deposit + repay - price };
 }
 r.get('/bnpl/quote', (req, res) => {
   const price = Number(req.query.price);

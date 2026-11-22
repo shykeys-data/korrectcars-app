@@ -37,7 +37,7 @@ test('first start applies the dealer change and moves every car to Korrect Cars'
   const log = await startStop();
   assert.match(log, /Database change 001_dealers/);
   const db = sqlite();
-  assert.deepStrictEqual(db.prepare('SELECT id FROM schema_migrations').all().map((r) => r.id), ['001_dealers', '002_dealer_signup', '003_vehicle_ids', '004_car_moves', '005_cac_per_type', '006_car_views', '007_seller_kinds', '008_seller_leads', '009_boosts', '010_whatsapp_format', '011_contact_number', '012_saved_car_alerts']);
+  assert.deepStrictEqual(db.prepare('SELECT id FROM schema_migrations').all().map((r) => r.id), ['001_dealers', '002_dealer_signup', '003_vehicle_ids', '004_car_moves', '005_cac_per_type', '006_car_views', '007_seller_kinds', '008_seller_leads', '009_boosts', '010_whatsapp_format', '011_contact_number', '012_saved_car_alerts', '013_car_data_fixes']);
   const kc = db.prepare('SELECT * FROM dealers WHERE id = 1').get();
   assert.strictEqual(kc.business_name, 'Korrect Cars');
   assert.strictEqual(kc.status, 'approved');
@@ -51,7 +51,7 @@ test('a restart runs no change twice and keeps one Korrect Cars row', async () =
   const log = await startStop();
   assert.doesNotMatch(log, /Database change 001_dealers/);
   const db = sqlite();
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 12);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 13);
   assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM dealers').get().n, 1);
   db.close();
 });
@@ -89,4 +89,13 @@ test('SIGTERM stops the app cleanly: requests finish, database closed, exit code
   assert.match(log, /SIGTERM: finishing requests, closing database connections/);
   assert.match(log, /Stopped cleanly/);
   assert.strictEqual(lastExit, 0);
+});
+
+test('013 reads a missing year from the VIN and marks empty mileage "To be confirmed"', async () => {
+  const m = require('../server/migrations/013_car_data_fixes');
+  const rows = { cars: [{ id: 7, title: 'Lexus NX 200t', vin: 'JTJYARBZ1G2000000' }] };
+  const calls = [];
+  await m.up({ q: async (sql, params) => { calls.push([sql, params]); return /^SELECT/.test(sql) ? rows.cars : []; } });
+  assert.deepStrictEqual(calls[1][1], [2016, '2016 Lexus NX 200t', 7]);
+  assert.match(calls[2][0], /To be confirmed/);
 });

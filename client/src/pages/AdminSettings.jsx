@@ -20,9 +20,11 @@ export function Settings() {
         <div className="field" key={k}><label className="f" htmlFor={'st-' + k}>{fd.label}</label>
           {fd.type === 'choice'
             ? <select id={'st-' + k} className="input" value={vals[k] || fd.options[0][0]} onChange={(e) => setF({ ...vals, [k]: e.target.value })}>{fd.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+            : fd.type === 'longtext' ? <textarea id={'st-' + k} className="input" rows={4} maxLength={fd.max || 600} value={vals[k] || ''} onChange={(e) => setF({ ...vals, [k]: e.target.value })} />
             : <input id={'st-' + k} className="input" inputMode={fd.type === 'number' ? 'numeric' : undefined} value={vals[k] === undefined || vals[k] === null ? '' : vals[k]} onChange={(e) => setF({ ...vals, [k]: e.target.value })} />}
           {k === 'phones' && <div className="hint">Separate numbers with commas. The first is shown in the header.</div>}
           {k === 'bankPartner' && <div className="hint">Optional. Leave empty to say "our credit partners". Add names separated by commas to show them on the Pay Small Small page.</div>}
+          {(k === 'cacNumber' || k === 'returnsPolicy' || k === 'inspectionPromise') && <div className="hint">Leave empty until it is settled: the site shows it only when filled in.</div>}
           {k === 'aiTraining' && <div className="hint">Either way, ChatGPT search, Perplexity, Copilot and Google can still find and quote your cars.</div>}</div>
       ))}</div>
       <button className="btn btn-red" disabled={busy || !f}>{busy ? 'Saving…' : 'Save settings'}</button>

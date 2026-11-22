@@ -23,7 +23,7 @@ function ListingCard({ l }) {
 
 export function SwapHome() {
   useTitle('Korrect Swap — Swap Your Car With Verified Owners | Korrect Cars');
-  const { catalog, loadCatalog } = useApp();
+  const { catalog, loadCatalog, cfg } = useApp();
   useEffect(loadCatalog, [loadCatalog]);
   const [f, setF] = useState({ make: '', model: '', body: '' });
   const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
@@ -39,7 +39,7 @@ export function SwapHome() {
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}><Link to="/swap/new" className="btn btn-red">List my car</Link><Link to="/account" className="btn btn-ghost">My swaps</Link></div>
         </div>
         <ol className="steps" style={{ gridTemplateColumns: '1fr 1fr', padding: 0, margin: 0 }}>
-          {SWAP.sections[0].steps.map(([h, t]) => <li key={h}><b>{h}</b><div style={{ color: '#a1a1aa' }}>{t}</div></li>)}
+          {SWAP.sections[0].steps.map(([h, t]) => <li key={h}><b>{h}</b><div style={{ color: '#a1a1aa' }}>{t.replace('{swapFee}', String((cfg && cfg.swapFeePct) || 2))}</div></li>)}
         </ol>
       </div></section>
       <section className="sec-sm"><div className="wrap">

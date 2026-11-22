@@ -1,7 +1,7 @@
 // Cars for sale: the stock list with filters (make, model, year, body, budget, sort), saved searches and Compare.
 // The car page is in CarDetail.jsx and the Pay Small Small page in PaySmallSmall.jsx (re-exported below).
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, priced, waLink, slugify, useLocalList, bnpl, firstPhoto, api, rs, track } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, priced, waLink, slugify, useLocalList, bnpl, bnplFrom, firstPhoto, api, rs, track } from '../lib/core.jsx';
 import { CarCard, Loading, SellerBadge } from '../components/Bits.jsx';
 import { pages as categoryPages } from '../../../server/lib/categories.js';
 import { recommended } from '../lib/rank.js';
@@ -313,7 +313,7 @@ export function Compare() {
   const list = useApi('/cars?limit=all');
   const ids = (query.get('ids') || cmp.list.join(',')).split(',').map(Number).filter(Boolean);
   const cars = ((list.data && list.data.cars) || []).filter((c) => ids.includes(c.id));
-  const rows = [['Price', (c) => priceText(c)], ['Pay small small (estimate)', (c) => (hasPrice(c) ? `about ${naira(bnpl(Number(c.price), 40, 24, cfg).monthly)}/mo` : 'Ask us')], ['Year', (c) => c.year], ['Body type', (c) => c.body], ['Mileage', (c) => c.mileage], ['Engine', (c) => c.engine], ['Transmission', (c) => c.transmission], ['Fuel', (c) => c.fuel], ['Colour', (c) => c.color], ['Status', (c) => (c.status === 'sold' ? 'Sold' : 'Available')]];
+  const rows = [['Price', (c) => priceText(c)], ['Pay small small (estimate)', (c) => (hasPrice(c) ? `about ${naira(bnplFrom(Number(c.price), cfg).monthly)}/mo` : 'Ask us')], ['Year', (c) => c.year], ['Body type', (c) => c.body], ['Mileage', (c) => c.mileage], ['Engine', (c) => c.engine], ['Transmission', (c) => c.transmission], ['Fuel', (c) => c.fuel], ['Colour', (c) => c.color], ['Status', (c) => (c.status === 'sold' ? 'Sold' : 'Available')]];
   return (
     <div className="wrap sec-sm">
       <h1>Compare cars</h1>

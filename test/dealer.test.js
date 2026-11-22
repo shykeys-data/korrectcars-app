@@ -330,12 +330,17 @@ test('views: once per buyer per car per day; bots and the dealer team are not co
 
 test('the staff car form uses the same register', async () => {
   const f = new FormData();
-  for (const [k, v] of Object.entries({ title: '2016 Toyota Camry SE BF', make: 'Toyota', model: 'Camry', body: 'Sedan', price: '9000000', mileage: '50,000 km', vin: makeVin(77) })) f.append(k, v);
+  for (const [k, v] of Object.entries({ title: '2016 Toyota Camry SE BF', make: 'Toyota', model: 'Camry', body: 'Sedan', year: '2016', price: '9000000', mileage: '50,000 km', vin: makeVin(77) })) f.append(k, v);
   const r = await call('POST', '/api/admin/cars', { cookie: staffCookie, form: f });
   assert.deepStrictEqual([r.status, r.json.code], [409, 'VIN_TAKEN']);
   const g = new FormData();
-  for (const [k, v] of Object.entries({ title: 'Bad VIN car', make: 'Toyota', model: 'Camry', body: 'Sedan', price: '9000000', mileage: '1 km', vin: 'ABC' })) g.append(k, v);
+  for (const [k, v] of Object.entries({ title: 'Bad VIN car', make: 'Toyota', model: 'Camry', body: 'Sedan', year: '2016', price: '9000000', mileage: '1 km', vin: 'ABC' })) g.append(k, v);
   assert.strictEqual((await call('POST', '/api/admin/cars', { cookie: staffCookie, form: g })).status, 422);
+  // A car without its year is refused (Nov 2026 audit: a listing had no year)
+  const n = new FormData();
+  for (const [k, v] of Object.entries({ title: 'Lexus NX 200t', make: 'Lexus', model: 'NX', body: 'SUV', price: '9000000' })) n.append(k, v);
+  const nr = await call('POST', '/api/admin/cars', { cookie: staffCookie, form: n });
+  assert.strictEqual(nr.status, 400); assert.match(JSON.stringify(nr.json), /year/i);
 });
 
 test('a new dealer can have 50 cars for sale in the first 3 months', async () => {

@@ -32,8 +32,8 @@ function ssrFrame(body, isAdmin) {
     + `<main id="main" class="ssr-main">${body}</main>`
     + `<footer class="ssr-foot"><p><b>Korrect Cars</b> · Online car dealer in Lagos · ${esc(st.hours || config.hours)}</p><p><a href="${wa}">WhatsApp</a> · <a href="tel:${esc(phone.replace(/\s/g, ''))}">${esc(phone)}</a> · <a href="mailto:${esc(st.email || config.email)}">${esc(st.email || config.email)}</a></p>`
     + `<p><a href="/about-us">About us</a> · <a href="/faqs">FAQs</a> · <a href="/blog">Guides</a> · <a href="/vin-check">Free VIN check</a> · <a href="/privacy-policy">Privacy policy</a> · <a href="/terms-and-conditions">Terms</a></p>`
-    + `<p>© 2026${new Date().getFullYear() > 2026 ? '–' + new Date().getFullYear() : ''} Korrect Cars. All rights reserved. Developed by <a href="https://www.youkay.com.ng" target="_blank" rel="noopener">YouKay Media</a> · <a href="https://www.meetoluwaseyi.com" target="_blank" rel="noopener">Meet Oluwaseyi</a></p>`
-    + `<p class="ssr-note">This is the light version of the page. It switches to the full site when your connection allows.</p></footer></div>`;
+    + `<p>© 2026${new Date().getFullYear() > 2026 ? '–' + new Date().getFullYear() : ''} Korrect Cars. All rights reserved.${st.cacNumber ? ` CAC registration ${esc(st.cacNumber)}.` : ''} Developed by <a href="https://www.youkay.com.ng" target="_blank" rel="noopener">YouKay Media</a> · <a href="https://www.meetoluwaseyi.com" target="_blank" rel="noopener">Meet Oluwaseyi</a></p>`
+    + '</footer></div>';
 }
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -41,7 +41,15 @@ const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
 const { hasPrice, priceText, priced } = require('./lib/price');
 const { placeOf } = require('./lib/places');
 const strip = (h) => String(h || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s);
+// Search descriptions: end on a whole sentence when one fits (Google shows these; a cut-off line looks broken),
+// otherwise on a whole word with an ellipsis
+const clip = (s, n) => {
+  if (s.length <= n) return s;
+  const cut = s.slice(0, n);
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '), cut.endsWith('.') ? n - 1 : -1);
+  if (end >= n * 0.55) return cut.slice(0, end + 1);
+  return s.slice(0, n - 1).replace(/\s+\S*$/, '').replace(/[,;:\s]+$/, '') + '…';
+};
 const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 // Stored post and page HTML goes through the same allowlist cleaner the staff editor uses (keeps safe links and our images)
 const safeHtml = (h) => sanitize(h);
@@ -61,6 +69,31 @@ function inspectionHtml(ins) {
   if (!ins || !Array.isArray(ins.items) || !ins.items.length) return '';
   return `<h2>Korrect Cars inspection notes</h2>${ins.by || ins.date ? `<p>Inspected${ins.by ? ` by ${esc(ins.by)}` : ''}${ins.date ? ` on ${esc(ins.date)}` : ''} at a partner car lot in Lagos.</p>` : ''}<ul>`
     + ins.items.map((i) => `<li><strong>${esc(i.area)}${i.status === 'watch' ? ' (worth a look)' : ''}:</strong> ${esc(i.note || (i.status === 'ok' ? 'checked, no problems found' : ''))}</li>`).join('') + '</ul>';
+}
+
+// A car's facts as a table: the same rows as the full page's Specifications tab, then the seller's own spec rows
+function specRows(car) {
+  const base = [['Year', car.year], ['Make', car.make], ['Model', car.model], ['Trim', car.trim_level], ['Body type', car.body], ['Condition', car.car_condition], ['Mileage', car.mileage],
+    ['Engine', car.engine], ['Transmission', car.transmission], ['Drivetrain', car.drivetrain], ['Fuel', car.fuel], ['Exterior colour', car.color], ['Interior', car.interior], ['Location', car.location], ['Stock number', car.stock]]
+    .filter(([, v]) => v != null && String(v).trim() !== '');
+  const own = (Array.isArray(car.specs) ? car.specs : []).filter((r) => r && r[0] && r[1] && !base.some((b) => b[0].toLowerCase() === String(r[0]).toLowerCase()));
+  return base.concat(own.map((r) => [String(r[0]), r[1]]));
+}
+// "65,000 km" / "40k miles" as schema.org QuantitativeValue (only when the mileage has a number)
+function odometer(m) {
+  const t = String(m || '').toLowerCase().replace(/,/g, '');
+  const x = t.match(/(\d+(?:\.\d+)?)\s*(k)?/);
+  if (!x) return undefined;
+  const value = Math.round(Number(x[1]) * (x[2] ? 1000 : 1));
+  return value > 0 ? { '@type': 'QuantitativeValue', value, unitCode: /mile|\bmi\b/.test(t) ? 'SMI' : 'KMT' } : undefined;
+}
+// The car's own WhatsApp message (who is asking about which car), same wording as the full car page
+function carWa(car, url) {
+  const st = require('./lib/settings').current();
+  const num = String(car.seller_whatsapp || car.seller_phone || st.whatsapp || config.whatsapp).replace(/\D/g, '').replace(/^0/, '234');
+  const who = car.seller && car.seller !== 'Korrect Cars' ? car.seller : 'Korrect Cars';
+  const text = `Hello ${who}, I saw this on Korrect Cars. I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${url}`;
+  return `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
 }
 
 let template = null;
@@ -90,12 +123,14 @@ const STATIC = {
 };
 const NOINDEX = /^\/(account|login|register|swap\/new|verify-email|forgot-password|reset-password|compare)(\/|$)/;
 
-const PSS_FAQ = [
+// Quotes the live estimate settings, so the words always match the figures on the page (same as PaySmallSmall.jsx)
+const pssFaq = () => { const b = require('./lib/settings').current().bnpl; return [
   ['How does Pay Small Small work at Korrect Cars?', 'Pick a car and get an estimate of your deposit and monthly payment. Apply in minutes, and with your consent we pass your details to our credit partners. Once a credit partner approves you, Korrect Cars sells you the car.'],
   ['Who decides if I qualify?', 'Our credit partner checks if you qualify and sets the final deposit, charge and number of months.'],
-  ['Is the calculator figure final?', 'No. It is an estimate based on a 40% deposit and a 20% charge on the balance. The credit partner sets your real terms.'],
+  ['Is the calculator figure final?', `No. It is an estimate: a deposit of at least ${b.minDeposit}% of the price, then a ${b.markup}% charge on the balance, spread over ${b.minMonths} to ${b.maxMonths} months. The credit partner sets your real terms.`],
+  ['How much more do I pay than the cash price?', `In the estimate, the ${b.markup}% charge on the balance is the extra. For example, on a ₦10,000,000 car with a ${b.minDeposit}% deposit you would pay about ${naira(pub.bnplPlan(10000000, 0, 24).extra)} more than the cash price in total. Every car page shows the total and the extra before you apply.`],
   ['Can I get a car on Pay Small Small outside Lagos?', 'Yes. Korrect Cars delivers anywhere in Nigeria. Apply online, and once a credit partner approves you we arrange delivery to your city.']
-];
+]; };
 
 // "Sold by …" in plain words, from the data, for search engines and AI assistants (the car page's opening summary)
 function soldBy(car) {
@@ -116,7 +151,8 @@ function orgLd() {
       : 'Online car dealer in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through credit partners and delivery anywhere in Nigeria.',
     areaServed: [{ '@type': 'City', name: 'Lagos' }, { '@type': 'Country', name: 'Nigeria' }], address: { '@type': 'PostalAddress', addressLocality: 'Lagos', addressCountry: 'NG' },
     openingHoursSpecification: [{ '@type': 'OpeningHoursSpecification', dayOfWeek: config.hoursSpec.days, opens: config.hoursSpec.opens, closes: config.hoursSpec.closes }],
-    sameAs: st.instagram ? [`https://www.instagram.com/${st.instagram}/`] : []
+    sameAs: st.instagram ? [`https://www.instagram.com/${st.instagram}/`] : [],
+    ...(st.cacNumber ? { identifier: { '@type': 'PropertyValue', propertyID: 'CAC registration number (Nigeria)', value: st.cacNumber } } : {})
   };
 }
 const faqLd = (pairs) => ({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: pairs.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) });
@@ -172,7 +208,7 @@ async function renderPage(req, nonce) {
   if (STATIC[p] && !(swapPath && !swapOn)) { known = true; meta = { ...meta, ...STATIC[p] }; body = `<h1>${esc(STATIC[p].h1)}</h1><p>${esc(STATIC[p].desc)}</p>`; }
   // Pages with written copy get the same words the React page shows (lib/pagecopy.js), not a one-line summary
   const COPY = { '/contact': copy.CONTACT, '/swap': copy.SWAP, '/vin-check': copy.VIN, '/blog': copy.GUIDES };
-  if (known && COPY[p]) { body = copyHtml(COPY[p]); const f = copyFaq(COPY[p]); if (f.length) ld.push(faqLd(f)); }
+  if (known && COPY[p]) { body = copyHtml(COPY[p]).replace(/\{swapFee\}/g, String(require('./lib/settings').current().swapFeePct)); const f = copyFaq(COPY[p]); if (f.length) ld.push(faqLd(f)); }
   // Breadcrumbs for the buyer pages, and the VIN checker described as a free web tool (helps Google and AI assistants list it)
   const CRUMB = { '/vin-check': 'Free VIN check', '/contact': 'Contact', '/swap': 'Korrect Swap', '/blog': 'Guides', '/car-market-today': 'Car market today' };
   if (known && CRUMB[p]) ld.push(crumbsLd([[CRUMB[p], p]]));
@@ -223,9 +259,10 @@ async function renderPage(req, nonce) {
     const avail = priced(allCars).filter((c) => c.status === 'available').sort((a, b) => a.price - b.price);
     const q = 'Which cars can I buy on Pay Small Small in Lagos?';
     const a = avail.length ? `Every one of the ${avail.length} cars in stock at Korrect Cars can be bought on Pay Small Small, from about ${naira(monthlyFrom(avail))} a month (estimate: ${pub.bnplPlan(Number(avail[0].price), 0, 24).months} months, minimum deposit). Credit partners confirm the final terms, and we deliver anywhere in Nigeria.` : 'Chat with us on WhatsApp and we will find a car for your budget.';
-    ld.push(faqLd([[q, a], ...PSS_FAQ]), listLd(avail));
-    body += `<h2>${esc(q)}</h2><p>${esc(a)}</p><ul>` + avail.map((c) => { const pl = pub.bnplPlan(Number(c.price), 0, 24); return `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a>: ${esc(priceText(c))}, about ${esc(naira(pl.deposit))} deposit then ${esc(naira(pl.monthly))}/month for ${pl.months} months</li>`; }).join('') + '</ul>'
-      + budgetLinksHtml(allCars) + PSS_FAQ.map(([q2, a2]) => `<h2>${esc(q2)}</h2><p>${esc(a2)}</p>`).join('');
+    const faqs = pssFaq();
+    ld.push(faqLd([[q, a], ...faqs]), listLd(avail));
+    body += `<h2>${esc(q)}</h2><p>${esc(a)}</p><ul>` + avail.map((c) => { const pl = pub.bnplPlan(Number(c.price), 0, 24); return `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a>: ${esc(priceText(c))}, about ${esc(naira(pl.deposit))} deposit then ${esc(naira(pl.monthly))}/month for ${pl.months} months (total about ${esc(naira(pl.total))}, ${esc(naira(pl.extra))} more than cash)</li>`; }).join('') + '</ul>'
+      + budgetLinksHtml(allCars) + faqs.map(([q2, a2]) => `<h2>${esc(q2)}</h2><p>${esc(a2)}</p>`).join('');
   }
 
   const rc = await resolveCars(p);
@@ -267,28 +304,40 @@ async function renderPage(req, nonce) {
       preload = preloadTag((car.photos || [])[0], '(max-width: 980px) 100vw, 62vw');
       // Pay Small Small estimate (same figures the car card shows: minimum deposit, 24 months)
       const plan = car.status === 'sold' || !hasPrice(car) ? null : pub.bnplPlan(Number(car.price), 0, 24);
-      const pss = plan ? ` or pay small small from about ${naira(plan.monthly)}/month` : '';
       // Every car's search description leads with its price and Pay Small Small figure; old imported wording ("BNPL") is updated
       const extra = strip(car.seo_desc || car.description).replace(/\bBNPL\b/g, 'pay small small');
       const sold = car.status === 'sold';
-      // A sold car keeps its page (it still gets found on Google), but sends the visitor on to similar cars in stock
+      // A sold car keeps its page (it still gets found on Google), but sends the visitor on to similar cars in stock.
+      // Descriptions are built from whole sentences, most important first, so the cut never lands mid-thought.
       const desc = sold
         ? clip(`Sold: this ${car.title} has been sold. See similar ${car.make} ${car.model} and ${car.body || 'other'} cars in stock in Lagos, with pay small small and delivery anywhere in Nigeria.`, 160)
-        : clip(`${car.title} for sale in ${car.location || 'Lagos'} ${hasPrice(car) ? 'at ' + priceText(car) : '(call for price)'}${pss}. ${extra}`, 160);
+        : clip(`${car.title} for sale in ${car.location || 'Lagos'} ${hasPrice(car) ? 'at ' + priceText(car) : '(call for the price)'}.${plan ? ` Pay small small from about ${naira(plan.monthly)}/month.` : ''} ${extra}`, 160);
       meta = { ...meta, title: sold ? `Sold: ${car.title} — See Similar Cars in ${placeOf(car)} | Korrect Cars` : (car.seo_title || `${car.title} for Sale in ${placeOf(car)}${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars`), desc, image: (car.photos || [])[0] || DEFAULT.image };
       const similarHtml = (d.similar || []).length ? `<h2>${sold ? 'Similar cars in stock' : 'Similar cars'}</h2><ul>` + d.similar.map((x) => `<li><a href="/cars/${esc(x.slug)}">${esc(x.title)}</a> — ${esc(priceText(x))}</li>`).join('') + '</ul>' : '';
-      body = `<h1>${esc(car.title)}</h1>${(car.photos || [])[0] ? `<img class="ssr-hero" src="${esc(rs(car.photos[0], 800))}" alt="${esc(car.title)}" width="800" height="600">` : ''}<p><strong>${esc(priceText(car))}</strong>${sold ? ' — SOLD' : ''}</p><p>${soldBy(car)}</p>`
-        + (sold ? `<p>This car has been sold. See <a href="/cars/${slugify(car.make)}/${slugify(car.model)}">every ${esc(car.make)} ${esc(car.model)} for sale</a> or <a href="/cars">all cars in stock</a>.</p>` + similarHtml : '')
-        + String(car.description || '').split(/\n\n+/).map((x) => `<p>${esc(x)}</p>`).join('')
-        + (car.features && car.features.length ? '<ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
+      const photos = (car.photos || []).slice(0, 16);
+      const crumbs = [['Home', '/'], ['Cars for sale', '/cars'], [car.make, `/cars/${slugify(car.make)}`], [car.model, `/cars/${slugify(car.make)}/${slugify(car.model)}`]];
+      const rows = specRows(car);
+      body = `<nav class="ssr-crumbs" aria-label="Breadcrumb">${crumbs.map(([n, u]) => `<a href="${esc(u)}">${esc(n)}</a>`).join(' / ')}</nav>`
+        + `<h1>${esc(car.title)}</h1>`
+        + (photos[0] ? `<img class="ssr-hero" src="${esc(rs(photos[0], 800))}" alt="${esc(car.title)}" width="800" height="600">` : '')
+        + (photos.length > 1 ? `<ul class="ssr-photos">${photos.slice(1).map((u, i) => `<li><a href="${esc(u)}"><img src="${esc(rs(u, 400))}" alt="${esc(car.title)}, photo ${i + 2} of ${photos.length}" width="400" height="300" loading="lazy" decoding="async"></a></li>`).join('')}</ul>` : '')
+        + `<p><strong>${esc(priceText(car))}</strong>${sold ? ' — SOLD' : ''}</p><p>${soldBy(car)}</p>`
+        + (sold ? `<p>This car has been sold. See <a href="/cars/${slugify(car.make)}/${slugify(car.model)}">every ${esc(car.make)} ${esc(car.model)} for sale</a> or <a href="/cars">all cars in stock</a>.</p>` + similarHtml
+          : `<p><a class="ssr-btn" href="${esc(carWa(car, meta.url))}">WhatsApp about this car</a></p>`)
+        + (rows.length ? `<h2>Specifications</h2><table class="specs"><tbody>${rows.map(([k, v]) => `<tr><th scope="row">${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>` : '')
+        + String(car.description || '').split(/\n\n+/).filter((x) => x.trim()).map((x) => `<p>${esc(x)}</p>`).join('')
+        + (car.features && car.features.length ? '<h2>Features</h2><ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
         + inspectionHtml(car.inspection)
-        + (plan ? `<h2>Pay small small for this ${esc(car.make)} ${esc(car.model)}</h2><p>Estimate: about ${esc(naira(plan.deposit))} deposit, then about ${esc(naira(plan.monthly))} a month for ${plan.months} months, through our credit partners. They confirm the final terms; once you are approved, Korrect Cars sells you the car. <a href="/pay-small-small?car=${esc(car.slug)}">Get your estimate and apply</a>.</p>` : '')
+        + (plan ? `<h2>Pay small small for this ${esc(car.make)} ${esc(car.model)}</h2><p>Estimate: about ${esc(naira(plan.deposit))} deposit, then about ${esc(naira(plan.monthly))} a month for ${plan.months} months, through our credit partners. In total you would pay about ${esc(naira(plan.total))}, which is ${esc(naira(plan.extra))} more than the cash price. The credit partners confirm the final terms; once you are approved, Korrect Cars sells you the car. <a href="/pay-small-small?car=${esc(car.slug)}">Get your estimate and apply</a>.</p>` : '')
         + (sold ? '' : `<p>View it at a partner car lot in Lagos, or have it delivered anywhere in Nigeria.</p>${similarHtml}`);
-      ld.push({ '@context': 'https://schema.org', '@type': 'Car', name: car.title, brand: { '@type': 'Brand', name: car.make }, model: car.model,
-        vehicleModelDate: String(car.year || ''), bodyType: car.body, color: car.color || undefined, vehicleTransmission: car.transmission || undefined,
-        fuelType: car.fuel || undefined, mileageFromOdometer: /\d/.test(String(car.mileage || '')) ? car.mileage : undefined,
-        image: (car.photos || []).slice(0, 5).map((u) => config.siteUrl + u), description: desc, itemCondition: 'https://schema.org/UsedCondition',
-        offers: !hasPrice(car) ? undefined : { '@type': 'Offer', price: Number(car.price), priceCurrency: 'NGN', availability: car.status === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock', url: meta.url, seller: car.dealer_id && car.dealer_id !== 1 && car.seller ? { '@type': car.seller_type === 'dealer' ? 'AutoDealer' : 'Person', name: car.seller, address: { '@type': 'PostalAddress', addressRegion: car.state || undefined, addressCountry: 'NG' } } : { '@id': config.siteUrl + '/#dealer' } } });
+      const owners = rows.find(([k]) => /owner/i.test(k));
+      ld.push({ '@context': 'https://schema.org', '@type': 'Car', name: car.title, url: meta.url, brand: { '@type': 'Brand', name: car.make }, model: car.model,
+        ...(car.year ? { vehicleModelDate: String(car.year), productionDate: String(car.year) } : {}), bodyType: car.body || undefined, color: car.color || undefined,
+        vehicleInteriorColor: car.interior || undefined, vehicleTransmission: car.transmission || undefined, driveWheelConfiguration: car.drivetrain || undefined,
+        fuelType: car.fuel || undefined, vehicleEngine: car.engine ? { '@type': 'EngineSpecification', name: car.engine } : undefined,
+        mileageFromOdometer: odometer(car.mileage), numberOfPreviousOwners: owners && /\d/.test(String(owners[1])) ? Number(String(owners[1]).match(/\d+/)[0]) : undefined,
+        sku: car.stock || undefined, image: photos.slice(0, 10).map((u) => config.siteUrl + u), description: desc, itemCondition: 'https://schema.org/UsedCondition',
+        offers: !hasPrice(car) ? undefined : { '@type': 'Offer', price: Number(car.price), priceCurrency: 'NGN', availability: car.status === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock', url: meta.url, itemCondition: 'https://schema.org/UsedCondition', seller: car.dealer_id && car.dealer_id !== 1 && car.seller ? { '@type': car.seller_type === 'dealer' ? 'AutoDealer' : 'Person', name: car.seller, address: { '@type': 'PostalAddress', addressRegion: car.state || undefined, addressCountry: 'NG' } } : { '@id': config.siteUrl + '/#dealer' } } });
       ld.push(crumbsLd([['Cars for sale', '/cars'], [car.make, `/cars/${slugify(car.make)}`], [car.model, `/cars/${slugify(car.make)}/${slugify(car.model)}`], [car.title, `/cars/${car.slug}`]]));
     }
   }
@@ -304,7 +353,10 @@ async function renderPage(req, nonce) {
       const desc = post.seo_desc || clip(strip(post.excerpt || post.content), 160);
       meta = { ...meta, title: post.seo_title || `${post.title} | Korrect Cars`, desc, image: post.image || DEFAULT.image, type: 'article' };
       const by = post.author || 'The Korrect Cars team';
-      body = `<article><h1>${esc(post.title)}</h1><p>By ${esc(by)}${post.updated_at ? ` · Updated ${esc(String(post.updated_at).slice(0, 10))}` : ''}</p>${safeHtml(post.content)}${post.author_bio ? `<p><em>${esc(post.author_bio)}</em></p>` : ''}`
+      const day = (x) => (x ? new Date(x).toISOString().slice(0, 10) : '');
+      const pubDay = day(post.published_at); const updDay = day(post.updated_at);
+      // Who wrote it and when, in plain text: search engines and AI assistants weigh both
+      body = `<article><h1>${esc(post.title)}</h1><p>By ${esc(by)}${pubDay ? ` · Published <time datetime="${pubDay}">${pubDay}</time>` : ''}${updDay && updDay !== pubDay ? ` · Updated <time datetime="${updDay}">${updDay}</time>` : ''}</p>${safeHtml(post.content)}${post.author_bio ? `<p><em>${esc(post.author_bio)}</em></p>` : ''}`
         + ((post.sources || []).length ? '<h2>Sources</h2><ul>' + post.sources.map((x) => `<li><a href="${esc(x.url)}" rel="noopener nofollow">${esc(x.title || x.url)}</a></li>`).join('') + '</ul>' : '')
         + (post.image_credit ? `<p>Cover: ${esc(post.image_credit)}</p>` : '') + '</article>';
       ld.push({ '@context': 'https://schema.org', '@type': 'BlogPosting', headline: post.title, datePublished: post.published_at, image: config.siteUrl + (post.image || DEFAULT.image),
@@ -316,8 +368,8 @@ async function renderPage(req, nonce) {
     const posts = await db.q("SELECT slug, title, excerpt, image, category, published_at, updated_at FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 50");
     boot['/posts'] = { posts };
     // Every guide as a real link with its heading and excerpt, so search engines and AdSense see them without scripts
-    body += posts.map((x) => `<a href="/blog/${esc(x.slug)}"><h2>${esc(x.title)}</h2><p>${esc(clip(strip(x.excerpt || ''), 200))}</p></a>`).join('');
-    ld.push({ '@context': 'https://schema.org', '@type': 'Blog', name: 'Korrect Cars guides', url: meta.url, blogPost: posts.slice(0, 20).map((x) => ({ '@type': 'BlogPosting', headline: x.title, url: `${config.siteUrl}/blog/${x.slug}`, datePublished: x.published_at })) });
+    body += posts.map((x) => { const dd = x.updated_at || x.published_at ? new Date(x.updated_at || x.published_at).toISOString().slice(0, 10) : ''; return `<a href="/blog/${esc(x.slug)}"><h2>${esc(x.title)}</h2>${dd ? `<p><time datetime="${dd}">${x.updated_at ? 'Updated' : 'Published'} ${dd}</time></p>` : ''}<p>${esc(clip(strip(x.excerpt || ''), 200))}</p></a>`; }).join('');
+    ld.push({ '@context': 'https://schema.org', '@type': 'Blog', name: 'Korrect Cars guides', url: meta.url, blogPost: posts.slice(0, 20).map((x) => ({ '@type': 'BlogPosting', headline: x.title, url: `${config.siteUrl}/blog/${x.slug}`, datePublished: x.published_at, ...(x.updated_at ? { dateModified: x.updated_at } : {}) })) });
   }
 
   m = p.match(/^\/(about-us|privacy-policy|terms-and-conditions|faqs)$/);
@@ -328,7 +380,12 @@ async function renderPage(req, nonce) {
       boot['/pages/' + m[1]] = { page };
       if (m[1] === 'faqs') {
         let faqs = []; try { faqs = JSON.parse(page.content); } catch (_e) { /* not JSON */ }
-        const pairs = faqs.map((f) => [f.q || f.question, strip(f.a || f.answer)]).filter(([q, a]) => q && a && (swapOn || !/swap/i.test(q)));
+        // Staff may also have written the FAQs as plain HTML (a heading per question, the answer below it)
+        if (!Array.isArray(faqs) || !faqs.length) {
+          faqs = [...String(page.content || '').matchAll(/<h[2-4][^>]*>([\s\S]*?)<\/h[2-4]>([\s\S]*?)(?=<h[2-4][^>]*>|$)/gi)].map((x) => ({ q: strip(x[1]), a: x[2] }));
+        }
+        const fromSettings = copy.settingsFaq(require('./lib/settings').current());
+        const pairs = fromSettings.concat(faqs.map((f) => [f.q || f.question, strip(f.a || f.answer)]).filter(([q, a]) => q && a && !fromSettings.some(([x]) => x === q) && (swapOn || !/swap/i.test(q))));
         if (pairs.length) { ld.push(faqLd(pairs)); body += pairs.map(([q, a]) => `<h2>${esc(q)}</h2><p>${esc(a)}</p>`).join(''); }
       } else {
         meta = { ...meta, title: `${page.title} | Korrect Cars`, desc: clip(strip(page.content), 160) }; body = `<h1>${esc(page.title)}</h1>${safeHtml(page.content)}`;

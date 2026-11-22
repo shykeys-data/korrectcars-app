@@ -40,7 +40,7 @@ const SWAP = {
       ['We check you and your papers', 'Your phone and ID are verified, and your papers are checked against the car\'s VIN before the listing goes live.'],
       ['Find a match', 'Browse other owners\' cars or wait for offers. Agree any cash difference in the chat. Phone numbers stay hidden until you both accept.'],
       ['Inspect both cars', 'Both cars are inspected at a partner car lot in Lagos, with Korrect Cars present, before keys, papers or money change hands.'],
-      ['Swap', 'Papers are exchanged and the swap fee is paid only when the swap completes.']
+      ['Swap', 'Papers are exchanged and the swap fee ({swapFee}% of the higher car value) is paid only when the swap completes.']
     ] },
     { h2: 'What we check on both cars', list: [
       'The VIN on the car matches the papers',
@@ -162,4 +162,18 @@ const BOOSTS = {
   ]
 };
 
-module.exports = { GUIDES, CONTACT, SWAP, VIN, MARKET, SELLERS, PRIVACY_MARKETPLACE, BOOSTS };
+// FAQs built from the live settings (the FAQs page on the site and in the server HTML use the same list).
+// Trust answers appear only once the owner has filled them in under Settings, so nothing here is made up.
+function settingsFaq(st) {
+  const b = st.bnpl || {};
+  const out = [
+    ['How does Pay Small Small work?', `Pick a car and see an estimate of your deposit, monthly payment and total cost. The estimate uses a deposit of at least ${b.minDeposit}% and a ${b.markup}% charge on the balance. Apply in minutes, and with your consent we pass your details to our credit partners. They check if you qualify and set the final terms. Once a credit partner approves you, we sell you the car.`],
+    ['How does Korrect Swap work?', `List your car with photos and papers. Our team verifies the owner and papers before it goes live. Owners make offers, agree any cash top-up, and both cars are inspected at a partner car lot in Lagos before anything changes hands. A success fee of ${st.swapFeePct}% of the higher car value is due only when a swap completes.`]
+  ];
+  if (st.inspectionPromise) out.push(['What does the Korrect Cars inspection cover?', st.inspectionPromise]);
+  if (st.returnsPolicy) out.push(['Can I return a car after I buy it?', st.returnsPolicy]);
+  if (st.cacNumber) out.push(['Is Korrect Cars a registered business?', `Yes. Korrect Cars is registered with the Corporate Affairs Commission (CAC), number ${st.cacNumber}.`]);
+  return out.filter(([q]) => st.swap || !/swap/i.test(q));
+}
+
+module.exports = { GUIDES, CONTACT, SWAP, VIN, MARKET, SELLERS, PRIVACY_MARKETPLACE, BOOSTS, settingsFaq };
