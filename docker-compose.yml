@@ -1,0 +1,49 @@
+# Run the whole site locally with one command:   docker compose up --build
+# Then open http://localhost:3000 . The first start loads the real Korrect Cars stock, guides and pages.
+# For local use only: the passwords below are placeholders and both ports listen on this computer alone.
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: korrectcars
+      MYSQL_USER: korrect
+      MYSQL_PASSWORD: ${DB_PASSWORD:-korrect-local-only}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root-local-only}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "korrect", "-p${DB_PASSWORD:-korrect-local-only}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # development: cookies work over plain http://localhost (production needs https)
+      NODE_ENV: development
+      PORT: "3000"
+      SITE_URL: http://localhost:3000
+      DB_HOST: db
+      DB_NAME: korrectcars
+      DB_USER: korrect
+      DB_PASSWORD: ${DB_PASSWORD:-korrect-local-only}
+      PRIVATE_DIR: /data/private
+      MAIL_DISABLED: "1"
+      # Optional: a staff address to try the admin console, e.g. ADMIN_PATH=team-local-1234 docker compose up
+      ADMIN_PATH: ${ADMIN_PATH:-}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - uploads:/app/uploads
+      - private:/data/private
+
+volumes:
+  db-data:
+  uploads:
+  private:

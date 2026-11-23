@@ -52,3 +52,32 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  docker:
+    name: Docker Compose starts the site with MySQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start
+        run: docker compose up --build -d
+
+      - name: Wait for the site
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:3000/api/health; then echo; break; fi
+            sleep 3
+          done
+          curl -sf http://127.0.0.1:3000/api/health
+
+      - name: Home and a car page answer, with the sample stock loaded
+        run: |
+          curl -sf -o /dev/null http://127.0.0.1:3000/
+          slug=$(curl -sf "http://127.0.0.1:3000/api/cars?limit=all" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const c=JSON.parse(s).cars;if(!c.length)process.exit(1);console.log(c[0].slug)})")
+          curl -sf -o /dev/null "http://127.0.0.1:3000/cars/$slug"
+          echo "OK: /cars/$slug"
+
+      - name: Logs if it failed
+        if: failure()
+        run: docker compose logs --tail=200
