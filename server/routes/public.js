@@ -111,7 +111,7 @@ r.post('/auth/login', authLimit, validate('login'), async (req, res) => {
 });
 // Second half of an unusual sign-in: the emailed code. The browser is then trusted for 90 days.
 r.post('/auth/login/code', authLimit, async (req, res) => {
-  let t; try { t = jwt.verify(String((req.body && req.body.ticket) || ''), config.jwtSecret); } catch (_e) { t = null; }
+  let t; try { t = /** @type {any} */ (jwt.verify(String((req.body && req.body.ticket) || ''), config.jwtSecret)); } catch (_e) { t = null; }
   if (!t || t.p !== 'stepup') return res.status(400).json({ error: 'This sign-in has expired. Please sign in again.', restart: true });
   const user = await one('SELECT * FROM users WHERE id = ?', [t.sub]);
   if (!user || user.disabled) return res.status(400).json({ error: 'This sign-in has expired. Please sign in again.', restart: true });

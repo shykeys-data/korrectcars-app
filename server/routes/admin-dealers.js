@@ -17,8 +17,8 @@ const STATUSES = ['pending_review', 'more_info', 'approved', 'unverified', 'reje
 const KEEP_PAPERS_DAYS = 365;
 
 r.get('/', async (req, res) => {
-  const st = STATUSES.includes(req.query.status) ? req.query.status : null;
-  const kind = ['business', 'personal'].includes(req.query.kind) ? req.query.kind : null;
+  const st = STATUSES.includes(String(req.query.status)) ? req.query.status : null;
+  const kind = ['business', 'personal'].includes(String(req.query.kind)) ? req.query.kind : null;
   const dealers = await q(`SELECT d.id, d.slug, d.kind, d.business_name, d.cac_type, d.cac_number, d.status, d.state, d.created_at, d.verified_at,
       (SELECT COUNT(*) FROM cars c WHERE c.dealer_id = d.id AND c.status IN ('pending','available','reserved')) AS live_cars,
       (SELECT COUNT(*) FROM dealer_documents x WHERE x.dealer_id = d.id) AS papers,

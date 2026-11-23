@@ -30,6 +30,7 @@ const WMI = {
   LGX: ['BYD', 'China'], LS5: ['Changan', 'China'], LVV: ['Chery', 'China'], LVS: ['Ford', 'China'], LSV: ['Volkswagen', 'China'], LFV: ['Volkswagen', 'China']
 };
 // Where a VIN was assigned, from its first character (ISO 3780 regions), when the maker code is not in the list
+/** @type {[RegExp, string][]} */
 const REGION = [[/^[1-5]/, 'North America'], [/^J/, 'Japan'], [/^K/, 'South Korea'], [/^L/, 'China'], [/^M/, 'India, Thailand or Indonesia'], [/^S/, 'United Kingdom'],
   [/^V/, 'France or Spain'], [/^W/, 'Germany'], [/^X/, 'Russia or the Netherlands'], [/^Y/, 'Sweden or Finland'], [/^Z/, 'Italy'], [/^T/, 'Switzerland, Czech Republic, Hungary or Turkey'],
   [/^6/, 'Australia'], [/^7/, 'New Zealand'], [/^8/, 'South America'], [/^9/, 'Brazil'], [/^A/, 'South Africa'], [/^N/, 'Turkey or Iran'], [/^P/, 'Philippines or Malaysia'], [/^R/, 'Taiwan or UAE']];

@@ -94,7 +94,7 @@ ${lines.map((l, i) => `<text x="${pad}" y="${textTop + i * lh}" font-family="${F
 }
 
 // photoFile: absolute path of one of our own uploaded photos (optional). Returns { site, square, story, mode }.
-async function make({ slug, title, category, photoFile }) {
+async function make({ slug, title, category, photoFile = undefined }) {
   fs.mkdirSync(DIR, { recursive: true });
   const base = `${String(slug || 'guide').replace(/[^a-z0-9-]/g, '').slice(0, 80)}-${crypto.randomBytes(3).toString('hex')}`;
   const out = { mode: photoFile ? 'photo' : 'template' };

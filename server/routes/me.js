@@ -95,7 +95,7 @@ r.delete('/searches/:id', async (req, res) => {
 r.get('/enquiries', async (req, res) => {
   const me = await one('SELECT email, email_verified FROM users WHERE id = ?', [req.user.id]);
   const byEmail = me && me.email_verified ? ' OR (e.user_id IS NULL AND LOWER(e.email) = ?)' : '';
-  const p = [req.user.id]; if (byEmail) p.push(String(me.email).toLowerCase());
+  /** @type {(number|string)[]} */ const p = [req.user.id]; if (byEmail) p.push(String(me.email).toLowerCase());
   const rows = await q(`SELECT e.id, e.type, e.status, e.offer_amount, e.preferred_date, e.bnpl_deposit, e.bnpl_months, e.bnpl_monthly, e.created_at, e.updated_at,
       c.slug AS car_slug, c.title AS car_title, c.price AS car_price, c.photos AS car_photos, c.status AS car_status
     FROM enquiries e LEFT JOIN cars c ON c.id = e.car_id WHERE e.user_id = ?${byEmail} ORDER BY e.id DESC LIMIT 100`, p);

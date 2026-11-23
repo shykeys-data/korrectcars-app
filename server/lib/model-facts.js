@@ -52,6 +52,7 @@ const FRAME = {
 // facts: body, drives (every drive it was sold with), seats (only when all have the same), engines: [engine, fuel, gearbox, from?, to?]
 const E = (engine, fuel, gearbox, from, to) => ({ engine, fuel, gearbox, from, to });
 const P = 'Petrol'; const H = 'Hybrid'; const D = 'Diesel';
+/** @type {any[][]} make, model, first year, last year, facts */
 const GEN = [
   ['Toyota', 'camry', 2002, 2006, { body: 'Sedan', drives: ['FWD'], seats: 5, engines: [E('2.4L 4-cylinder', P, ''), E('3.0L V6', P, '', 2002, 2006), E('3.3L V6', P, '5-speed automatic', 2004, 2006)] }],
   ['Toyota', 'camry', 2007, 2011, { body: 'Sedan', drives: ['FWD'], seats: 5, engines: [E('2.4L 4-cylinder', P, '5-speed automatic', 2007, 2009), E('2.5L 4-cylinder', P, '6-speed automatic', 2010, 2011), E('3.5L V6', P, '6-speed automatic'), E('2.4L 4-cylinder hybrid', H, 'CVT automatic')] }],

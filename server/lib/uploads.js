@@ -56,11 +56,12 @@ function stripJpegMeta(buf) {
 }
 
 // name: optional readable start of the file name, e.g. '2016-lexus-es-350-1' (good for Google Images)
-function save(file, { folder, privateFile = false, allowPdf = false, name: base }) {
+/** @param {any} file @param {{ folder?: string, privateFile?: boolean, allowPdf?: boolean, name?: string }} opts */
+function save(file, { folder = undefined, privateFile = false, allowPdf = false, name: base = undefined }) {
   const kind = sniff(file.buffer);
   if (!kind || (kind === 'pdf' && !allowPdf)) {
     const err = new Error(allowPdf ? 'Only JPG, PNG, WEBP or PDF files are allowed.' : 'Only JPG, PNG or WEBP images are allowed.');
-    err.status = 400; throw err;
+    throw Object.assign(err, { status: 400 });
   }
   const clean = String(base || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
   const name = (clean && !privateFile ? `${clean}-${crypto.randomBytes(3).toString('hex')}` : crypto.randomBytes(16).toString('hex')) + '.' + kind;

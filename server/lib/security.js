@@ -1,7 +1,7 @@
 // Who is signed in and what they may do: session cookie (JWT), sign-in and role checks, staff two-step check,
 // CSRF guard, rate limits, the staff audit log, and hiding phone numbers and emails in swap chat.
 const jwt = require('jsonwebtoken');
-const rateLimit = require('express-rate-limit');
+const rateLimit = /** @type {any} */ (require('express-rate-limit')); // CommonJS export of an ESM-typed package
 const config = require('../config');
 const { one, q } = require('../db');
 
@@ -28,7 +28,7 @@ async function loadUser(req, _res, next) {
   const token = req.cookies && req.cookies[COOKIE];
   if (!token) return next();
   try {
-    const p = jwt.verify(token, config.jwtSecret);
+    const p = /** @type {any} */ (jwt.verify(token, config.jwtSecret));
     const user = await one('SELECT id, name, email, phone, role, verified, token_version, disabled, totp_enabled FROM users WHERE id = ?', [p.sub]);
     if (user && !user.disabled && user.token_version === p.v) { req.user = user; req.mfa = p.mfa === 1; }
   } catch (_e) { /* invalid or expired token: treat as signed out */ }

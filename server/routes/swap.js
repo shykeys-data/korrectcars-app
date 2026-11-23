@@ -6,6 +6,8 @@ const { q, one, J } = require('../db');
 const { validate, list } = require('../lib/validate');
 const { requireAuth, limiter, maskContacts } = require('../lib/security');
 const { memory, save } = require('../lib/uploads');
+// Uploaded files by form field name (multer .fields()); empty when the form sent none
+const filesOf = (req) => /** @type {Record<string, any[]>} */ (req.files || {});
 
 const r = express.Router();
 const isId = (s) => /^\d{1,10}$/.test(String(s));
@@ -32,8 +34,8 @@ r.get('/listings/:id', async (req, res) => {
 // Owner: create a listing (it goes to staff review before it is visible)
 r.post('/listings', requireAuth, limiter(60, 5, 'You have submitted several cars. Please wait an hour.'),
   memory.fields([{ name: 'photos', maxCount: 10 }, { name: 'papers', maxCount: 3 }]), validate('swapListing'), async (req, res) => {
-    const photos = (req.files && req.files.photos) || [];
-    const papers = (req.files && req.files.papers) || [];
+    const photos = (filesOf(req).photos) || [];
+    const papers = (filesOf(req).papers) || [];
     if (photos.length < 3) return res.status(400).json({ error: 'Please add at least 3 clear photos of the car.' });
     if (!papers.length) return res.status(400).json({ error: 'Please upload the car papers (customs, receipt or proof of ownership).' });
     const v = req.valid;

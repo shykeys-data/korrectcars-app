@@ -48,7 +48,7 @@ const schemas = {
   car: z.object({
     title: shortText(140).min(3), make: shortText(40).min(1), model: shortText(60).min(1), body: shortText(30).min(1),
     // Every listed car needs its year (search results and the car's markup show it; Nov 2026 audit found one without)
-    year: z.coerce.number({ invalid_type_error: 'Enter the year' }).int().min(1950, 'Enter the year (e.g. 2016)').max(new Date().getFullYear() + 1, 'That year is in the future'), price: money.optional().or(z.literal('')), oldPrice: money.optional().or(z.literal('')),
+    year: z.coerce.number({ error: 'Enter the year' }).int().min(1950, 'Enter the year (e.g. 2016)').max(new Date().getFullYear() + 1, 'That year is in the future'), price: money.optional().or(z.literal('')), oldPrice: money.optional().or(z.literal('')),
     callForPrice: z.union([z.boolean(), z.enum(['true', 'false', '1', '0', 'on'])]).optional(),
     mileage: shortText(40).optional(), engine: shortText(80).optional(), transmission: shortText(40).optional(),
     drivetrain: shortText(40).optional(), fuel: shortText(30).optional(), color: shortText(40).optional(),

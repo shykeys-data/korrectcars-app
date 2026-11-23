@@ -63,7 +63,7 @@ r.post('/cars', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'), as
   if (v.vin) { const reg = await registry.refFor(v.vin); ref = reg.ref; v.vin = reg.v.value; }
   let slug = slugify(require('../lib/titles').publicTitle(req.valid.title)); // web address without staff codes
   if (await one('SELECT id FROM cars WHERE slug = ?', [slug])) slug += '-' + Date.now().toString(36);
-  const photos = (req.files || []).map((f, i) => save(f, { folder: 'cars', name: `${slug}-lagos-${i + 1}` })); // e.g. 2016-lexus-es-350-lagos-1-3fa9c1.jpg
+  const photos = (/** @type {any[]} */ (req.files || [])).map((f, i) => save(f, { folder: 'cars', name: `${slug}-lagos-${i + 1}` })); // e.g. 2016-lexus-es-350-lagos-1-3fa9c1.jpg
   const cols = Object.keys(v);
   const ins = await registry.guarded(ref, 1, () => q(`INSERT INTO cars (slug, photos, vehicle_id_ref, created_by, ${cols.join(', ')}) VALUES (?, ?, ?, ?, ${cols.map(() => '?').join(', ')})`, [slug, J(photos), ref, req.user.id, ...cols.map((c) => v[c])]))
     .catch((e) => { discard(photos); throw e; });
@@ -90,7 +90,7 @@ r.put('/cars/:id', carTeam, memory.array('photos', MAX_PHOTOS), validate('car'),
   if (v.vin && same && !car.vehicle_id_ref) { ref = null; v.vin = car.vin; } else if (v.vin) { const reg = await registry.refFor(v.vin); ref = reg.ref; v.vin = reg.v.value; }
   const current = car.photos || [];
   const keep = req.valid.keepPhotos !== undefined ? list(req.valid.keepPhotos).filter((p) => current.includes(p)) : current;
-  const added = (req.files || []).map((f, i) => save(f, { folder: 'cars', name: `${slugify(require('../lib/titles').publicTitle(req.valid.title))}-lagos-${keep.length + i + 1}` }));
+  const added = (/** @type {any[]} */ (req.files || [])).map((f, i) => save(f, { folder: 'cars', name: `${slugify(require('../lib/titles').publicTitle(req.valid.title))}-lagos-${keep.length + i + 1}` }));
   const cols = Object.keys(v);
   await registry.guarded(ref, car.dealer_id, () => q(`UPDATE cars SET ${cols.map((c) => `${c} = ?`).join(', ')}, photos = ?, vehicle_id_ref = ? WHERE id = ?`, [...cols.map((c) => v[c]), J([...keep, ...added]), ref, car.id]))
     .catch((e) => { discard(added); throw e; });
@@ -117,8 +117,8 @@ r.delete('/cars/:id', adminOnly, async (req, res) => {
 const LEAD_STATUSES = ['new', 'contacted', 'viewing', 'sent_to_bank', 'won', 'lost', 'closed'];
 r.get('/enquiries', salesTeam, async (req, res) => {
   const where = []; const p = [];
-  if (['viewing', 'offer', 'bnpl', 'contact'].includes(req.query.type)) { where.push('e.type = ?'); p.push(req.query.type); }
-  if (LEAD_STATUSES.includes(req.query.status)) { where.push('e.status = ?'); p.push(req.query.status); }
+  if (['viewing', 'offer', 'bnpl', 'contact'].includes(String(req.query.type))) { where.push('e.type = ?'); p.push(req.query.type); }
+  if (LEAD_STATUSES.includes(String(req.query.status))) { where.push('e.status = ?'); p.push(req.query.status); }
   res.json({ statuses: LEAD_STATUSES, enquiries: await q(`SELECT e.*, c.title AS car_title, c.slug AS car_slug, c.price AS car_price, u.name AS assigned_name, sd.business_name AS seller_name
     FROM enquiries e LEFT JOIN cars c ON c.id = e.car_id LEFT JOIN users u ON u.id = e.assigned_to LEFT JOIN dealers sd ON sd.id = e.dealer_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY e.id DESC LIMIT 500`, p) });
 });
@@ -140,7 +140,7 @@ r.post('/enquiries/:id/status', salesTeam, updateLead);
 
 // ---------- Swap listings ----------
 r.get('/listings', salesTeam, async (req, res) => {
-  const st = ['pending', 'live', 'rejected', 'swapped', 'withdrawn'].includes(req.query.status) ? req.query.status : null;
+  const st = ['pending', 'live', 'rejected', 'swapped', 'withdrawn'].includes(String(req.query.status)) ? req.query.status : null;
   res.json({ listings: await q(`SELECT l.*, u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.verified AS owner_verified
     FROM swap_listings l JOIN users u ON u.id = l.owner_id ${st ? 'WHERE l.status = ?' : ''} ORDER BY l.id DESC LIMIT 300`, st ? [st] : []) });
 });

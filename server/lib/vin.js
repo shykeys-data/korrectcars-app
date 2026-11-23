@@ -51,7 +51,7 @@ async function decode(vinIn) {
     const res = await fetch(`${BASE}${vin}?format=json`, { signal: ctl.signal, headers: { accept: 'application/json' } });
     clearTimeout(t);
     if (!res.ok) throw new Error('decoder status ' + res.status);
-    row = ((await res.json()).Results || [])[0] || {};
+    row = ((/** @type {any} */ (await res.json())).Results || [])[0] || {};
   } catch (e) {
     console.warn('[vin] decoder unavailable:', e.message);
     throw Object.assign(new Error('The VIN service is busy right now. Please try again in a minute, or send us the VIN on WhatsApp.'), { status: 503 });

@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node app.js",
     "seed": "node server/seed.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "typecheck": "tsc -p ."
   },
   "engines": {
     "node": ">=18"
@@ -24,5 +25,15 @@
     "multer": "^2.0.2",
     "mysql2": "^3.11.4",
     "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/compression": "^1.8.1",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3"
   }
 }

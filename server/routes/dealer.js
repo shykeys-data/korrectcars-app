@@ -20,6 +20,8 @@ const { validate, list } = require('../lib/validate');
 const { issueSession, requireAuth, limiter, isStaff } = require('../lib/security');
 const { isDisposable, weakPassword } = require('../lib/disposable');
 const { memory, save, discard } = require('../lib/uploads');
+// Uploaded files by form field name (multer .fields()); empty when the form sent none
+const filesOf = (req) => /** @type {Record<string, any[]>} */ (req.files || {});
 const { carValues } = require('../lib/car-values');
 const registry = require('../lib/registry');
 const sms = require('../lib/sms');
@@ -79,7 +81,7 @@ r.post('/signup/verify', limiter(15, 30, 'Too many tries. Please wait 15 minutes
 
 r.post('/signup/account', limiter(15, 20, 'Too many tries. Please wait 15 minutes.'), async (req, res) => {
   let email;
-  try { const p = jwt.verify(String(req.body.pass || ''), config.jwtSecret); if (p.p !== 'dealer-signup') throw new Error('wrong pass'); email = p.em; } catch (_e) {
+  try { const p = /** @type {any} */ (jwt.verify(String(req.body.pass || ''), config.jwtSecret)); if (p.p !== 'dealer-signup') throw new Error('wrong pass'); email = p.em; } catch (_e) {
     return res.status(400).json({ error: 'Your sign-up session has expired. Please start again with your email.', restart: true });
   }
   const name = String(req.body.name || '').trim().replace(/\s+/g, ' ');
@@ -201,7 +203,7 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
   const fields = { business_name: business, cac_type: type, cac_number: num, state, lga, address,
     whatsapp, phone: u.phone, email: u.email, about: String(b.about || '').trim().slice(0, 1500) || null };
 
-  const cac = req.files && req.files.cac && req.files.cac[0];
+  const cac = filesOf(req).cac && filesOf(req).cac[0];
   // Changing a reply to "we need more" is allowed; an approved or waiting dealer edits through staff
   // A private or verified seller can register as a dealer at any time (that lifts the 5-car limit once approved)
   const upgrading = existing && isPersonal(existing) && !['rejected', 'suspended'].includes(existing.status);
@@ -211,13 +213,13 @@ r.post('/', requireAuth, limiter(60, 10), memory.fields([{ name: 'cac', maxCount
   if (clash && (!existing || clash.id !== existing.id)) return res.status(409).json({ error: 'A dealer with this CAC number is already registered. If this is your business, contact us.', field: 'cacNumber' });
 
   // Optional business logo (public, shown on the seller page); checked before anything is saved
-  const logoFile = req.files && req.files.logo && req.files.logo[0];
+  const logoFile = filesOf(req).logo && filesOf(req).logo[0];
   const logoKey = logoFile ? saveLogo(logoFile, business) : null;
   const oldLogo = existing && logoKey ? existing.logo_key : null;
 
   const files = [];
   if (cac) files.push(['cac', cac]);
-  for (const f of (req.files && req.files.extra) || []) files.push(['other', f]);
+  for (const f of (filesOf(req).extra) || []) files.push(['other', f]);
   const saved = files.map(([kind, f]) => ({ kind, key: save(f, { privateFile: true, allowPdf: true }), sha: crypto.createHash('sha256').update(f.buffer).digest('hex') }));
 
   let dealerId;
@@ -261,7 +263,7 @@ r.post('/personal', requireAuth, limiter(60, 10), memory.fields([{ name: 'idDoc'
   if (existing && existing.member_role && existing.member_role !== 'owner') return res.status(403).json({ error: 'Only the account owner can change these details.', code: 'ROLE' });
   if (existing && !isPersonal(existing)) return res.status(409).json({ error: 'You are already registered as a dealer.' });
   if (existing && ['rejected', 'suspended'].includes(existing.status)) return res.status(403).json({ error: 'Your seller account is not active. Please contact us.' });
-  if (existing && ['pending_review', 'approved'].includes(existing.status) && !(req.files && req.files.idDoc)) return res.status(409).json({ error: 'Your details are already with us. Contact us to change them.' });
+  if (existing && ['pending_review', 'approved'].includes(existing.status) && !(filesOf(req).idDoc)) return res.status(409).json({ error: 'Your details are already with us. Contact us to change them.' });
   const b = req.body || {};
   const name = String(b.displayName || u.name || '').trim().replace(/\s+/g, ' ');
   if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'Enter the name buyers will see, e.g. your first name and surname.', field: 'displayName' });
@@ -271,8 +273,8 @@ r.post('/personal', requireAuth, limiter(60, 10), memory.fields([{ name: 'idDoc'
   if (!isLga(state, lga)) return res.status(400).json({ error: `Choose the local government area (LGA) in ${state}.`, field: 'lga' });
   const whatsapp = b.whatsapp ? sms.toE164(b.whatsapp) : (sms.toE164(u.phone) || u.phone);
   if (!whatsapp) return res.status(400).json({ error: 'Enter a Nigerian WhatsApp number.', field: 'whatsapp' });
-  const idDoc = req.files && req.files.idDoc && req.files.idDoc[0];
-  const selfie = req.files && req.files.selfie && req.files.selfie[0];
+  const idDoc = filesOf(req).idDoc && filesOf(req).idDoc[0];
+  const selfie = filesOf(req).selfie && filesOf(req).selfie[0];
   const idType = ID_TYPES[b.idType] ? b.idType : null;
   if (idDoc && !idType) return res.status(400).json({ error: 'Choose which ID this is.', field: 'idType' });
   if (idDoc && !selfie) return res.status(400).json({ error: 'Add a selfie holding the same ID, so we can see it is you.', field: 'selfie' });
@@ -410,9 +412,9 @@ r.post('/cars', requireDealer, limiter(60, 60, 'Too many cars added in an hour. 
   const reg = await registry.refFor(v.vin);
   v.vin = reg.v.value;
   await checkLimit(req.dealer, v.status);
-  const photos = (req.files && req.files.photos) || [];
+  const photos = (filesOf(req).photos) || [];
   if (v.status !== 'hidden' && !photos.length) return res.status(400).json({ error: 'Add at least one photo of the car.', field: 'photos' });
-  const vp = req.files && req.files.vinPhoto && req.files.vinPhoto[0];
+  const vp = filesOf(req).vinPhoto && filesOf(req).vinPhoto[0];
   const slug = `${slugify(v.title)}-${crypto.randomBytes(3).toString('hex')}`; // random end: two saves never fight over a web address
   const urls = photos.map((f, i) => save(f, { folder: 'cars', name: `${slugify(v.title)}-${i + 1}` }));
   const vinPhoto = vp ? save(vp, { privateFile: true }) : null;
@@ -443,17 +445,17 @@ r.put('/cars/:id', requireDealer, carForm, cleanForm, validate('car'), async (re
   const reg = await registry.refFor(v.vin);
   v.vin = reg.v.value;
   // A private seller's checked car is checked again if the VIN changes or new photos are added
-  const newPhotos = ((req.files && req.files.photos) || []).length > 0;
+  const newPhotos = ((filesOf(req).photos) || []).length > 0;
   const recheck = isPersonal(req.dealer) && req.dealer.status !== 'approved' && car.reviewed_at && (newPhotos || v.vin !== car.vin);
   if (recheck) car.reviewed_at = null;
   v.status = car.status === 'reserved' ? 'reserved' : statusFor(req.valid.status, req.dealer, car);
   if (!['pending', 'available', 'reserved'].includes(car.status)) await checkLimit(req.dealer, v.status, car.id);
   const current = car.photos || [];
   const keep = req.valid.keepPhotos !== undefined ? list(req.valid.keepPhotos).filter((p) => current.includes(p)) : current;
-  const files = (req.files && req.files.photos) || [];
+  const files = (filesOf(req).photos) || [];
   if (keep.length + files.length > 30) return res.status(400).json({ error: 'A car can have up to 30 photos.' });
   const added = files.map((f, i) => save(f, { folder: 'cars', name: `${slugify(v.title)}-${keep.length + i + 1}` }));
-  const vp = req.files && req.files.vinPhoto && req.files.vinPhoto[0];
+  const vp = filesOf(req).vinPhoto && filesOf(req).vinPhoto[0];
   const cols = Object.keys(v);
   const vinPhoto = vp ? save(vp, { privateFile: true }) : null;
   try {
@@ -606,7 +608,7 @@ r.post('/invite/:token', limiter(15, 20, 'Too many tries. Please wait 15 minutes
 // JPG, PNG or WEBP up to 2 MB, checked by its real bytes; shown resized (WebP) on the seller page.
 const LOGO_MAX = 2 * 1024 * 1024;
 function saveLogo(file, name) {
-  if (file.size > LOGO_MAX) { const e = new Error('The logo must be under 2 MB.'); e.status = 400; throw e; }
+  if (file.size > LOGO_MAX) throw Object.assign(new Error('The logo must be under 2 MB.'), { status: 400 });
   return save(file, { folder: 'logos', name: `${slugify(name) || 'dealer'}-logo` });
 }
 r.post('/logo', requireDealer, onlyRoles('owner', 'manager'), limiter(60, 20, 'Too many logo changes. Please wait an hour.'), memory.single('logo'), async (req, res) => {

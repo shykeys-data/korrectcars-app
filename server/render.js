@@ -104,6 +104,7 @@ function shell() {
   return template;
 }
 
+/** @type {{ url?: string, title: string, desc: string, image: string, type?: string }} */
 const DEFAULT = {
   title: 'Korrect Cars | Buy Tokunbo & Foreign-Used Cars in Lagos, Nigeria',
   desc: 'Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright or pay small small through our credit partners. Delivery anywhere in Nigeria.',

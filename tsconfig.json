@@ -1,0 +1,20 @@
+{
+  // TypeScript checks the server's JavaScript (no build step, nothing is compiled): `npm run typecheck`.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": false,
+    "noImplicitAny": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["app.js", "server/**/*.js", "server/types/*.d.ts"],
+  "exclude": ["server/tools-*.js"]
+}

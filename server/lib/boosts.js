@@ -36,7 +36,7 @@ async function paystack(path, body) {
     method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${key()}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15000)
   });
-  const j = await r.json().catch(() => ({}));
+  const j = /** @type {any} */ (await r.json().catch(() => ({})));
   if (!r.ok || !j.status) throw Object.assign(new Error((j && j.message) || 'Paystack did not answer'), { status: 502 });
   return j.data;
 }

@@ -47,6 +47,7 @@ async function init() {
   // processes at once (each with its own pool). So each process keeps a small pool (DB_POOL, default 2; the host allows 8 connections per database user, and
   // the web server runs up to 3 processes), closes
   // connections idle for 20 s, and waits in line for a free one instead of opening more.
+  /** @type {any} */ // mysql2's result types are unions; rows are checked at runtime here
   const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME,
