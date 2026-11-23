@@ -34,6 +34,8 @@ services:
       DB_USER: korrect
       DB_PASSWORD: ${DB_PASSWORD:-korrect-local-only}
       PRIVATE_DIR: /data/private
+      # Session signing key (32+ characters). The container cannot write one into the app folder, so it comes from here.
+      JWT_SECRET: ${JWT_SECRET:-local-only-session-key-change-me-0123456789abcdef}
       MAIL_DISABLED: "1"
       # Optional: a staff address to try the admin console, e.g. ADMIN_PATH=team-local-1234 docker compose up
       ADMIN_PATH: ${ADMIN_PATH:-}
