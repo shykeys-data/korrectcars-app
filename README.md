@@ -1,16 +1,72 @@
 # Korrect Cars
 
-A full-stack car marketplace for Lagos, Nigeria, live at **[korrectcars.com](https://www.korrectcars.com)**. Customers can buy inspected cars outright, pay in instalments through credit partners ("Pay Small Small"), or swap their car with a verified owner.
+[![CI](https://github.com/shykeys-data/korrectcars-app/actions/workflows/ci.yml/badge.svg)](https://github.com/shykeys-data/korrectcars-app/actions/workflows/ci.yml)
+![Node 22](https://img.shields.io/badge/Node-22-339933?logo=node.js&logoColor=white)
+![Express 5](https://img.shields.io/badge/Express-5-000000?logo=express)
+![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![MySQL](https://img.shields.io/badge/MySQL-4479A1?logo=mysql&logoColor=white)
+![TypeScript checked](https://img.shields.io/badge/TypeScript-checked-3178C6?logo=typescript&logoColor=white)
+![Playwright](https://img.shields.io/badge/Playwright-e2e-2EAD33?logo=playwright&logoColor=white)
 
-Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL application.
+**Live: [korrectcars.com](https://www.korrectcars.com)**, a car marketplace for Lagos, Nigeria. Buyers pay cash, pay in instalments through credit partners ("Pay Small Small"), or swap their car with another owner. Korrect Cars and verified partner dealers list on the same site.
 
-**New to the code?** Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the business rules, a map of every folder, how a request flows, where to change common things, and how to find and fix a bug.
+I rebuilt it from WordPress into a custom Node.js, Express, React and MySQL app, and I run it in production: real stock, real buyer enquiries, staging before every release.
 
-![Korrect Cars home page](docs/screenshots/home.jpg)
+| Home page | Pay Small Small calculator |
+| --- | --- |
+| ![Korrect Cars home page](docs/screenshots/home.jpg) | ![Pay Small Small instalment calculator](docs/screenshots/pay-small-small.jpg) |
 
-![Pay Small Small instalment calculator](docs/screenshots/pay-small-small.jpg)
+## At a glance
 
-## Features
+- **Marketplace:** Korrect Cars' own stock plus partner dealers and private sellers. Each seller works in their own account, with owner, manager and lister roles.
+- **Three ways to buy:** cash, Pay Small Small instalments, and Korrect Swap (owner to owner, with Korrect Cars in the middle).
+- **One live listing per car:** the VIN register blocks a second seller from listing a car that is already live.
+- **Staff console:** cars, leads, seller checks, reported listings, boosts and site settings, behind a private address and two-step sign-in.
+- **Search and AI search:** server-rendered pages, JSON-LD for every car, a sitemap, `llms.txt` and IndexNow.
+- **Checks on every push:** TypeScript over the server code, 88 API tests and Playwright browser tests on a phone and a desktop screen, plus a Docker start-up test.
+- **13 numbered database changes** in `server/migrations`, run at start-up under a lock so two app processes never apply one twice.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+  B[Buyer's phone or laptop] --> CF[Cloudflare<br/>cache for assets]
+  CF --> N[Node.js + Express 5<br/>on LiteSpeed]
+  N -->|first visit| R[render.js<br/>full HTML + JSON-LD<br/>+ boot data]
+  R --> B
+  B -->|React app takes over| API[/api routes<br/>zod-checked/]
+  API --> DB[(MySQL<br/>one data layer,<br/>SQLite in tests)]
+  API --> UP[Photos: public<br/>Papers and IDs: private,<br/>staff only]
+  API --> M[Email: alerts,<br/>codes, leads]
+  S[Staff console<br/>private address + 2FA] --> API
+```
+
+A request for a page gets complete HTML first (`server/render.js`), so search engines, AI assistants and slow phones see every car, price and spec without running any JavaScript. The React app then loads and takes over. All writes go through `/api`, where Zod checks every body and the session decides which seller's data a request may touch.
+
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has the full map: business rules, every folder, how a request flows, and how to find and fix a bug.
+
+## Engineering decisions
+
+- **MySQL, with SQLite in tests.** The host offers MySQL, so production uses it. `server/db.js` runs the same SQL on Node's built-in SQLite for tests, so the 88 API tests need no database server.
+- **Seller data stays apart in one place.** Seller routes take the seller account from the signed-in session, never from the request, and add `dealer_id = ?` to every query and update. A test signs in as one seller and tries to read, edit and sell another seller's car; each attempt must return 404.
+- **One live listing per VIN.** A unique register sits under every listing. A second seller who tries to list a live car gets a `VIN_TAKEN` refusal.
+- **Contact numbers.** A partner's own number appears on their car page and seller page only. List pages carry Korrect Cars' number, and the WhatsApp button on a partner's card looks the number up when tapped (`/api/wa/:slug`), so list pages never hold a seller's number. A sitemap-wide scan in November 2026 found the leak this fixes; a test now guards it.
+- **Small database pools.** The host allows 8 connections per database user and LiteSpeed can run several copies of the app. Each copy keeps 2 connections, retries "too many connections" twice, and closes its pool on shutdown. `scripts/restart-app.sh` waits for the new copy before stopping old ones.
+- **One Pay Small Small formula.** The browser and the server share one rule (minimum deposit from Settings, 24 months for the headline figure), so cards, car pages, search results and `llms.txt` always show the same estimate, with the total paid and the extra over the cash price.
+- **TypeScript checking without a rewrite.** `tsconfig.json` turns on `checkJs` over the server's JavaScript, with types for what the middleware adds to requests (`server/types/express.d.ts`). The site gets type checks in CI while the live code stays as it is.
+- **Releases.** Every change goes to a private staging copy first, then live. The live database is backed up before each update, and commits made on the server are GPG-signed.
+
+## Search and AI search
+
+- Every public page arrives as full HTML with a unique title, description, canonical link and Open Graph tags.
+- Car pages carry `Car` structured data (price, year, mileage when known, engine); dealers carry `AutoDealer`; guides carry `BlogPosting`; FAQs carry `FAQPage`.
+- `/llms.txt` gives AI assistants a plain summary of the business, the stock and the Pay Small Small rule, from the same data as the pages.
+- New and changed cars go to search engines through IndexNow; the sitemap leaves out empty categories until a car arrives.
+
+## Features in detail
+
+<details>
+<summary>Every feature, with the file that holds it</summary>
 
 - **Car listings** with search, imported from the old WordPress site
 - **Homepage by category:** rows for New arrivals, Featured, Under ₦20m, SUVs, Sedans, Premium (₦30m+), Electric & hybrid and Recently sold. A row only appears when it has at least 3 cars, and one car shows in at most 2 rows
@@ -32,6 +88,8 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 - **SEO:** server-rendered pages, JSON-LD structured data and an XML sitemap
 - **Image handling:** uploads resized and converted to WebP
 
+</details>
+
 ## Tech stack
 
 | Layer | Tools |
@@ -39,8 +97,9 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 | Front end | React 18, esbuild |
 | Back end | Node.js, Express 5 |
 | Database | MySQL (mysql2); tables are created on first start, later changes are numbered files in `server/migrations` |
+| Testing | Node's test runner (API), Playwright (browser), TypeScript `checkJs`, GitHub Actions |
 | Security | Helmet, rate limiting, CSRF protection, bcrypt password hashing, JWT sessions, Zod input validation |
-| Hosting | DirectAdmin Node.js app (Passenger) |
+| Hosting | DirectAdmin Node.js app (LiteSpeed) behind Cloudflare; Docker Compose for local runs |
 
 ## Project structure
 
@@ -59,11 +118,18 @@ Rebuilt from a WordPress site into a custom Node.js, Express, React and MySQL ap
 
 ## Running it
 
+**With Docker (one command):** `docker compose up --build`, then open http://localhost:3000. MySQL 8.4 starts alongside the app, and the first start loads the real stock, guides and pages. To try the admin console, add a staff address: `ADMIN_PATH=team-local-1234 docker compose up --build`, then make a staff user with `docker compose exec app node server/tools-make-staff.js <email> admin`.
+
+**Without Docker:**
+
 1. Copy `.env.example` to `.env` and fill in your MySQL details.
 2. Install and build: `npm ci` (exact versions from package-lock.json), then `node client/build.js`.
 3. Start: `node app.js`.
 4. Restart after a deploy with `bash scripts/restart-app.sh <app folder> <site>/api/health`, not only `touch tmp/restart.txt`: LiteSpeed can leave old copies of the app running (old code, open database connections; the host allows 8 per user). The script waits for the new copy to answer, then stops the old ones; the app stops cleanly on SIGTERM.
-5. Tests: `npm test` (starts the app on a temporary SQLite database; no MySQL or internet needed).
+5. Checks, the same ones CI runs:
+   - `npm run typecheck`: TypeScript checks the server's JavaScript (no build step)
+   - `npm test`: 88 API tests on a temporary SQLite database (no MySQL or internet needed)
+   - `npm run e2e`: Playwright browser tests on a phone and a desktop screen (browse to a car, Pay Small Small sums, sign in)
 
 Real credentials live only in `.env` and server environment variables, never in this repository.
 
