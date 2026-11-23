@@ -10,3 +10,5 @@ dist/
 *.zip
 client/node_modules
 client/package-lock.json
+test-results/
+playwright-report/
