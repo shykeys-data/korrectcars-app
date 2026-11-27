@@ -27,6 +27,12 @@ const isId = (s) => /^\d{1,10}$/.test(String(s));
 const slugify = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 120);
 
 r.use(requireStaff('admin', 'sales', 'editor'));
+
+// What buyers filter for, searches that found nothing, and WhatsApp taps per car (lib/insights.js)
+r.get('/insights', salesTeam, async (req, res) => {
+  const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+  res.json(await require('../lib/insights').report(days));
+});
 r.use('/dealers', require('./admin-dealers')); // every staff role may review dealers (owner decision, Nov 2026)
 r.use('/listings', require('./admin-listings')); // cars to check (private sellers) and reported listings
 

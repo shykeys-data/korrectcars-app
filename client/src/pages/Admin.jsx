@@ -91,6 +91,38 @@ function Console({ user }) {
   );
 }
 
+// What buyers filter for, what found nothing, and WhatsApp taps (server/lib/insights.js). Counting started 27 Nov 2026.
+const FIELD_LABEL = { make: '', model: '', body: '', condition: '', maxPrice: 'under', yearMin: 'from', yearMax: 'to', state: 'in', lga: 'in', verified: 'verified sellers', dealer: 'seller', category: 'page' };
+function searchLabel(key) {
+  return key.split('|').map((kv) => {
+    const [k, v] = kv.split('=');
+    if (k === 'maxPrice') return 'under ' + naira(Number(v));
+    if (k === 'verified') return 'verified sellers only';
+    return FIELD_LABEL[k] ? `${FIELD_LABEL[k]} ${v}` : v;
+  }).join(' · ');
+}
+const PLACE_LABEL = { page: 'car page', bar: 'bottom bar', card: 'car cards', quick: 'quick view' };
+function BuyerInsights() {
+  const [days, setDays] = useState(30);
+  const d = useApi(`/admin/insights?days=${days}`);
+  const x = d.data;
+  return (
+    <div className="box">
+      <div className="row" style={{ alignItems: 'center' }}><h3 style={{ margin: 0 }}>What buyers look for</h3>
+        <select aria-label="Period" value={days} onChange={(e) => setDays(Number(e.target.value))}>{[7, 30, 90].map((n) => <option key={n} value={n}>Last {n} days</option>)}</select></div>
+      {!x ? <Loading /> : <>
+        <p className="small muted">WhatsApp taps: <b>{x.whatsapp.taps}</b>{x.whatsapp.per100Views != null && <> · <b>{x.whatsapp.per100Views}</b> per 100 car page views</>}
+          {Object.keys(x.whatsapp.byPlace).length > 0 && ' · ' + Object.entries(x.whatsapp.byPlace).map(([k, v]) => `${PLACE_LABEL[k] || k} ${v}`).join(', ')}</p>
+        <div className="grid2">
+          <div><h4>Top searches</h4>{x.searches.length ? x.searches.map((r) => <div className="row small" key={r.key}><span>{searchLabel(r.key)}</span><b>{r.searches}</b></div>) : <p className="small muted">No searches counted yet.</p>}</div>
+          <div><h4>Searched but not in stock</h4><p className="small muted">Tell partner dealers what to source.</p>{x.noResults.length ? x.noResults.map((r) => <div className="row small" key={r.key}><span>{searchLabel(r.key)}</span><b>{r.zero}</b></div>) : <p className="small muted">None yet.</p>}</div>
+        </div>
+        {x.whatsapp.cars.length > 0 && <><h4>Most WhatsApp taps</h4>{x.whatsapp.cars.map((c) => <div className="row small" key={c.id}><Link to={`/cars/${c.slug}`}>{c.title}</Link><span><b>{c.taps}</b> taps · {c.views} views</span></div>)}</>}
+      </>}
+    </div>
+  );
+}
+
 function Overview({ stats, go }) {
   const { cfg } = useApp();
   const swap = !!(cfg && cfg.swap);
@@ -112,6 +144,7 @@ function Overview({ stats, go }) {
         {swap && <K l="Success fees paid" v={naira(s.feePaid)} sub={`${naira(s.feeDue)} due`} to="swaps" />}
         {s.role === 'admin' && <K l="Registered users" v={s.users} sub={s.reported ? `${s.reported} reported messages` : ''} to="users" />}
       </div>
+      {['admin', 'sales'].includes(s.role) && <BuyerInsights />}
       {seesLeads && <div className="box"><h3>Latest leads</h3>{enq.data && enq.data.enquiries.slice(0, 6).map((e) => (
         <div className="row" key={e.id}><div><b>{e.name}</b> · {TYPE_LABEL[e.type] || e.type}{e.car_title ? ` · ${e.car_title}` : ''}<div className="small muted">{e.phone} · {date(e.created_at)}</div></div><T c={stTag[e.status]}>{STATUS_LABEL[e.status] || e.status}</T></div>
       ))}{enq.data && !enq.data.enquiries.length && <p className="muted">No leads yet.</p>}</div>}

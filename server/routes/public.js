@@ -302,6 +302,15 @@ r.get('/cars/:slug', async (req, res) => {
   if (!d) return res.status(404).json({ error: 'Car not found' });
   res.json(d); // views are counted by the page itself (POST /cars/:id/view), so visits from Google and WhatsApp count too
 });
+// Buyer insights (lib/insights.js): a WhatsApp tap on a car, and a filter search on the car lists
+r.post('/cars/:id/wa', limiter(10, 120), async (req, res) => {
+  if (!/^\d{1,10}$/.test(String(req.params.id))) return res.status(400).json({ error: 'Bad car' });
+  res.json({ ok: true, result: await require('../lib/insights').recordWaTap(req, Number(req.params.id), String((req.body && req.body.place) || '')) });
+});
+r.post('/searches', limiter(10, 60), async (req, res) => {
+  const b = req.body || {};
+  res.json({ ok: true, result: await require('../lib/insights').recordSearch(req, b.filters, b.results) });
+});
 r.post('/cars/:id/view', limiter(10, 120), async (req, res) => {
   if (!/^\d{1,10}$/.test(String(req.params.id))) return res.status(400).json({ error: 'Bad car' });
   res.json({ ok: true, result: await require('../lib/views').count(req, Number(req.params.id)) });

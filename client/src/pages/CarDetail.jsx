@@ -1,7 +1,7 @@
 // One car's page: photos, price, Pay Small Small estimate, inspection notes, enquiry form and similar cars.
 import React, { useState, useEffect } from 'react';
 import { placeOf } from '../../../server/lib/places.js';
-import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, bnplFrom, rs, srcset, api, rememberViewed } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, waLink, slugify, useLocalList, sellerWa, sellerPhone, sellerName, bnpl, bnplFrom, rs, srcset, api, rememberViewed, waTap } from '../lib/core.jsx';
 import { CarCard, BnplCalc, EnquiryForm, Loading, ErrorBox, Modal, SellerBadge, SELLER_TYPES } from '../components/Bits.jsx';
 
 
@@ -85,7 +85,7 @@ export function CarDetail({ slug }) {
             {hasPrice(car) && car.old_price && !sold ? <div className="muted">Was <s>{naira(car.old_price)}</s></div> : null}
             {sold ? <div className="tag tag-grey" style={{ marginTop: 8 }}>Sold</div> : !hasPrice(car) ? <div className="small muted" style={{ marginTop: 6 }}>Call or WhatsApp for the price</div> : <div className="small" style={{ color: 'var(--ok)', fontWeight: 600, marginTop: 6 }}>Pay small small from about {naira(bnplFrom(Number(car.price), cfg).monthly)}/month (estimate)</div>}
             <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
-              <a className="btn btn-wa" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
+              <a className="btn btn-wa" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer" onClick={() => waTap(car, 'page')}>Chat on WhatsApp</a>
               {!sold && <>
                 <button className="btn btn-red" onClick={() => setModal('viewing')}>Book a viewing</button>
                 <button className="btn btn-line" onClick={() => setModal('offer')}>Make an offer</button>
@@ -113,10 +113,10 @@ export function CarDetail({ slug }) {
       )}
       {!sold && <div className="car-bar" role="region" aria-label="Contact about this car">
         {sellerPhone(car, cfg) && <a className="btn btn-line" href={'tel:' + sellerPhone(car, cfg).replace(/\s/g, '')}>Call</a>}
-        <a className="btn btn-wa" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer">WhatsApp about this car</a>
+        <a className="btn btn-wa" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer" onClick={() => waTap(car, 'bar')}>WhatsApp about this car</a>
         <button className="btn btn-red" onClick={() => setModal('viewing')}>Book</button>
       </div>}
-      {!sold && <a className="wa-fab car-fab" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${sellerName(car)} about this car`}><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M16 3.2A12.7 12.7 0 0 0 5.1 22.4L3.3 28.8l6.6-1.7A12.7 12.7 0 1 0 16 3.2Zm0 23.2c-1.9 0-3.8-.5-5.4-1.5l-.4-.2-3.9 1 1-3.8-.3-.4A10.5 10.5 0 1 1 16 26.4Zm5.8-7.9c-.3-.2-1.9-.9-2.2-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7.1a8.6 8.6 0 0 1-4.3-3.7c-.3-.6.3-.5.9-1.7.1-.2 0-.4 0-.6l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.9.4 3.6 3.6 0 0 0-1.1 2.7 6.3 6.3 0 0 0 1.3 3.3 14.4 14.4 0 0 0 5.5 4.9c2 .9 2.8 1 3.9.8a3.2 3.2 0 0 0 2.1-1.5 2.6 2.6 0 0 0 .2-1.5c-.1-.1-.3-.2-.6-.3Z" /></svg></a>}
+      {!sold && <a className="wa-fab car-fab" href={sellerWa(car, cfg, wa)} target="_blank" rel="noopener noreferrer" onClick={() => waTap(car, 'page')} aria-label={`WhatsApp ${sellerName(car)} about this car`}><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M16 3.2A12.7 12.7 0 0 0 5.1 22.4L3.3 28.8l6.6-1.7A12.7 12.7 0 1 0 16 3.2Zm0 23.2c-1.9 0-3.8-.5-5.4-1.5l-.4-.2-3.9 1 1-3.8-.3-.4A10.5 10.5 0 1 1 16 26.4Zm5.8-7.9c-.3-.2-1.9-.9-2.2-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7.1a8.6 8.6 0 0 1-4.3-3.7c-.3-.6.3-.5.9-1.7.1-.2 0-.4 0-.6l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.9.4 3.6 3.6 0 0 0-1.1 2.7 6.3 6.3 0 0 0 1.3 3.3 14.4 14.4 0 0 0 5.5 4.9c2 .9 2.8 1 3.9.8a3.2 3.2 0 0 0 2.1-1.5 2.6 2.6 0 0 0 .2-1.5c-.1-.1-.3-.2-.6-.3Z" /></svg></a>}
       {modal === 'report' && <Modal onClose={() => setModal(null)} label="Report this listing"><ReportForm car={car} onDone={() => setModal(null)} /></Modal>}
       {modal && modal !== 'report' && <Modal onClose={() => setModal(null)} label={modal === 'viewing' ? 'Book a viewing' : 'Make an offer'}>
         <EnquiryForm type={modal} car={car} title={modal === 'viewing' ? 'Book a viewing' : 'Make an offer'} cta={modal === 'viewing' ? 'Request viewing' : 'Send offer'} />

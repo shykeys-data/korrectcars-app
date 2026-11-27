@@ -117,6 +117,36 @@ test('an editor cannot open admin-only pages', async () => {
   assert.strictEqual((await call('GET', '/api/admin/users', { cookie })).status, 403);
 });
 
+test('buyer insights: searches and WhatsApp taps are counted once a day, bots skipped, staff see the report', async () => {
+  const car = (await call('GET', '/api/cars')).json.cars.find((c) => c.status === 'available');
+  const search = (filters, results) => call('POST', '/api/searches', { body: { filters, results } }).then((r) => r.json.result);
+  assert.strictEqual(await search({ make: 'Toyota', body: 'SUV' }, 3), 'counted');
+  assert.strictEqual(await search({ body: 'SUV', make: 'Toyota' }, 3), 'repeat', 'same search, same visitor, same day: once');
+  assert.strictEqual(await search({ make: 'Bentley', maxPrice: '20000000' }, 0), 'counted');
+  assert.strictEqual(await search({ sort: 'newest' }, 5), 'empty', 'sorting alone is not a search');
+  const tap = (id, place) => call('POST', `/api/cars/${id}/wa`, { body: { place } }).then((r) => r.json.result);
+  assert.strictEqual(await tap(car.id, 'card'), 'counted');
+  assert.strictEqual(await tap(car.id, 'page'), 'repeat');
+  assert.strictEqual(await tap(99999999, 'page'), 'missing');
+  const bot = await fetch(`${B}/api/searches`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'korrect', 'user-agent': 'Googlebot/2.1' }, body: JSON.stringify({ filters: { make: 'Lexus' }, results: 1 }) });
+  assert.strictEqual((await bot.json()).result, 'skipped');
+  // Nothing personal is stored
+  const db = sqlite(); const cols = db.prepare('PRAGMA table_info(search_daily)').all().map((c) => c.name).concat(db.prepare('PRAGMA table_info(wa_taps_daily)').all().map((c) => c.name)); db.close();
+  assert.ok(!cols.some((c) => /ip|phone|email|name|user/i.test(c)), cols.join(','));
+
+  const totp = require('../server/lib/totp');
+  let cookie = await makeUser('insights@example.com', 'admin');
+  const s = await call('POST', '/api/auth/2fa/setup', { cookie });
+  cookie = (await call('POST', '/api/auth/2fa/enable', { cookie, body: { code: totp.hotp(s.json.secret, Math.floor(Date.now() / 30000)) } })).cookie;
+  const rep = (await call('GET', '/api/admin/insights?days=30', { cookie })).json;
+  assert.ok(rep.searches.some((r) => r.key === 'make=Toyota|body=SUV' && r.searches === 1));
+  assert.deepStrictEqual(rep.noResults.map((r) => r.key), ['make=Bentley|maxPrice=20000000']);
+  assert.strictEqual(rep.whatsapp.taps, 1);
+  assert.strictEqual(rep.whatsapp.byPlace.card, 1);
+  assert.strictEqual(rep.whatsapp.cars[0].id, car.id);
+  assert.strictEqual((await call('GET', '/api/admin/insights')).status === 200, false, 'staff only');
+});
+
 test('Pay Small Small estimate: 40% deposit and 20% charge on the balance', async () => {
   const r = await call('GET', '/api/bnpl/quote?price=10000000&deposit=0&months=12');
   assert.strictEqual(r.status, 200);

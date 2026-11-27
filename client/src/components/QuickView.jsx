@@ -2,7 +2,7 @@
 // without leaving the page. useQV() opens it from any car card.
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, naira, hasPrice, priceText, bnpl, bnplFrom, useApp, waLink, useLocalList, sellerWa, sellerName, firstPhoto, rs, srcset } from '../lib/core.jsx';
+import { Link, naira, hasPrice, priceText, bnpl, bnplFrom, useApp, waLink, useLocalList, sellerWa, sellerName, firstPhoto, rs, srcset, waTap } from '../lib/core.jsx';
 import { SellerBadge } from './Bits.jsx';
 
 // Quick view for car cards.
@@ -93,7 +93,7 @@ function Body({ car, onClose }) {
       <div className="qv-where">{car.seller ? <>Sold by {car.seller_slug ? <Link to={'/dealers/' + car.seller_slug}>{car.seller}</Link> : car.seller}</> : 'Listed on Korrect Cars'}{car.state ? ` · ${[car.lga, car.state].filter(Boolean).join(', ')}` : ''} · listed with its VIN</div>
       <div className="qv-actions">
         <Link to={url} className="btn btn-red btn-sm" onClick={onClose}>View full details</Link>
-        {!sold && <a className="btn btn-wa btn-sm" href={sellerWa(car, cfg, `Hello ${sellerName(car)}, I saw this on Korrect Cars. I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${window.location.origin}${url}`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+        {!sold && <a className="btn btn-wa btn-sm" onClick={() => waTap(car, 'quick')} href={sellerWa(car, cfg, `Hello ${sellerName(car)}, I saw this on Korrect Cars. I am interested in the ${car.title}${hasPrice(car) ? ` (${priceText(car)})` : ''}. ${window.location.origin}${url}`)} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
         <button type="button" className={'btn btn-sm ' + (saved.has(car.id) ? 'btn-saved' : 'btn-line')} aria-pressed={saved.has(car.id)} onClick={() => saved.toggle(car.id)}>{saved.has(car.id) ? 'Saved ✓' : 'Save'}</button>
         <button type="button" className={'btn btn-sm ' + (isCmp ? 'btn-dark' : 'btn-line')} aria-pressed={isCmp} disabled={!isCmp && cmp.full} onClick={() => cmp.toggle(car.id)}>{isCmp ? 'Compare ✓' : 'Compare'}</button>
       </div>

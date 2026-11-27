@@ -1,7 +1,7 @@
 // Cars for sale: the stock list with filters (make, model, year, body, budget, sort), saved searches and Compare.
 // The car page is in CarDetail.jsx and the Pay Small Small page in PaySmallSmall.jsx (re-exported below).
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, priced, waLink, slugify, useLocalList, bnpl, bnplFrom, firstPhoto, api, rs, track } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, hasPrice, priceText, priced, waLink, slugify, useLocalList, bnpl, bnplFrom, firstPhoto, api, rs, track, beacon } from '../lib/core.jsx';
 import { CarCard, Loading, SellerBadge } from '../components/Bits.jsx';
 import { pages as categoryPages } from '../../../server/lib/categories.js';
 import { recommended } from '../lib/rank.js';
@@ -58,6 +58,15 @@ export function Inventory({ makeSlug, modelSlug, category }) {
   // 24 cars at a time; "Show more" adds 24. Back to 24 when the filters change.
   const [shown, setShown] = useState(PAGE);
   useEffect(() => setShown(PAGE), [fKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Buyer insights: count the search once the filters have stayed the same for 3 seconds (not every tap),
+  // with how many cars it found, so staff can see what buyers want and what we don't have
+  useEffect(() => {
+    if (!list.data) return undefined;
+    const filters = { ...f, category: category ? category.slug : '' }; delete filters.sort;
+    if (!Object.values(filters).some(Boolean)) return undefined;
+    const t = setTimeout(() => beacon('/searches', { filters, results: cars.filter((c) => c.status !== 'sold').length }), 3000);
+    return () => clearTimeout(t);
+  }, [fKey, !!list.data, category && category.slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const subject = f.model ? `${f.make} ${f.model}` : f.make;
   const place = f.lga ? `${f.lga}, ${f.state}` : f.state || 'Lagos';
   const heading = category ? (subject ? `${subject}: ${category.h1.replace(/ in Lagos$/, '')}` : category.h1) : subject ? `${subject} for sale in ${place}` : `Cars for sale in ${place}`;

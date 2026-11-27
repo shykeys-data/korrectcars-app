@@ -185,6 +185,11 @@ export function rememberViewed(id) {
   writeLocal('kc-viewed', [n, ...readLocal('kc-viewed').filter((x) => Number(x) !== n)].slice(0, 12));
 }
 // Google Analytics event, only when the visitor accepted analytics (gtag is loaded after consent)
+// Fire-and-forget count to our own server (buyer insights): never delays a tap or breaks the page.
+// keepalive lets it finish even when the tap opens WhatsApp or leaves the page.
+export const beacon = (path, body) => { try { fetch('/api' + path, { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'X-Requested-With': 'korrect', 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).catch(() => {}); } catch (_e) { /* ignore */ } };
+// A WhatsApp tap on a car: counted on our server (per car, per place) and sent to Google Analytics
+export const waTap = (car, place) => { if (!car || !car.id) return; beacon(`/cars/${car.id}/wa`, { place }); track('whatsapp_click', { place, car: car.slug }); };
 export const track = (name, params) => { try { if (window.gtag) window.gtag('event', name, params || {}); } catch (_e) { /* never break the page */ } };
 export function useLocalList(key, max = 50) {
   const app = useContext(AppCtx);
