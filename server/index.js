@@ -134,7 +134,7 @@ app.get('/sitemap.xml', async (_req, res, next) => {
     // Seller pages with at least 3 cars for sale, and the page on how sellers are checked (only while the marketplace is on)
     const mkt = settings.current().marketplace;
     const sellerPages = mkt ? (await db.q(`SELECT d.slug FROM dealers d JOIN cars c ON c.dealer_id = d.id AND c.status = 'available'
-      WHERE d.id <> 1 AND d.status = 'approved' GROUP BY d.id, d.slug HAVING COUNT(c.id) >= 3`)).map((x) => '/dealers/' + x.slug).concat(['/how-we-check-sellers', '/boost-plans']) : [];
+      WHERE d.id <> 1 AND d.status = 'approved' GROUP BY d.id, d.slug HAVING COUNT(c.id) >= 3`)).map((x) => '/dealers/' + x.slug).concat(['/dealers/join', '/how-we-check-sellers', '/boost-plans']) : [];
     const urls = ['/', '/cars', ...catPages, ...sellerPages, ...(settings.current().swap ? ['/swap'] : []), '/pay-small-small', '/vin-check', ...((await settings.market()).items.length >= settings.MARKET_MIN ? ['/car-market-today'] : []), '/blog', '/about-us', '/contact', '/faqs', '/privacy-policy', '/terms-and-conditions'].concat(makePages)
       .map((u) => `<url><loc>${config.siteUrl}${u}</loc></url>`)
       .concat(cars.map((c) => `<url><loc>${config.siteUrl}/cars/${c.slug}</loc><lastmod>${d(c.updated_at)}</lastmod>${(c.photos || []).slice(0, 5).map((ph) => `<image:image><image:loc>${config.siteUrl}${xml(ph)}</image:loc></image:image>`).join('')}</url>`))
@@ -153,6 +153,8 @@ app.use(async (req, res, next) => {
   if (req.method !== 'GET') return next();
   const p = req.path;
   if (LEGACY[p]) return res.redirect(301, LEGACY[p]);
+  // Short addresses people type or say for selling a car go to the sell page (only while the marketplace is on)
+  if (/^\/(sell|sell-my-car|sell-your-car|sell-a-car)\/?$/.test(p) && require('./lib/settings').current().marketplace) return res.redirect(301, '/dealers/join');
   // Old WordPress archive pages (/category/maintenance/, /tag/…, /author/…, /page/2/) now live on the guides page
   if (/^\/(category|tag|author)\/[^/]+(\/page\/\d+)?\/?$/.test(p) || /^\/(blog\/)?page\/\d+\/?$/.test(p)) return res.redirect(301, '/blog');
   if (/^\/(feed|comments\/feed)\/?$/.test(p) || p.startsWith('/wp-content/') || p.startsWith('/wp-includes/') || p.startsWith('/wp-admin') || p === '/wp-login.php' || p === '/xmlrpc.php') return res.status(410).type('text/plain').send('Gone');

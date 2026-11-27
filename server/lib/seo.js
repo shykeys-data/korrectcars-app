@@ -15,7 +15,7 @@ function robotsTxt() {
   if (isStaging()) return 'User-agent: *\nDisallow: /\n';
   const st = settings.current();
   const block = st.aiTraining === 'block' ? TRAINING_BOTS.map((b) => `User-agent: ${b}\nDisallow: /\n`).join('\n') + '\n' : '';
-  return `${block}User-agent: *\nDisallow: /account\nDisallow: /api/\nDisallow: /compare\nDisallow: /dealer$\nDisallow: /dealer/\nDisallow: /dealers/join\nDisallow: /dealers/invite\nAllow: /\n\nSitemap: ${config.siteUrl}/sitemap.xml\n`;
+  return `${block}User-agent: *\nDisallow: /account\nDisallow: /api/\nDisallow: /compare\nDisallow: /dealer$\nDisallow: /dealer/\nDisallow: /dealers/invite\nAllow: /\n\nSitemap: ${config.siteUrl}/sitemap.xml\n`;
 }
 
 async function llmsTxt() {
@@ -33,7 +33,7 @@ async function llmsTxt() {
   const lines = [
     '# Korrect Cars',
     '',
-    `> Online car dealer in Lagos, Nigeria. Sells inspected, VIN-verified tokunbo (foreign-used) cars. Customers can buy outright or pay small small (instalments) through Korrect Cars' credit partners${st.swap ? ', or swap their car with a verified owner through Korrect Swap (owner-to-owner; Korrect Cars checks both owners and cars and acts as the trusted middleman)' : ''}. Delivers cars anywhere in Nigeria.`,
+    `> Online car dealer for all of Nigeria, based in Lagos. Sells inspected, VIN-verified tokunbo (foreign-used) cars. Customers can buy outright or pay small small (instalments) through Korrect Cars' credit partners${st.swap ? ', or swap their car with a verified owner through Korrect Swap (owner-to-owner; Korrect Cars checks both owners and cars and acts as the trusted middleman)' : ''}. Delivers cars anywhere in Nigeria.`,
     '',
     `- Website: ${u('/')}`,
     `- Phone: ${st.phones.join(', ')}`,
@@ -51,6 +51,12 @@ async function llmsTxt() {
       '  - Private Seller (not verified): a person Korrect Cars has not checked (1 car, looked at by staff before it goes live). Buyers should see the car and its papers before paying.',
       '- One VIN, one live listing: the same car cannot be listed twice. Buyers can report a listing; staff can take it down at once.',
       `- [How Korrect Cars checks sellers](${u('/how-we-check-sellers')})`,
+      '',
+      '## How to sell a car on Korrect Cars',
+      '- Dealers and private sellers in any state in Nigeria can list, not only in Lagos. Joining and listing are free; Boost plans (optional, paid) put cars first with a Featured badge.',
+      '- Steps: create an account with an email code, say who is selling and the state and LGA of the cars, add each car starting with its VIN, then go live. Staff usually check CAC papers and IDs within 2 working days.',
+      '- Limits: a Private Seller (not verified) can list 1 car; a Verified Seller (ID checked) up to 5; a Verified Dealer (CAC checked) up to 50 in the first 3 months, then no limit.',
+      `- [Sell your car on Korrect Cars](${u('/dealers/join')}) · [Boost plan fees](${u('/boost-plans')})`,
       ...(sellers.length ? ['', '### Verified dealers and sellers (3 or more cars for sale)', ...sellers.map((x) => `- [${x.business_name}](${u('/dealers/' + x.slug)}): ${x.kind === 'personal' ? 'Verified Seller' : 'Verified Dealer'}${[x.lga, x.state].filter(Boolean).length ? ', ' + [x.lga, x.state].filter(Boolean).join(', ') : ''}; ${x.n} cars for sale`)] : []),
       ''] : []),
     '## How buying works',

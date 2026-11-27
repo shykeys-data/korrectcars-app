@@ -364,7 +364,15 @@ test('a new dealer can have 50 cars for sale in the first 3 months', async () =>
 test('the dealer pages open (200) and the private ones are kept out of search', async () => {
   const join = await fetch(B + '/dealers/join');
   assert.strictEqual(join.status, 200);
-  assert.match(await join.text(), /Sell your car on Korrect Cars/);
+  const html = await join.text();
+  assert.match(html, /<h1>Sell your car anywhere in Nigeria<\/h1>/, 'the sell page has its words in the HTML for search engines');
+  assert.match(html, /"@type":"FAQPage"/);
+  assert.doesNotMatch(html, /noindex/, 'the sell page is open to search');
+  assert.doesNotMatch(await (await fetch(B + '/robots.txt')).text(), /dealers\/join/, 'robots.txt does not block the sell page');
+  assert.match(await (await fetch(B + '/sitemap.xml')).text(), /\/dealers\/join</);
+  assert.match(await (await fetch(B + '/llms.txt')).text(), /any state in Nigeria/);
+  const short = await fetch(B + '/sell-my-car', { redirect: 'manual' });
+  assert.deepStrictEqual([short.status, new URL(short.headers.get('location'), B).pathname], [301, '/dealers/join']);
   const home = await fetch(B + '/dealer');
   assert.strictEqual(home.status, 200);
   assert.match(await home.text(), /noindex/);

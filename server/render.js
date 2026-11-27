@@ -25,12 +25,12 @@ function ssrFrame(body, isAdmin) {
   const st = require('./lib/settings').current();
   const phone = (st.phones || config.phones)[0] || '';
   const wa = `https://wa.me/${esc(st.whatsapp || config.whatsapp)}`;
-  const nav = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/vin-check', 'VIN check'], ...(st.swap ? [['/swap', 'Swap your car']] : []), ['/blog', 'Guides'], ['/contact', 'Contact']];
+  const nav = [['/cars', 'Cars for sale'], ['/pay-small-small', 'Pay Small Small'], ['/vin-check', 'VIN check'], ...(st.swap ? [['/swap', 'Swap your car']] : []), ...(st.marketplace ? [['/dealers/join', 'Sell your car']] : []), ['/blog', 'Guides'], ['/contact', 'Contact']];
   return `<div class="ssr"><header class="ssr-hdr"><a href="/" class="ssr-logo"><img src="/img/logo.svg" alt="Korrect Cars" width="160" height="40"></a>`
     + `<nav aria-label="Main">${nav.map(([u, t]) => `<a href="${u}">${t}</a>`).join('')}</nav>`
     + `<p class="ssr-cta"><a class="ssr-btn" href="${wa}">WhatsApp us</a> <a href="tel:${esc(phone.replace(/\s/g, ''))}">Call ${esc(phone)}</a></p></header>`
     + `<main id="main" class="ssr-main">${body}</main>`
-    + `<footer class="ssr-foot"><p><b>Korrect Cars</b> · Online car dealer in Lagos · ${esc(st.hours || config.hours)}</p><p><a href="${wa}">WhatsApp</a> · <a href="tel:${esc(phone.replace(/\s/g, ''))}">${esc(phone)}</a> · <a href="mailto:${esc(st.email || config.email)}">${esc(st.email || config.email)}</a></p>`
+    + `<footer class="ssr-foot"><p><b>Korrect Cars</b> · Online car dealer for all of Nigeria, based in Lagos ·${esc(st.hours || config.hours)}</p><p><a href="${wa}">WhatsApp</a> · <a href="tel:${esc(phone.replace(/\s/g, ''))}">${esc(phone)}</a> · <a href="mailto:${esc(st.email || config.email)}">${esc(st.email || config.email)}</a></p>`
     + `<p><a href="/about-us">About us</a> · <a href="/faqs">FAQs</a> · <a href="/blog">Guides</a> · <a href="/vin-check">Free VIN check</a> · <a href="/privacy-policy">Privacy policy</a> · <a href="/terms-and-conditions">Terms</a></p>`
     + `<p>© 2026${new Date().getFullYear() > 2026 ? '–' + new Date().getFullYear() : ''} Korrect Cars. All rights reserved.${st.cacNumber ? ` CAC registration ${esc(st.cacNumber)}.` : ''} Developed by <a href="https://www.youkay.com.ng" target="_blank" rel="noopener">YouKay Media</a> · <a href="https://www.meetoluwaseyi.com" target="_blank" rel="noopener">Meet Oluwaseyi</a></p>`
     + '</footer></div>';
@@ -441,7 +441,13 @@ async function renderPage(req, nonce) {
     const f = copyFaq(copy.SELLERS); if (f.length) ld.push(faqLd(f));
     ld.push(crumbsLd([['How we check sellers', p]]));
   }
-  if (dealersOn && p === '/dealers/join') meta = { ...meta, title: 'Sell your car on Korrect Cars | Dealers and private sellers', desc: 'Car dealers and people selling their own car can list on Korrect Cars. Free to join; we check every dealer\'s CAC papers, and buyers see who has been checked.' };
+  // The sell page: open to search, with the same words the React page shows under the sign-up form
+  if (dealersOn && p === '/dealers/join') {
+    meta = { ...meta, title: 'Sell Your Car Anywhere in Nigeria, Free | Korrect Cars', desc: 'Dealers and private sellers in any state in Nigeria list cars free on Korrect Cars. We check dealers\' CAC papers and sellers\' ID; buyers contact you directly.' };
+    body = copyHtml(copy.JOIN) + '<p><a href="/dealers/join">Start selling: create your free account</a> · <a href="/how-we-check-sellers">How we check sellers</a> · <a href="/boost-plans">Boost plan fees</a></p>';
+    ld.push(faqLd(copyFaq(copy.JOIN)));
+    ld.push(crumbsLd([['Sell your car', p]]));
+  }
   if (dealersOn && p === '/dealers/invite') noindex = true;
   if (dealersOn && /^\/dealer(\/cars\/(new|\d+))?$/.test(p)) noindex = true;
   known = known || /^\/(compare|account|login|register|verify-email|forgot-password|reset-password)$/.test(p) || (swapOn && /^\/swap\/(new|\d+)$/.test(p))

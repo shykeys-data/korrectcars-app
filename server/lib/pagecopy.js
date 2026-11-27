@@ -162,6 +162,33 @@ const BOOSTS = {
   ]
 };
 
+// Sell on Korrect Cars (/dealers/join, Nov 2026). Sellers can be in any state; keep the limits true to routes/dealer.js.
+const JOIN = {
+  h1: 'Sell your car anywhere in Nigeria',
+  lead: 'Car dealers and people selling their own car list on Korrect Cars from any state in Nigeria, not only Lagos. Joining and listing are free. Buyers search by state and LGA, see who is selling and whether we checked them, and contact you directly.',
+  sections: [
+    { h2: 'Who can sell', list: [
+      'Car dealers (a business with CAC papers, RC or BN). Once our team checks your CAC registration, your cars show ✓ Verified Dealer. You can have up to 50 cars for sale in your first 3 months, then there is no limit.',
+      'People selling their own car, with no CAC needed. Without an ID check you can list 1 car as a Private Seller, and our team looks at it before it goes live.',
+      'Send a government ID (NIN slip, driver\'s licence, international passport or voter\'s card) and a selfie to become a ✓ Verified Seller and list up to 5 cars, which go live at once.'
+    ] },
+    { h2: 'How to start selling', steps: [
+      ['Create your account', 'Enter your email and type in the 6-digit code we send you, then choose a password.'],
+      ['Tell us who is selling', 'Pick dealer or private seller, then the state and LGA where your cars are. Dealers send their CAC certificate.'],
+      ['Add your car with its VIN', 'Type the 17-character VIN first: we fill in the year, make and model where we can. Add the price, mileage and photos.'],
+      ['Go live', 'Our team usually checks papers within 2 working days. Buyers then find your cars and contact you on WhatsApp or by phone.']
+    ] },
+    { h2: 'Selling from outside Lagos', p: ['Your cars show the state and LGA you give us, so buyers in Abuja, Port Harcourt, Kano, Ibadan or any other city can find cars near them. Viewings happen where the car is. Korrect Cars\' own cars are in Lagos and we deliver them to every state.'] },
+    { h2: 'Questions from sellers', faq: [
+      ['Does it cost anything to sell my car on Korrect Cars?', 'No. Joining and listing are free. Boost plans are optional and paid: they put your cars first on the cars pages with a Featured badge.'],
+      ['Can I sell my car on Korrect Cars if I am not in Lagos?', 'Yes. Dealers and private sellers in any state in Nigeria can list. Buyers filter cars by state and LGA, so they see what is near them.'],
+      ['Do I need CAC papers to sell my car?', 'Only if you are a car business. A person selling their own car needs no CAC. Without an ID check you can list 1 car; with a checked ID you become a Verified Seller and can list up to 5.'],
+      ['How long does approval take?', 'Our team usually checks CAC papers and IDs within 2 working days. Dealers can add cars while they wait, and the cars go live once the dealer is approved.'],
+      ['Can someone else list my car?', 'Each car is listed by its VIN, and a VIN can have only one live listing on Korrect Cars. If your car is already listed by someone else, contact us.']
+    ] }
+  ]
+};
+
 // FAQs built from the live settings (the FAQs page on the site and in the server HTML use the same list).
 // Trust answers appear only once the owner has filled them in under Settings, so nothing here is made up.
 function settingsFaq(st) {
@@ -176,4 +203,4 @@ function settingsFaq(st) {
   return out.filter(([q]) => st.swap || !/swap/i.test(q));
 }
 
-module.exports = { GUIDES, CONTACT, SWAP, VIN, MARKET, SELLERS, PRIVACY_MARKETPLACE, BOOSTS, settingsFaq };
+module.exports = { GUIDES, CONTACT, SWAP, VIN, MARKET, SELLERS, PRIVACY_MARKETPLACE, BOOSTS, JOIN, settingsFaq };

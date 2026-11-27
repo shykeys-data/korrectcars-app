@@ -55,7 +55,7 @@ export function Footer() {
           </div>
           <div>
             <h2 className="foot-h">Buy</h2>
-            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/vin-check">Free VIN check</Link></li>{canInstall && <li><a href="#get-app" onClick={(e) => { e.preventDefault(); openInstall(); }}>Get the Korrect Cars app</a></li>}{dealersOn(cfg) && <li><Link to="/how-we-check-sellers">How we check sellers</Link></li>}{dealersOn(cfg) && <li><Link to="/boost-plans">Boost plan fees</Link></li>}{swapOn(cfg) && <><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></>}{cfg && cfg.marketplace && <li><Link to="/dealers/join">Dealers: sell with us</Link></li>}</ul>
+            <ul><li><Link to="/cars">Cars for sale</Link></li><li><Link to="/pay-small-small">Pay Small Small</Link></li><li><Link to="/vin-check">Free VIN check</Link></li>{canInstall && <li><a href="#get-app" onClick={(e) => { e.preventDefault(); openInstall(); }}>Get the Korrect Cars app</a></li>}{dealersOn(cfg) && <li><Link to="/how-we-check-sellers">How we check sellers</Link></li>}{dealersOn(cfg) && <li><Link to="/boost-plans">Boost plan fees</Link></li>}{swapOn(cfg) && <><li><Link to="/swap">Swap your car</Link></li><li><Link to="/swap/new">List my car</Link></li></>}{cfg && cfg.marketplace && <li><Link to="/dealers/join">Sell your car (any state)</Link></li>}</ul>
           </div>
           <div>
             <h2 className="foot-h">Company</h2>

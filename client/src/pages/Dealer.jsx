@@ -6,6 +6,8 @@ import { Link, useRouter, useApi, useApp, useTitle, priceText, date, api, naira,
 import { Loading, SellerBadge } from '../components/Bits.jsx';
 import { check as checkVin } from '../../../server/lib/vehicle-id.js';
 import { STATES, lgasOf } from '../../../server/lib/ng-lgas.js';
+import { JOIN } from '../../../server/lib/pagecopy.js';
+import { CopySections } from '../components/Copy.jsx';
 import { applyPrefill } from '../lib/prefill.js';
 import { PriceField, MileageField, ColourFields, FeatureTicks, VinChoices, DescriptionField } from '../components/CarFields.jsx';
 
@@ -43,7 +45,7 @@ function Steps({ at, phone = true }) {
 //                                                           or "Verified Seller" (up to 5) once staff check an ID
 // ?as=dealer lets a private or verified seller register as a dealer; ?as=id lets a private seller send their ID.
 export function DealerJoin() {
-  useTitle('Sell your car on Korrect Cars | Dealers and private sellers', 'Car dealers and people selling their own car can list on Korrect Cars. Free to join; we check every dealer\'s CAC papers and verified sellers\' ID.');
+  useTitle('Sell Your Car Anywhere in Nigeria, Free | Korrect Cars', 'Dealers and private sellers in any state in Nigeria list cars free on Korrect Cars. We check dealers\' CAC papers and sellers\' ID; buyers contact you directly.');
   const { user, setUser } = useApp();
   const { go, query } = useRouter();
   const me = useApi(user ? '/dealer/me' : null, [user && user.id]);
@@ -63,8 +65,8 @@ export function DealerJoin() {
   const done = async () => { forgetBoot('/auth/me'); try { setUser((await api('/auth/me')).user); } catch (_e) { /* header updates on the next page load */ } go('/dealer'); };
   return (
     <div className="wrap sec-sm" style={{ maxWidth: 640 }}>
-      <h1 style={{ fontSize: 44 }}>{upgrade ? 'Register as a dealer' : 'Sell your car on Korrect Cars'}</h1>
-      <p className="muted">Free to join. Dealers and private sellers both list here. We check every dealer's CAC papers, and buyers always see who has been checked.</p>
+      <h1 style={{ fontSize: 44 }}>{upgrade ? 'Register as a dealer' : JOIN.h1}</h1>
+      <p className="muted">{JOIN.lead}</p>
       <Steps at={at} phone={!me.data || me.data.user.phoneCheck !== false} />
       {!user && stage === 'email' && <EmailStep onSent={(e) => { setEmail(e); setStage('code'); }} />}
       {!user && stage === 'code' && <CodeStep email={email} onBack={() => setStage('email')} onOk={(p) => { setPass(p); setStage('account'); }} />}
@@ -74,6 +76,7 @@ export function DealerJoin() {
       {user && at === 3 && shownKind === 'business' && <BusinessStep dealer={upgrade ? null : d} upgrading={upgrade} onDone={done} />}
       {user && at === 3 && shownKind === 'personal' && <PersonalStep dealer={d} name={me.data.user.name} onDone={done} onBack={d ? null : () => setKind('')} />}
       {!user && <p className="small muted" style={{ marginTop: 16 }}>Already have a Korrect Cars account? <Link to="/login?next=/dealers/join">Sign in</Link> and carry on from here.</p>}
+      {!d && <div style={{ marginTop: 40 }}><CopySections page={JOIN} /><p className="small"><Link to="/how-we-check-sellers">How we check sellers</Link> · <Link to="/boost-plans">Boost plan fees</Link></p></div>}
     </div>
   );
 }
