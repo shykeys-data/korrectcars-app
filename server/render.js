@@ -40,6 +40,8 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':
 const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
 const { hasPrice, priceText, priced } = require('./lib/price');
 const { placeOf } = require('./lib/places');
+// Cars Korrect Cars sells itself (dealer 1, or no dealer) are kept at partner car lots in Lagos
+const ownCar = (car) => !car.dealer_id || Number(car.dealer_id) === 1;
 const strip = (h) => String(h || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 // Search descriptions: end on a whole sentence when one fits (Google shows these; a cut-off line looks broken),
 // otherwise on a whole word with an ellipsis
@@ -106,16 +108,16 @@ function shell() {
 
 /** @type {{ url?: string, title: string, desc: string, image: string, type?: string }} */
 const DEFAULT = {
-  title: 'Korrect Cars | Buy Tokunbo & Foreign-Used Cars in Lagos, Nigeria',
-  desc: 'Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright or pay small small through our credit partners. Delivery anywhere in Nigeria.',
+  title: 'Tokunbo Cars for Sale in Lagos & Across Nigeria | Korrect Cars',
+  desc: 'Tokunbo and foreign-used cars from Korrect Cars in Lagos and checked sellers across Nigeria. Pay small small through credit partners; delivery to every state.',
   image: '/img/hero.jpg'
 };
 
 const STATIC = {
-  '/': { title: DEFAULT.title, desc: DEFAULT.desc, h1: 'Buy inspected tokunbo cars in Lagos' },
-  '/cars': { title: 'Cars for Sale in Lagos — Tokunbo & Foreign Used | Korrect Cars', desc: 'Browse inspected, VIN-verified tokunbo and foreign-used cars for sale in Lagos. Filter by make, model, year, body type and price.', h1: 'Cars for sale in Lagos' },
+  '/': { title: DEFAULT.title, desc: DEFAULT.desc, h1: 'Buy tokunbo cars in Lagos and across Nigeria' },
+  '/cars': { title: 'Cars for Sale in Nigeria — Tokunbo & Foreign Used | Korrect Cars', desc: 'Tokunbo and foreign-used cars for sale in Lagos and across Nigeria. Filter by state, make, model, year, body type and price, or pay small small.', h1: 'Cars for sale in Nigeria' },
   '/swap': { title: 'Korrect Swap — Swap Your Car With Verified Owners | Korrect Cars', desc: 'List your car, tell us what you want, and swap with verified owners in Lagos. Inspection at a partner car lot before any car or money changes hands.', h1: 'Swap your car' },
-  '/pay-small-small': { title: 'Pay Small Small — Car Payment Plans in Lagos | Korrect Cars', desc: 'Get an estimate of your monthly payment for any car at Korrect Cars, then apply through our credit partners. Once a credit partner approves you, we sell you the car.', h1: 'Pay Small Small' },
+  '/pay-small-small': { title: 'Pay Small Small — Car Payment Plans in Nigeria | Korrect Cars', desc: 'Get an estimate of your monthly payment for any car at Korrect Cars, then apply through our credit partners. Once a credit partner approves you, we sell you the car.', h1: 'Pay Small Small' },
   '/blog': { title: 'Car Buying Guides for Nigeria | Korrect Cars Blog', desc: 'Guides on buying tokunbo cars, customs duty, VIN checks, maintenance and the best cars for Lagos roads.', h1: 'Guides' },
   '/contact': { title: 'Contact Korrect Cars — WhatsApp, Call, Hours | Lagos', desc: `Call, WhatsApp or email Korrect Cars. Online car dealer in Lagos, open ${config.hours}.`, h1: 'Contact us' },
   '/faqs': { title: 'Frequently Asked Questions | Korrect Cars', desc: 'Answers about buying, viewings and inspections, payments and Pay Small Small.', h1: 'Frequently asked questions' },
@@ -148,8 +150,8 @@ function orgLd() {
     '@context': 'https://schema.org', '@type': 'AutoDealer', '@id': config.siteUrl + '/#dealer', name: 'Korrect Cars', url: config.siteUrl + '/',
     logo: config.siteUrl + '/img/logo.svg', image: config.siteUrl + DEFAULT.image, email: st.email, telephone: st.phones,
     description: require('./lib/settings').current().marketplace
-      ? 'Car marketplace and online car dealer in Lagos. Korrect Cars sells its own inspected, VIN-verified tokunbo cars and lists cars from car dealers whose CAC registration it has checked and from people selling their own car (each listing shows whether the seller was checked). One live listing per VIN. Pay Small Small through credit partners and delivery anywhere in Nigeria.'
-      : 'Online car dealer in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through credit partners and delivery anywhere in Nigeria.',
+      ? 'Car marketplace and online car dealer for all of Nigeria, based in Lagos. Korrect Cars sells its own inspected, VIN-verified tokunbo cars and lists cars from car dealers whose CAC registration it has checked and from people selling their own car (each listing shows whether the seller was checked). One live listing per VIN. Pay Small Small through credit partners and delivery anywhere in Nigeria.'
+      : 'Online car dealer based in Lagos selling inspected, VIN-verified tokunbo and foreign-used cars, with Pay Small Small through credit partners and delivery anywhere in Nigeria.',
     areaServed: [{ '@type': 'City', name: 'Lagos' }, { '@type': 'Country', name: 'Nigeria' }], address: { '@type': 'PostalAddress', addressLocality: 'Lagos', addressCountry: 'NG' },
     openingHoursSpecification: [{ '@type': 'OpeningHoursSpecification', dayOfWeek: config.hoursSpec.days, opens: config.hoursSpec.opens, closes: config.hoursSpec.closes }],
     sameAs: st.instagram ? [`https://www.instagram.com/${st.instagram}/`] : [],
@@ -176,7 +178,7 @@ function priceAnswer(subject, cars) {
   const prices = priced(avail).map((c) => Number(c.price));
   const lo = Math.min(...prices); const hi = Math.max(...prices);
   const range = !prices.length ? 'are priced on request (call or WhatsApp us)' : (lo === hi ? `costs ${naira(lo)}` : `cost from ${naira(lo)} to ${naira(hi)}`) + (prices.length < avail.length ? ' (some are priced on request)' : '');
-  return `The ${avail.length} ${subject ? subject + ' ' : ''}${avail.length === 1 ? 'car' : 'cars'} in stock at Korrect Cars in Lagos ${range}. Every car is inspected and VIN-verified, and you can pay small small through our credit partners.`;
+  return `The ${avail.length} ${subject ? subject + ' ' : ''}${avail.length === 1 ? 'car' : 'cars'} on Korrect Cars ${range}. Every listing shows who is selling it and whether we checked them, and you can pay small small through our credit partners.`;
 }
 
 // Works out whether /cars/:a(/:b) is a make page, a make+model page, or a single car
@@ -274,8 +276,8 @@ async function renderPage(req, nonce) {
     const cars = allCars.filter((c) => c.make === rc.make && (rc.kind === 'make' || c.model === rc.model));
     const q = `How much is a ${subject} in Nigeria?`;
     const a = priceAnswer(subject, cars);
-    meta = { ...meta, title: `${subject} for Sale in Lagos — Prices & Pay Small Small | Korrect Cars`, desc: clip(a, 160) };
-    body = `<h1>${esc(subject)} for sale in Lagos</h1><ul>` + cars.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(priceText(c))}${c.status === 'sold' ? ' (sold)' : ''}</li>`).join('') + `</ul><h2>${esc(q)}</h2><p>${esc(a)}</p>`;
+    meta = { ...meta, title: `${subject} for Sale in Nigeria — Prices & Pay Small Small | Korrect Cars`, desc: clip(a, 160) };
+    body = `<h1>${esc(subject)} for sale in Nigeria</h1><ul>` + cars.map((c) => `<li><a href="/cars/${esc(c.slug)}">${esc(c.title)}</a> — ${esc(priceText(c))}${c.status === 'sold' ? ' (sold)' : ''}</li>`).join('') + `</ul><h2>${esc(q)}</h2><p>${esc(a)}</p>`;
     const crumbs = [['Cars for sale', '/cars'], [rc.make, `/cars/${slugify(rc.make)}`]];
     if (rc.kind === 'model') crumbs.push([rc.model, `/cars/${slugify(rc.make)}/${slugify(rc.model)}`]);
     ld.push(crumbsLd(crumbs), listLd(cars), faqLd([[q, a]]));
@@ -286,7 +288,7 @@ async function renderPage(req, nonce) {
     const cars = allCars.filter(cat.test);
     const avail = cars.filter((c) => c.status === 'available');
     const prices = priced(avail).map((c) => Number(c.price)); const lo = Math.min(...prices); const hi = Math.max(...prices);
-    const a = avail.length ? `Korrect Cars has ${avail.length} ${avail.length === 1 ? 'car' : 'cars'} in "${cat.name}" in Lagos right now${!prices.length ? ', priced on request' : lo === hi ? `, at ${naira(lo)}` : `, from ${naira(lo)} to ${naira(hi)}`}. Every car is inspected and VIN-verified, you can pay small small${monthlyFrom(avail) ? ` from about ${naira(monthlyFrom(avail))} a month` : ''} through our credit partners, and we deliver anywhere in Nigeria.`
+    const a = avail.length ? `Korrect Cars has ${avail.length} ${avail.length === 1 ? 'car' : 'cars'} in "${cat.name}" on Korrect Cars right now${!prices.length ? ', priced on request' : lo === hi ? `, at ${naira(lo)}` : `, from ${naira(lo)} to ${naira(hi)}`}. Every listing shows who is selling it, you can pay small small${monthlyFrom(avail) ? ` from about ${naira(monthlyFrom(avail))} a month` : ''} through our credit partners, and we deliver anywhere in Nigeria.`
       : `We have no cars in "${cat.name}" in stock right now. Chat with us on WhatsApp and we will find one for you.`;
     meta = { ...meta, title: `${cat.h1} — Prices & Pay Small Small | Korrect Cars`, desc: clip(`${cat.intro} ${a}`, 160) };
     // A category with too few cars in stock (e.g. no electric cars yet) stays out of search results until it fills up
@@ -311,8 +313,8 @@ async function renderPage(req, nonce) {
       // A sold car keeps its page (it still gets found on Google), but sends the visitor on to similar cars in stock.
       // Descriptions are built from whole sentences, most important first, so the cut never lands mid-thought.
       const desc = sold
-        ? clip(`Sold: this ${car.title} has been sold. See similar ${car.make} ${car.model} and ${car.body || 'other'} cars in stock in Lagos, with pay small small and delivery anywhere in Nigeria.`, 160)
-        : clip(`${car.title} for sale in ${car.location || 'Lagos'} ${hasPrice(car) ? 'at ' + priceText(car) : '(call for the price)'}.${plan ? ` Pay small small from about ${naira(plan.monthly)}/month.` : ''} ${extra}`, 160);
+        ? clip(`Sold: this ${car.title} has been sold. See similar ${car.make} ${car.model} and ${car.body || 'other'} cars in stock across Nigeria, with pay small small.`, 160)
+        : clip(`${car.title} for sale in ${car.lga ? car.lga + ', ' : ''}${placeOf(car)} ${hasPrice(car) ? 'at ' + priceText(car) : '(call for the price)'}.${plan ? ` Pay small small from about ${naira(plan.monthly)}/month.` : ''} ${extra}`, 160);
       meta = { ...meta, title: sold ? `Sold: ${car.title} — See Similar Cars in ${placeOf(car)} | Korrect Cars` : (car.seo_title || `${car.title} for Sale in ${placeOf(car)}${hasPrice(car) ? ' — ' + priceText(car) : ''} | Korrect Cars`), desc, image: (car.photos || [])[0] || DEFAULT.image };
       const similarHtml = (d.similar || []).length ? `<h2>${sold ? 'Similar cars in stock' : 'Similar cars'}</h2><ul>` + d.similar.map((x) => `<li><a href="/cars/${esc(x.slug)}">${esc(x.title)}</a> — ${esc(priceText(x))}</li>`).join('') + '</ul>' : '';
       const photos = (car.photos || []).slice(0, 16);
@@ -330,7 +332,7 @@ async function renderPage(req, nonce) {
         + (car.features && car.features.length ? '<h2>Features</h2><ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
         + inspectionHtml(car.inspection)
         + (plan ? `<h2>Pay small small for this ${esc(car.make)} ${esc(car.model)}</h2><p>Estimate: about ${esc(naira(plan.deposit))} deposit, then about ${esc(naira(plan.monthly))} a month for ${plan.months} months, through our credit partners. In total you would pay about ${esc(naira(plan.total))}, which is ${esc(naira(plan.extra))} more than the cash price. The credit partners confirm the final terms; once you are approved, Korrect Cars sells you the car. <a href="/pay-small-small?car=${esc(car.slug)}">Get your estimate and apply</a>.</p>` : '')
-        + (sold ? '' : `<p>View it at a partner car lot in Lagos, or have it delivered anywhere in Nigeria.</p>${similarHtml}`);
+        + (sold ? '' : `<p>${ownCar(car) ? 'View it at a partner car lot in Lagos, or have it delivered anywhere in Nigeria.' : `This car is in ${esc(car.lga ? car.lga + ', ' : '')}${esc(placeOf(car))}. Book a viewing and the seller confirms where to see it.`}</p>${similarHtml}`);
       const owners = rows.find(([k]) => /owner/i.test(k));
       ld.push({ '@context': 'https://schema.org', '@type': 'Car', name: car.title, url: meta.url, brand: { '@type': 'Brand', name: car.make }, model: car.model,
         ...(car.year ? { vehicleModelDate: String(car.year), productionDate: String(car.year) } : {}), bodyType: car.body || undefined, color: car.color || undefined,

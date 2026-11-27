@@ -386,6 +386,14 @@ test('buyers can search by state and LGA; a car is where its dealer is', async (
   const lagos = await call('GET', '/api/cars?state=Lagos&limit=100');
   assert.ok(lagos.json.cars.length > pub.json.cars.length, 'Korrect Cars stock counts as Lagos');
   assert.strictEqual((await call('GET', '/api/cars?state=Kano')).json.cars.length, 0);
+  // The car page names the place: the town in the title, LGA and town in the text; only Korrect Cars' own cars mention the Lagos car lots
+  const page = await (await fetch(B + '/cars/' + pub.json.cars[0].slug)).text();
+  assert.match(page, /<title>[^<]* for Sale in Lagos[^<]*<\/title>/);
+  assert.match(page, /for sale in Ikeja, Lagos/);
+  assert.match(page, /This car is in Ikeja, Lagos\. Book a viewing/);
+  assert.doesNotMatch(page, /View it at a partner car lot/);
+  const own = lagos.json.cars.find((c) => c.seller === 'Korrect Cars');
+  if (own) assert.match(await (await fetch(B + '/cars/' + own.slug)).text(), /View it at a partner car lot in Lagos/);
 });
 
 test('an administrator can hand Korrect Cars\' cars to a dealer; codes like BF come off; the limit ignores them', async () => {
@@ -824,4 +832,33 @@ test('saved-car alerts: emails on a real price drop, new photos and sold; never 
   assert.strictEqual(mails('The 2017 Toyota Camry XLE you saved has been sold'), 1, 'sold email only once');
   assert.strictEqual((log.match(new RegExp(`To: ${'ade@example.com'} \\| (Price drop|New photos|The 2017)`, 'g')) || []).length, 0, 'the seller who made the change is not emailed');
   const d1 = sqlite(); d1.prepare("UPDATE dealers SET verified_at = ? WHERE business_name = 'Ade Motors Ltd'").run(was); d1.close();
+});
+
+test('seller growth kit: a badge for approved sellers, a share panel switch, and one monthly report per seller', async () => {
+  const slug = (await call('GET', '/api/cars?state=Lagos&lga=Ikeja&limit=100')).json.cars.find((c) => c.seller_slug).seller_slug;
+  const badge = await fetch(`${B}/badge/${slug}.svg`);
+  assert.strictEqual(badge.status, 200);
+  assert.match(badge.headers.get('content-type'), /image\/svg\+xml/);
+  assert.strictEqual(badge.headers.get('cross-origin-resource-policy'), 'cross-origin', 'other websites may show the badge');
+  assert.match(await badge.text(), /Verified Dealer on Korrect Cars/);
+  assert.strictEqual((await fetch(`${B}/badge/no-such-seller.svg`)).status, 404);
+  // The switch is on by default, and the owner can turn it off and on
+  const me = await call('GET', '/api/dealer/me', { cookie: ade.cookie });
+  assert.strictEqual(me.json.dealer.reportEmails, true);
+  assert.strictEqual((await call('POST', '/api/dealer/report', { cookie: ade.cookie, body: { on: false } })).json.reportEmails, false);
+  const month = new Date(Date.now() + 3600 * 1000).toISOString().slice(0, 7); // this Lagos month, so today's views count
+  const off = await call('POST', '/api/admin/seller-reports', { cookie: staffCookie, body: { month } });
+  assert.strictEqual(off.json.sent, 0, 'switched off: no report');
+  await call('POST', '/api/dealer/report', { cookie: ade.cookie, body: { on: true } });
+  // Staff (administrators and sales) can send reports by hand; sellers cannot
+  assert.strictEqual((await call('POST', '/api/admin/seller-reports', { cookie: ade.cookie, body: { month } })).status, 403);
+  const before = mailsTo('ade@example.com');
+  const first = await call('POST', '/api/admin/seller-reports', { cookie: staffCookie, body: { month } });
+  assert.ok(first.json.sent >= 1);
+  await wait(50);
+  assert.strictEqual(mailsTo('ade@example.com'), before + 1);
+  assert.match(log, /Your cars on Korrect Cars in [A-Z][a-z]+ \d{4}: [\d,]+ views, [\d,]+ WhatsApp taps/);
+  assert.strictEqual((await call('POST', '/api/admin/seller-reports', { cookie: staffCookie, body: { month } })).json.sent, 0, 'never twice in a month');
+  const stats = await call('GET', '/api/dealer/stats', { cookie: ade.cookie });
+  assert.strictEqual(typeof stats.json.waMonth, 'number');
 });

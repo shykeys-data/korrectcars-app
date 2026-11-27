@@ -33,6 +33,13 @@ r.get('/insights', salesTeam, async (req, res) => {
   const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
   res.json(await require('../lib/insights').report(days));
 });
+// Send the monthly seller reports for a month now (they also go out by themselves on the 1st); each seller gets a month's report once
+r.post('/seller-reports', salesTeam, async (req, res) => {
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String((req.body && req.body.month) || '')) ? req.body.month : require('../lib/dealer-report').previousMonth();
+  const sent = await require('../lib/dealer-report').sendReports({ month });
+  await audit(req, 'Sent monthly seller reports', `${month}: ${sent} sent`);
+  res.json({ month, sent });
+});
 r.use('/dealers', require('./admin-dealers')); // every staff role may review dealers (owner decision, Nov 2026)
 r.use('/listings', require('./admin-listings')); // cars to check (private sellers) and reported listings
 

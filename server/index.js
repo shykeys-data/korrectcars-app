@@ -96,6 +96,29 @@ require('./lib/seo').routes(app);
 // Installable site: manifest, service worker and offline page
 require('./lib/pwa').routes(app);
 
+// ---------- Seller badge: a small picture sellers put on their own website, linking to their page here ----------
+// Only approved sellers have one; other websites may show it (Cross-Origin-Resource-Policy), and it is cached for a day.
+app.get('/badge/:slug.svg', async (req, res, next) => {
+  try {
+    if (!settings.current().marketplace) return res.status(404).end();
+    const d = await db.one("SELECT business_name, kind FROM dealers WHERE slug = ? AND id <> 1 AND status = 'approved'", [String(req.params.slug)]);
+    if (!d) return res.status(404).end();
+    const esc = (x) => String(x).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const name = String(d.business_name || '').length > 30 ? String(d.business_name).slice(0, 29) + '…' : String(d.business_name || '');
+    const label = d.kind === 'personal' ? 'Verified Seller' : 'Verified Dealer';
+    res.set({ 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=86400', 'Cross-Origin-Resource-Policy': 'cross-origin' });
+    res.send(`<svg xmlns="http://www.w3.org/2000/svg" width="260" height="72" viewBox="0 0 260 72" role="img" aria-label="${esc(name)}: ${label} on Korrect Cars. See our cars.">`
+      + '<rect width="260" height="72" rx="12" fill="#0b0b0d"/><rect x="1" y="1" width="258" height="70" rx="11" fill="none" stroke="#d71920" stroke-width="2"/>'
+      + '<circle cx="34" cy="36" r="16" fill="#16a34a"/><path d="M26 36.5l5.5 5.5L42.5 31" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>'
+      + `<text x="60" y="27" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="700" fill="#ffffff">${esc(name)}</text>`
+      + `<text x="60" y="44" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#86efac">${label} on Korrect Cars</text>`
+      + '<text x="60" y="59" font-family="Arial,Helvetica,sans-serif" font-size="11" font-weight="700" fill="#fca5a5">See our cars ›</text></svg>');
+  } catch (e) { next(e); }
+});
+
+// Monthly seller reports go out on the 1st: checked at most once an hour while the site serves visitors (lib/dealer-report.js)
+app.use((_req, _res, next) => { if (settings.current().marketplace) require('./lib/dealer-report').runDue(); next(); });
+
 // ---------- Health check (for an uptime monitor): 200 when the app and the database answer, 503 when not ----------
 app.get('/api/health', async (_req, res) => {
   res.set('Cache-Control', 'no-store');

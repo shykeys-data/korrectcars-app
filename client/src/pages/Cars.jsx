@@ -68,9 +68,9 @@ export function Inventory({ makeSlug, modelSlug, category }) {
     return () => clearTimeout(t);
   }, [fKey, !!list.data, category && category.slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const subject = f.model ? `${f.make} ${f.model}` : f.make;
-  const place = f.lga ? `${f.lga}, ${f.state}` : f.state || 'Lagos';
-  const heading = category ? (subject ? `${subject}: ${category.h1.replace(/ in Lagos$/, '')}` : category.h1) : subject ? `${subject} for sale in ${place}` : `Cars for sale in ${place}`;
-  useTitle(category ? `${category.h1} — Prices & Pay Small Small | Korrect Cars` : subject ? `${subject} for Sale in Lagos — Prices & Pay Small Small | Korrect Cars` : 'Cars for Sale in Lagos — Tokunbo & Foreign Used | Korrect Cars');
+  const place = f.lga ? `${f.lga}, ${f.state}` : f.state || 'Nigeria';
+  const heading = category ? (subject ? `${subject}: ${category.h1.replace(/ in Nigeria$/, '')}` : category.h1) : subject ? `${subject} for sale in ${place}` : `Cars for sale in ${place}`;
+  useTitle(category ? `${category.h1} — Prices & Pay Small Small | Korrect Cars` : subject ? `${subject} for Sale in Nigeria — Prices & Pay Small Small | Korrect Cars` : 'Cars for Sale in Nigeria — Tokunbo & Foreign Used | Korrect Cars');
   // Category links with live counts (only categories that have cars)
   const catCount = (c) => [c, all.filter((x) => x.status === 'available' && c.test(x)).length];
   const catLinks = categoryPages().filter((c) => !c.budget).map(catCount).filter(([, n]) => n > 0);
@@ -118,7 +118,7 @@ export function Inventory({ makeSlug, modelSlug, category }) {
       <div className="wrap sec-sm">
         <nav className="small muted" aria-label="Breadcrumb" style={{ marginBottom: 8 }}><Link to="/">Home</Link> / <Link to="/cars">Cars for sale</Link>{category && <> / <Link to={'/cars/' + category.slug}>{category.name}</Link></>}{!category && f.make && <> / <Link to={'/cars/' + slugify(f.make)}>{f.make}</Link></>}{!category && f.model && <> / {f.model}</>}</nav>
         <h1>{heading}</h1>
-        <p className="muted" style={{ marginTop: -4 }}>{category ? category.intro : 'Every car inspected and VIN-verified · parked at partner car lots in Lagos'}</p>
+        <p className="muted" style={{ marginTop: -4 }}>{category ? category.intro : 'Cars from Korrect Cars in Lagos and checked sellers across Nigeria · filter by state'}</p>
         {catLinks.length > 1 && <nav className="cat-links" aria-label="Browse by category">
           <Link to="/cars" className={'pill' + (!category ? ' on' : '')}>All cars</Link>
           {catLinks.map(([c, n]) => <Link key={c.slug} to={'/cars/' + c.slug} className={'pill' + (category && category.slug === c.slug ? ' on' : '')} aria-current={category && category.slug === c.slug ? 'page' : undefined}>{c.name}<span className="n">{n}</span></Link>)}

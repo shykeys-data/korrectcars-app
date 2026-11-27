@@ -51,7 +51,7 @@ export function Footer() {
         <div className="cols">
           <div>
             <img src="/img/logo-white.svg" alt="Korrect Cars" width="200" height="50" style={{ height: 46, width: 'auto', marginBottom: 14 }} loading="lazy" />
-            <p>Inspected, VIN-verified tokunbo and foreign-used cars in Lagos. Buy outright{swapOn(cfg) ? ', pay small small through our credit partners, or swap your car with a verified owner' : ' or pay small small through our credit partners'}.</p>
+            <p>Tokunbo and foreign-used cars from Korrect Cars in Lagos and checked sellers across Nigeria. Buy outright{swapOn(cfg) ? ', pay small small through our credit partners, or swap your car with a verified owner' : ' or pay small small through our credit partners'}.</p>
           </div>
           <div>
             <h2 className="foot-h">Buy</h2>

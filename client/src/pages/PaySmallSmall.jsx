@@ -14,7 +14,7 @@ const pssFaq = (b) => [
 ];
 
 export function PaySmallSmall() {
-  useTitle('Pay Small Small — Car Payment Plans in Lagos | Korrect Cars');
+  useTitle('Pay Small Small — Car Payment Plans in Nigeria | Korrect Cars');
   const { query } = useRouter();
   const { cfg, user } = useApp();
   const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 };

@@ -128,7 +128,7 @@ const liveCount = async (dealerId, exceptCar) => Number((await one(`SELECT COUNT
 const dealerView = async (d) => (d ? {
   id: d.id, slug: d.slug, kind: d.kind || 'business', businessName: d.business_name, cacType: d.cac_type, cacNumber: d.cac_number, status: d.status,
   verifiedAt: d.verified_at, phone: d.phone, whatsapp: d.whatsapp, email: d.email, address: d.address, state: d.state, lga: d.lga,
-  about: d.about, logo: d.logo_key || null, role: d.member_role, liveLimit: await liveLimit(d), liveCars: await liveCount(d.id),
+  about: d.about, logo: d.logo_key || null, role: d.member_role, reportEmails: Number(d.report_emails ?? 1) === 1, liveLimit: await liveLimit(d), liveCars: await liveCount(d.id),
   lastNote: ((await one("SELECT note FROM verification_events WHERE dealer_id = ? AND step = 'review' ORDER BY id DESC LIMIT 1", [d.id])) || {}).note || null
 } : null);
 
@@ -369,7 +369,13 @@ r.get('/stats', requireDealer, async (req, res) => {
   const sum = (n) => daily.slice(-n).reduce((s, d) => s + d.views, 0);
   const total = Number((await one(`SELECT COALESCE(SUM(views), 0) AS n FROM cars c WHERE c.dealer_id = ?${sc.sql}`, [req.dealer.id, ...sc.p])).n) || 0;
   const enq = await one(`SELECT COUNT(*) AS n FROM enquiries e JOIN cars c ON c.id = e.car_id WHERE c.dealer_id = ?${sc.sql}`, [req.dealer.id, ...sc.p]);
-  res.json({ daily, today: sum(1), week: sum(7), month: sum(30), total, enquiries: Number(enq.n) || 0 });
+  const taps = await one(`SELECT COALESCE(SUM(w.taps), 0) AS n FROM wa_taps_daily w JOIN cars c ON c.id = w.car_id WHERE c.dealer_id = ?${sc.sql} AND w.day >= ?`, [req.dealer.id, ...sc.p, days[0]]);
+  res.json({ daily, today: sum(1), week: sum(7), month: sum(30), total, enquiries: Number(enq.n) || 0, waMonth: Number(taps.n) || 0 });
+});
+// The monthly report email (lib/dealer-report.js): the owner or a manager switches it on or off for the business
+r.post('/report', requireDealer, onlyRoles('owner', 'manager'), async (req, res) => {
+  await q('UPDATE dealers SET report_emails = ? WHERE id = ?', [req.body && req.body.on ? 1 : 0, req.dealer.id]);
+  res.json({ ok: true, reportEmails: !!(req.body && req.body.on) });
 });
 r.get('/cars/:id', requireDealer, async (req, res) => {
   const car = isId(req.params.id) && await one(`SELECT ${CAR_COLS} FROM cars c WHERE c.id = ? AND c.dealer_id = ?${scope(req).sql}`, [req.params.id, req.dealer.id, ...scope(req).p]);

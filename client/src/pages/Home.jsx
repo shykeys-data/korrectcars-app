@@ -61,7 +61,7 @@ function VinBand() {
 }
 
 export default function Home() {
-  useTitle('Korrect Cars | Buy Tokunbo & Foreign-Used Cars in Lagos, Nigeria');
+  useTitle('Tokunbo Cars for Sale in Lagos & Across Nigeria | Korrect Cars');
   const { go } = useRouter();
   const { cfg } = useApp();
   const swap = !!(cfg && cfg.swap);
@@ -104,7 +104,7 @@ export default function Home() {
         <div className="shade" />
         <div className="wrap hero-grid">
           <div className="hero-copy">
-          <div className="eyebrow" style={{ color: '#fca5a5' }}>Lagos · Inspected · VIN-verified</div>
+          <div className="eyebrow" style={{ color: '#fca5a5' }}>Lagos & all of Nigeria · VIN-checked · Sellers verified</div>
           <h1>Drive the right car. Pay the Korrect way.</h1>
           <p className="lead">Tokunbo and foreign-used cars we have checked inside and out. {swap ? 'Buy outright, pay small small through our credit partners, or swap your car with a verified owner.' : 'Buy outright or pay small small through our credit partners.'}</p>
           <div className="ctas">

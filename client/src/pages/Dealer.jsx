@@ -363,6 +363,45 @@ function LogoPanel({ d, onChange }) {
 // Views of all the dealer's cars: today, this week, 30 days, all time, and a bar per day for the last 30 days.
 // Counted once per visitor per car per day; bots, staff and the dealer's own team are not counted.
 const dayName = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short' });
+// Share kit: the seller's page link for WhatsApp status and Instagram bio, and a badge for their own website.
+// Every buyer who comes through it sees only this seller's cars; every website badge is a link back to Korrect Cars.
+function SharePanel({ d, onChange }) {
+  const [copied, setCopied] = useState('');
+  if (d.status !== 'approved' || !d.slug) return null;
+  const url = `${window.location.origin}/dealers/${d.slug}`;
+  const label = d.kind === 'personal' ? 'Verified Seller' : 'Verified Dealer';
+  const badge = `<a href="${url}" target="_blank" rel="noopener"><img src="${window.location.origin}/badge/${d.slug}.svg" alt="${d.businessName.replace(/"/g, '')}: ${label} on Korrect Cars. See our cars." width="260" height="72"></a>`;
+  const msg = `See all my cars for sale on Korrect Cars (${label}). Message me on WhatsApp from any car: ${url}`;
+  const copy = async (what, val) => {
+    try { await navigator.clipboard.writeText(val); setCopied(what); setTimeout(() => setCopied(''), 2500); } catch (_e) { setCopied('select'); }
+  };
+  const canManage = ['owner', 'manager'].includes(d.role || 'owner');
+  return (
+    <div className="box">
+      <h2 style={{ marginBottom: 4 }}>Share your page, get more buyers</h2>
+      <p className="small muted" style={{ marginTop: 0 }}>Buyers who open your link see only your cars, with your WhatsApp number. Put it in your Instagram bio and on your WhatsApp status each time you add a car.</p>
+      <div className="field"><label className="f" htmlFor="share-url">Your page</label>
+        <input id="share-url" className="input" readOnly value={url} onFocus={(e) => e.target.select()} /></div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} aria-live="polite">
+        <button type="button" className="btn btn-dark btn-sm" onClick={() => copy('link', url)}>{copied === 'link' ? 'Link copied ✓' : 'Copy link'}</button>
+        <a className="btn btn-wa btn-sm" href={'https://wa.me/?text=' + encodeURIComponent(msg)} target="_blank" rel="noopener noreferrer">Share on WhatsApp</a>
+        {typeof navigator !== 'undefined' && navigator.share && <button type="button" className="btn btn-line btn-sm" onClick={() => navigator.share({ title: d.businessName, text: msg, url }).catch(() => {})}>More ways to share</button>}
+        <a className="btn btn-line btn-sm" href={url} target="_blank" rel="noopener noreferrer">View my page</a>
+      </div>
+      <details style={{ marginTop: 14 }}><summary className="small"><b>Have a website?</b> Add your Korrect Cars badge</summary>
+        <p className="small muted">Paste this code where you want the badge. It shows your name and "{label}", and links to your page here.</p>
+        <p><img src={`/badge/${d.slug}.svg`} alt={`${d.businessName} ${label} badge`} width="260" height="72" /></p>
+        <textarea className="input" readOnly rows={3} value={badge} onFocus={(e) => e.target.select()} aria-label="Badge code for your website" style={{ fontFamily: 'Consolas,monospace', fontSize: 12 }} />
+        <p><button type="button" className="btn btn-dark btn-sm" onClick={() => copy('badge', badge)}>{copied === 'badge' ? 'Code copied ✓' : 'Copy badge code'}</button></p>
+      </details>
+      {copied === 'select' && <p className="small muted">Your browser blocked copying: tap the box above and copy it yourself.</p>}
+      {canManage && <label className="small" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 14 }}>
+        <input type="checkbox" checked={!!d.reportEmails} onChange={async (e) => { try { await api('/dealer/report', { method: 'POST', body: { on: e.target.checked } }); onChange(); } catch (err) { window.alert(err.message); } }} />
+        Email me a monthly report on the 1st: views, WhatsApp taps and buyer requests for my cars</label>}
+    </div>
+  );
+}
+
 function ViewsPanel({ s }) {
   const [hover, setHover] = useState(null);
   if (!s) return null;
@@ -373,7 +412,7 @@ function ViewsPanel({ s }) {
       <h2 style={{ marginBottom: 4 }}>Views of your cars</h2>
       <p className="small muted" style={{ marginTop: 0 }}>How many times buyers opened your cars' pages. Each buyer counts once per car per day; search engines, our staff and your own team are not counted.</p>
       <div className="kpis" style={{ marginBottom: 12 }}>
-        {[['Today', s.today], ['This week (7 days)', s.week], ['This month (30 days)', s.month], ['All time', s.total], ['Buyer requests', s.enquiries]].map(([l, v]) => (
+        {[['Today', s.today], ['This week (7 days)', s.week], ['This month (30 days)', s.month], ['All time', s.total], ['WhatsApp taps (30 days)', s.waMonth || 0], ['Buyer requests', s.enquiries]].map(([l, v]) => (
           <div key={l} className="kpi"><div className="small muted">{l}</div><div className="v">{Number(v).toLocaleString('en-NG')}</div></div>))}
       </div>
       <div className="small" aria-live="polite" style={{ minHeight: 22 }}><b>{dayName(shown.day)}</b>: {shown.views} view{shown.views === 1 ? '' : 's'}</div>
@@ -424,6 +463,7 @@ export function DealerHome() {
         <div className="box kpi"><div className="small muted">Cars for sale</div><div className="v">{d.liveCars}{d.liveLimit ? <span className="small muted"> / {d.liveLimit}</span> : null}</div>{d.liveLimit ? <div className="small muted">{!personal ? 'limit for your first 3 months' : d.status === 'approved' ? 'limit for Verified Sellers' : 'limit until your ID is checked'}</div> : null}</div>
         <div className="box kpi"><div className="small muted">All your cars</div><div className="v">{list.length}</div></div>
       </div>
+      <SharePanel d={d} onChange={me.reload} />
       {!personal && ['owner', 'manager'].includes(d.role) && <LogoPanel d={d} onChange={me.reload} />}
       <BoostPanel onChange={cars.reload} />
       <BuyerRequests />

@@ -40,7 +40,7 @@ async function llmsTxt() {
     `- WhatsApp: https://wa.me/${st.whatsapp}`,
     `- Email: ${st.email}`,
     `- Opening hours: ${st.hours}`,
-    '- Location: Lagos, Nigeria (online dealer; cars are viewed at partner car lots in Lagos, address sent on WhatsApp after booking)',
+    '- Location: based in Lagos, serving all of Nigeria. Korrect Cars\' own cars are viewed at partner car lots in Lagos (address sent on WhatsApp after booking); cars from other sellers are in the seller\'s state and LGA, shown on each car page.',
     '- Delivery: nationwide, to any state in Nigeria (ask on WhatsApp for the cost to your city)',
     st.instagram ? `- Instagram: https://www.instagram.com/${st.instagram}/` : '',
     '',
