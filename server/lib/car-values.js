@@ -1,6 +1,7 @@
 // Turns the cleaned car form (validate('car')) into database columns. Shared by the staff and dealer car forms.
 const { J } = require('../db');
 const { list, inspectionSchema } = require('./validate');
+const { STATES, lgasOf } = require('./ng-lgas');
 
 const rowsFromText = (t) => String(t || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const i = l.indexOf(':'); return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : [l, '']; });
 
@@ -27,8 +28,20 @@ function carValues(v, { staff = false } = {}) {
     description: v.description || null, features: J(list(String(v.features || '').includes('\n') ? String(v.features).split('\n') : v.features)),
     specs: J(rowsFromText(v.specsText)), info: J(String(v.infoText || '').split('\n').map((s) => s.trim()).filter(Boolean)),
     status: v.status || 'available', featured: v.featured === true || v.featured === 'true' ? 1 : 0,
-    inspection: inspectionJson(v.inspection)
+    inspection: inspectionJson(v.inspection),
+    ...(staff ? carPlace(v) : {}) // dealers' cars are always where the dealer is; only staff place a car elsewhere
   };
+}
+
+// Staff: where the car is, if not where its account is (e.g. Buffy's cars in Abuja on Korrect Cars' account). Empty = the account's place.
+function carPlace(v) {
+  if (v.carState === undefined) return {};
+  const state = String(v.carState || '').trim();
+  if (!state) return { state: null, lga: null };
+  if (!STATES.includes(state)) throw bad('Pick the state from the list.', 'carState');
+  const lga = String(v.carLga || '').trim();
+  if (lga && !lgasOf(state).includes(lga)) throw bad('Pick the local government from the list for that state.', 'carLga');
+  return { state, lga: lga || null };
 }
 
 // Inspection notes arrive as JSON from the car form; keep only filled-in areas

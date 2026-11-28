@@ -864,3 +864,24 @@ test('seller growth kit: a badge for approved sellers, a share panel switch, and
   const stats = await call('GET', '/api/dealer/stats', { cookie: ade.cookie });
   assert.strictEqual(typeof stats.json.waMonth, 'number');
 });
+
+test('a car can be placed away from its seller (Buffy cars in Abuja on Korrect Cars\' account); staff only', async () => {
+  const { carValues } = require('../server/lib/car-values');
+  const base = { title: 'X', make: 'Toyota', model: 'Camry', body: 'Sedan', year: 2015, price: 1000000, mileage: '50000', status: 'available' };
+  assert.deepStrictEqual([carValues({ ...base, carState: 'Abuja (FCT)', carLga: 'Abuja Municipal (AMAC)' }, { staff: true }).state, carValues({ ...base, carState: 'Abuja (FCT)', carLga: 'Abuja Municipal (AMAC)' }, { staff: true }).lga], ['Abuja (FCT)', 'Abuja Municipal (AMAC)']);
+  assert.strictEqual(carValues({ ...base, carState: 'Abuja (FCT)' }, { staff: false }).state, undefined, 'dealers cannot move a car away from their own place');
+  assert.throws(() => carValues({ ...base, carState: 'Abuja (FCT)', carLga: 'Ikeja' }, { staff: true }), /local government/);
+  assert.deepStrictEqual([carValues({ ...base, carState: '' }, { staff: true }).state], [null], 'empty: back to the seller\'s place');
+  // One of Korrect Cars' own cars, placed in Abuja Municipal
+  const own = { slug: '2016-lexus-es-350-bf-test' };
+  { const db = sqlite(); db.prepare("INSERT INTO cars (slug, title, make, model, body, year, price, mileage, status, dealer_id, photos) VALUES (?, '2016 Lexus ES 350 BF', 'Lexus', 'ES 350', 'Sedan', 2016, 20000000, '60000', 'available', 1, '[]')").run(own.slug); db.close(); }
+  { const db = sqlite(); db.prepare("UPDATE cars SET state = 'Abuja (FCT)', lga = 'Abuja Municipal (AMAC)' WHERE slug = ?").run(own.slug); db.close(); }
+  const inAbuja = (await call('GET', '/api/cars?state=' + encodeURIComponent('Abuja (FCT)') + '&lga=' + encodeURIComponent('Abuja Municipal (AMAC)') + '&limit=100')).json.cars;
+  assert.ok(inAbuja.some((c) => c.slug === own.slug), 'found by the Abuja filter');
+  assert.ok(!(await call('GET', '/api/cars?state=Lagos&limit=100')).json.cars.some((c) => c.slug === own.slug), 'no longer under Lagos');
+  const page = await (await fetch(B + '/cars/' + own.slug)).text();
+  assert.match(page, /<title>[^<]* for Sale in Abuja[^<]*<\/title>/);
+  assert.match(page, /View it at a partner car lot in Abuja/);
+  assert.strictEqual((await call('GET', '/api/cars/' + own.slug)).json.car.lga, 'Abuja Municipal (AMAC)');
+  { const db = sqlite(); db.prepare('UPDATE cars SET state = NULL, lga = NULL WHERE slug = ?').run(own.slug); db.close(); }
+});

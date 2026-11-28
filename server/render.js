@@ -40,7 +40,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':
 const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
 const { hasPrice, priceText, priced } = require('./lib/price');
 const { placeOf } = require('./lib/places');
-// Cars Korrect Cars sells itself (dealer 1, or no dealer) are kept at partner car lots in Lagos
+// Cars Korrect Cars sells itself (dealer 1, or no dealer) are kept at partner car lots (in Lagos unless staff placed the car elsewhere)
 const ownCar = (car) => !car.dealer_id || Number(car.dealer_id) === 1;
 const strip = (h) => String(h || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 // Search descriptions: end on a whole sentence when one fits (Google shows these; a cut-off line looks broken),
@@ -333,7 +333,7 @@ async function renderPage(req, nonce) {
         + (car.features && car.features.length ? '<h2>Features</h2><ul>' + car.features.map((f) => `<li>${esc(f)}</li>`).join('') + '</ul>' : '')
         + inspectionHtml(car.inspection)
         + (plan ? `<h2>Pay small small for this ${esc(car.make)} ${esc(car.model)}</h2><p>Estimate: about ${esc(naira(plan.deposit))} deposit, then about ${esc(naira(plan.monthly))} a month for ${plan.months} months, through our credit partners. In total you would pay about ${esc(naira(plan.total))}, which is ${esc(naira(plan.extra))} more than the cash price. The credit partners confirm the final terms; once you are approved, Korrect Cars sells you the car. <a href="/pay-small-small?car=${esc(car.slug)}">Get your estimate and apply</a>.</p>` : '')
-        + (sold ? '' : `<p>${ownCar(car) ? 'View it at a partner car lot in Lagos, or have it delivered anywhere in Nigeria.' : `This car is in ${esc(car.lga ? car.lga + ', ' : '')}${esc(placeOf(car))}. Book a viewing and the seller confirms where to see it.`}</p>${similarHtml}`);
+        + (sold ? '' : `<p>${ownCar(car) ? `View it at a partner car lot in ${esc(placeOf(car))}, or have it delivered anywhere in Nigeria.` : `This car is in ${esc(car.lga ? car.lga + ', ' : '')}${esc(placeOf(car))}. Book a viewing and the seller confirms where to see it.`}</p>${similarHtml}`);
       const owners = rows.find(([k]) => /owner/i.test(k));
       ld.push({ '@context': 'https://schema.org', '@type': 'Car', name: car.title, url: meta.url, brand: { '@type': 'Brand', name: car.make }, model: car.model,
         ...(car.year ? { vehicleModelDate: String(car.year), productionDate: String(car.year) } : {}), bodyType: car.body || undefined, color: car.color || undefined,

@@ -222,9 +222,12 @@ const SELLER = ', (SELECT d.business_name FROM dealers d WHERE d.id = cars.deale
   + ", (SELECT CASE WHEN d.kind = 'personal' THEN CASE WHEN d.status = 'approved' THEN 'verified' ELSE 'private' END ELSE 'dealer' END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_type"
   // The seller's public page (dealers and Verified Sellers only; Korrect Cars' own stock and private sellers have none)
   + ", (SELECT CASE WHEN d.id <> 1 AND d.status = 'approved' THEN d.slug END FROM dealers d WHERE d.id = cars.dealer_id) AS seller_slug";
+// The car's own place (staff-set) or else its dealer's. Used for the car's town, the state and LGA filters and alerts.
+const CAR_STATE = "COALESCE(NULLIF(cars.state, ''), (SELECT d.state FROM dealers d WHERE d.id = cars.dealer_id))";
+const CAR_LGA = "CASE WHEN NULLIF(cars.state, '') IS NOT NULL THEN cars.lga ELSE (SELECT d.lga FROM dealers d WHERE d.id = cars.dealer_id) END";
 const CAR_COLS = 'id, slug, title, make, model, body, trim_level, year, price, old_price, mileage, engine, transmission, drivetrain, fuel, color, interior, car_condition, location, photos, status, featured, created_at, boost_until, boost_rank'
-  // A car is where its dealer is (one location per dealer for now; branches may come later)
-  + ', (SELECT d.state FROM dealers d WHERE d.id = cars.dealer_id) AS state, (SELECT d.lga FROM dealers d WHERE d.id = cars.dealer_id) AS lga'
+  // A car is where its dealer is, unless staff gave the car its own place (cars.state/lga: e.g. a supplier's cars in Abuja on Korrect Cars' account)
+  + ', ' + CAR_STATE + ' AS state, ' + CAR_LGA + ' AS lga'
   // Who sells it, and how buyers reach them (their WhatsApp and phone from sign-up)
   + SELLER;
 const STOCK_MAX = 2000;
@@ -253,8 +256,8 @@ async function listCarsFromDb(query = {}) {
   if (model) add('model = ?', String(model));
   if (body) add('body = ?', String(body));
   if (condition) add('car_condition = ?', String(condition));
-  if (state) add('dealer_id IN (SELECT id FROM dealers WHERE state = ?)', String(state));
-  if (lga) add('dealer_id IN (SELECT id FROM dealers WHERE lga = ?)', String(lga));
+  if (state) add(`${CAR_STATE} = ?`, String(state));
+  if (lga) add(`${CAR_LGA} = ?`, String(lga));
   if (featured === '1') { where.push("(featured = 1 OR boost_until > ?) AND status = 'available'"); p.push(boostNow()); }
   if (minPrice) add('price >= ?', Math.max(1, Number(minPrice) || 0));
   if (maxPrice) add('price > 0 AND price <= ?', Number(maxPrice) || 1e12);
@@ -283,7 +286,8 @@ async function carDetail(slug) {
   car.seller_slug = seller && seller.id !== 1 && seller.status === 'approved' ? seller.slug : null;
   car.seller = (seller && seller.business_name) || 'Korrect Cars';
   car.seller_whatsapp = (seller && seller.whatsapp) || null; car.seller_phone = (seller && seller.phone) || null;
-  car.state = (seller && seller.state) || null; car.lga = (seller && seller.lga) || null;
+  // The car's own place if staff set one, else its seller's
+  if (car.state) car.lga = car.lga || null; else { car.state = (seller && seller.state) || null; car.lga = (seller && seller.lga) || null; }
   for (const k of ['vin', 'old_slug', 'vin_photo', 'vehicle_id_ref', 'live_key', 'created_by', 'reviewed_by', 'reviewed_at']) delete car[k]; // staff only
   boostFlag(cleanCar(car)); similar.forEach(cleanCar);
   return moved ? { car, similar, movedTo: car.slug } : { car, similar };

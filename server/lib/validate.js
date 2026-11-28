@@ -53,6 +53,7 @@ const schemas = {
     mileage: shortText(40).optional(), engine: shortText(80).optional(), transmission: shortText(40).optional(),
     drivetrain: shortText(40).optional(), fuel: shortText(30).optional(), color: shortText(40).optional(),
     interior: shortText(60).optional(), condition: shortText(40).optional(), location: shortText(60).optional(),
+    carState: shortText(40).optional().or(z.literal('')), carLga: shortText(60).optional().or(z.literal('')),
     trim: shortText(60).optional(), vin: shortText(40).optional(), stock: shortText(40).optional(),
     specsText: shortText(4000).optional(), infoText: shortText(4000).optional(),
     description: shortText(8000).optional(), features: textList(60, 200).optional(),

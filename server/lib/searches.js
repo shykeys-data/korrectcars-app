@@ -54,7 +54,8 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 async function notifyNewCar(car) {
   try {
     if (!car || car.status !== 'available') return { sent: 0 };
-    const area = (await q('SELECT state, lga FROM dealers WHERE id = ?', [car.dealer_id || 1]))[0] || {}; // the car is where its dealer is
+    // The car is where staff placed it (cars.state/lga), else where its dealer is
+    const area = car.state ? { state: car.state, lga: car.lga } : (await q('SELECT state, lga FROM dealers WHERE id = ?', [car.dealer_id || 1]))[0] || {};
     car = { ...car, state: area.state, lga: area.lga, title: require('./titles').publicTitle(car.title) };
     const rows = await q(`SELECT s.id, s.user_id, s.name, s.filters, u.name AS user_name, u.email FROM saved_searches s
       JOIN users u ON u.id = s.user_id WHERE s.alerts = 1 AND u.disabled = 0 AND u.email_verified = 1`);
