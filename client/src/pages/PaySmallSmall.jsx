@@ -1,13 +1,14 @@
 // Pay Small Small page: how instalments work through our credit partners, the estimate calculator and FAQs.
 import React, { useState } from 'react';
-import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, bnpl, api, ContactUs } from '../lib/core.jsx';
+import { Link, useRouter, useApi, useApp, useTitle, naira, waLink, bnpl, bnplMax, isNewCar, api, ContactUs } from '../lib/core.jsx';
 
 
 // The FAQ quotes the live estimate settings (Settings > Pay Small Small), so the words always match the figures
 const pssFaq = (b) => [
   ['How does Pay Small Small work at Korrect Cars?', 'Pick a car and get an estimate of your deposit and monthly payment. Apply in minutes, and with your consent we pass your details to our credit partners. Once a credit partner approves you, Korrect Cars sells you the car.'],
   ['Who decides if I qualify?', 'Our credit partners. They check if you qualify, tell you which documents they need (usually a government ID and proof of income) and set the final deposit, charge and months.'],
-  ['Is the calculator figure final?', `No. It is an estimate: a deposit of at least ${b.minDeposit}% of the price, then a ${b.markup}% charge on the balance, spread over ${b.minMonths} to ${b.maxMonths} months. The credit partner sets your real terms.`],
+  ['How long can I pay for a car?', `It depends on the car. Our credit partners allow up to ${b.maxMonths} months (${b.maxMonths / 12} years) for brand-new cars, and up to ${b.usedMaxMonths || b.maxMonths} months (${(b.usedMaxMonths || b.maxMonths) / 12} years) for used cars, tokunbo and Nigerian used. The shortest plan is ${b.minMonths} months.`],
+  ['Is the calculator figure final?', `No. It is an estimate: a deposit of at least ${b.minDeposit}% of the price, then a ${b.markup}% charge on the balance, spread over up to ${b.usedMaxMonths || b.maxMonths} months for a used car or ${b.maxMonths} months for a brand-new car. The credit partner sets your real terms.`],
   ['How much more do I pay than the cash price?', `In the estimate, the ${b.markup}% charge on the balance is the extra. For example, on a ₦10,000,000 car with a ${b.minDeposit}% deposit you would pay about ${naira(bnpl(10000000, b.minDeposit, 24, { bnpl: b }).extra)} more than the cash price in total. The calculator shows the total and the extra for any car before you apply.`],
   ['Can I pay off early?', 'Early payoff, rates and months are set by the credit partner. Ask them when they contact you.'],
   ['Who sees my details?', 'Korrect Cars staff and our credit partners, and only after you agree on the last step.']
@@ -17,7 +18,7 @@ export function PaySmallSmall() {
   useTitle('Pay Small Small — Car Payment Plans in Nigeria | Korrect Cars');
   const { query } = useRouter();
   const { cfg, user } = useApp();
-  const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 };
+  const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48, usedMaxMonths: 24 };
   // One or more credit partners (banks or finance companies), set in admin Settings
   const names = String((cfg && cfg.bankPartner) || '').split(',').map((x) => x.trim()).filter(Boolean);
   const partner = names.length ? `our credit partners (${names.join(', ')})` : 'our credit partners';
@@ -27,12 +28,15 @@ export function PaySmallSmall() {
   const [custom, setCustom] = useState(Number(query.get('price')) || 10000000);
   const [pct, setPct] = useState(Math.max(b.minDeposit, Number(query.get('deposit')) || b.minDeposit));
   const [months, setMonths] = useState(Number(query.get('months')) || 24);
+  const [brandNew, setBrandNew] = useState(query.get('new') === '1'); // for a typed-in price: is the car brand new or used?
   const [step, setStep] = useState(1);
   const [d, setD] = useState({ name: (user && user.name) || '', phone: (user && user.phone) || '', email: (user && user.email) || '', employment: 'Salaried', employer: '', income: '', consent: false, website: '' });
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const car = cars.find((c) => c.slug === slug);
   const price = car ? Number(car.price) : custom;
-  const plan = bnpl(price, pct, months, cfg);
+  const cond = car ? car.car_condition : (brandNew ? 'Brand New' : 'Used');
+  const maxMo = bnplMax(cfg, cond);
+  const plan = bnpl(price, pct, months, cfg, cond);
   const set = (k) => (e) => setD({ ...d, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   const detailsOk = d.name.trim().length >= 2 && /^\+?[0-9 ()-]{7,20}$/.test(d.phone.trim());
   const next = () => { setErr(''); if (step === 2 && !detailsOk) { setErr('Enter your name and a valid phone number to continue.'); return; } setStep(step + 1); };
@@ -86,7 +90,10 @@ export function PaySmallSmall() {
             </div>
             {!car && <div className="field"><label className="f" htmlFor="pss-price">Car price</label><input id="pss-price" className="input" inputMode="numeric" value={custom ? custom.toLocaleString('en-NG') : ''} onChange={(e) => setCustom(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)} /></div>}
             <div className="field"><div className="f">Deposit you can pay <span className="muted small">(estimate)</span></div><div className="pills">{[0, 10, 20, 30].map((x) => b.minDeposit + x).filter((v) => v <= 90).map((v) => <button key={v} type="button" className={'pill' + (pct === v ? ' on' : '')} onClick={() => setPct(v)}>{v}%</button>)}</div></div>
-            <div className="field"><div className="f">Months</div><div className="pills">{[6, 12, 24, 36, 48].filter((m) => m >= b.minMonths && m <= b.maxMonths).map((m) => <button key={m} type="button" className={'pill' + (months === m ? ' on' : '')} onClick={() => setMonths(m)}>{m}</button>)}</div></div>
+            {!car && <div className="field"><div className="f">The car is</div><div className="pills" role="group" aria-label="Car condition">
+              <button type="button" className={'pill' + (!brandNew ? ' on' : '')} aria-pressed={!brandNew} onClick={() => setBrandNew(false)}>Used (tokunbo or Nigerian used)</button>
+              <button type="button" className={'pill' + (brandNew ? ' on' : '')} aria-pressed={brandNew} onClick={() => setBrandNew(true)}>Brand new</button></div></div>}
+            <div className="field"><div className="f">Months <span className="muted small">({isNewCar(cond) ? `brand-new car: up to ${maxMo}` : `used car: up to ${maxMo}`})</span></div><div className="pills">{[6, 12, 24, 36, 48].filter((m) => m >= b.minMonths && m <= maxMo).map((m) => <button key={m} type="button" className={'pill' + (plan.months === m ? ' on' : '')} onClick={() => setMonths(m)}>{m}</button>)}</div></div>
             <div className="pss-est"><span>Estimate: deposit {naira(plan.deposit)} ({plan.pct}%) · then</span><strong>{naira(plan.monthly)} × {plan.months}</strong></div>
             <p className="small" style={{ margin: '8px 0 0' }}>Total you pay: <b>{naira(plan.total)}</b>, which is <b>{naira(plan.extra)}</b> more than the cash price of {naira(price)}.</p>
             <p className="small muted">Estimate: a deposit of at least {b.minDeposit}%, then a {b.markup}% charge on the balance. The credit partner sets your real terms.</p>

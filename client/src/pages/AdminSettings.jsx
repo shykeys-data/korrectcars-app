@@ -9,7 +9,7 @@ export function Settings() {
   const { data, reload } = useApi('/admin/settings');
   const [f, setF] = useState(null); const [msg, setMsg] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   if (!data) return <Loading />;
-  const vals = f || { ...data.values, phones: data.values.phones.join(', '), bnplMinDeposit: data.values.bnpl.minDeposit, bnplMarkup: data.values.bnpl.markup, bnplMaxMonths: data.values.bnpl.maxMonths };
+  const vals = f || { ...data.values, phones: data.values.phones.join(', '), bnplMinDeposit: data.values.bnpl.minDeposit, bnplMarkup: data.values.bnpl.markup, bnplMaxMonths: data.values.bnpl.maxMonths, bnplUsedMaxMonths: data.values.bnpl.usedMaxMonths };
   const save = async (e) => { e.preventDefault(); setErr(''); setMsg(''); setBusy(true); try { await api('/admin/settings', { method: 'PUT', body: vals }); setMsg('Saved. The website uses the new details straight away.'); setF(null); reload(); } catch (x) { setErr(x.message); } finally { setBusy(false); } };
   return (
     <form className="box" onSubmit={save}>

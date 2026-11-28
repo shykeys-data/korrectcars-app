@@ -521,8 +521,10 @@ test('buyer requests on a seller\'s car go to that seller (email + their list); 
   await wait(100);
   assert.strictEqual(mailsTo('kemi@example.com'), before + 1, 'the seller got an email');
   assert.match(log, /Buyer request: Bola Buyer wants to view your 2015 Kia Rio 1/);
-  const b = await call('POST', '/api/enquiries', { body: { type: 'bnpl', car: String(car.id), name: 'Pss Buyer', phone: '08039990001', consent: true } });
+  const b = await call('POST', '/api/enquiries', { body: { type: 'bnpl', car: String(car.id), name: 'Pss Buyer', phone: '08039990001', months: 48, consent: true } });
   assert.strictEqual(b.json.seller, undefined, 'Pay Small Small goes to Korrect Cars only');
+  { const db = sqlite(); const row = db.prepare("SELECT e.bnpl_months, c.car_condition FROM enquiries e JOIN cars c ON c.id = e.car_id WHERE e.name = 'Pss Buyer'").get(); db.close();
+    if (!/new/i.test(row.car_condition || '')) assert.strictEqual(row.bnpl_months, 24, 'a used car is estimated over 2 years at most, even if 4 were asked for'); }
   const leads = await call('GET', '/api/dealer/leads', { cookie: kemi.cookie });
   assert.deepStrictEqual([leads.status, leads.json.leads.length, leads.json.open], [200, 1, 1]);
   const id = leads.json.leads[0].id;

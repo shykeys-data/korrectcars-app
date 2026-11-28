@@ -185,7 +185,7 @@ export default function Home() {
               <option value={-1}>Enter my own price</option>
             </select>
           </div>
-          <BnplCalc price={calcPrice} onPrice={calcIdx === -1 ? setCustomPrice : null} carTitle={calcIdx >= 0 && cars[calcIdx] ? cars[calcIdx].title : ''} carSlug={calcIdx >= 0 && cars[calcIdx] ? cars[calcIdx].slug : ''} />
+          <BnplCalc price={calcPrice} onPrice={calcIdx === -1 ? setCustomPrice : null} carTitle={calcIdx >= 0 && cars[calcIdx] ? cars[calcIdx].title : ''} carSlug={calcIdx >= 0 && cars[calcIdx] ? cars[calcIdx].slug : ''} condition={calcIdx >= 0 && cars[calcIdx] ? cars[calcIdx].car_condition : undefined} />
         </div>
       </section>
 

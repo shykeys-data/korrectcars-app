@@ -1,7 +1,7 @@
 // Small shared pieces: CarCard (car tile in every list), BnplCalc (Pay Small Small estimate), EnquiryForm,
 // Loading (skeleton cards), ErrorBox and Modal.
 import React, { useState } from 'react';
-import { Link, naira, hasPrice, priceText, bnpl, bnplFrom, useApp, api, firstPhoto, waLink, useLocalList, sellerWa, sellerName, rs, srcset, waTap } from '../lib/core.jsx';
+import { Link, naira, hasPrice, priceText, bnpl, bnplMax, isNewCar, bnplFrom, useApp, api, firstPhoto, waLink, useLocalList, sellerWa, sellerName, rs, srcset, waTap } from '../lib/core.jsx';
 import { useQV } from './QuickView.jsx';
 
 // Every card shows the state the car is in (the seller's state; Korrect Cars' own stock is in Lagos)
@@ -58,12 +58,17 @@ export function SellerBadge({ type, long = false }) {
   return <span className={'sbadge ' + t[1]} title={t[2]}>{t[0]}{long ? <span className="sr">: {t[2]}</span> : null}</span>;
 }
 
-export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false }) {
+// The longest plan follows the car's condition (brand new: 4 years, used: 2 years). With a typed-in price
+// there is no car, so the buyer says whether it is used or brand new.
+export function BnplCalc({ price, onPrice, carTitle, carSlug, condition, compact = false }) {
   const { cfg } = useApp();
-  const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 };
+  const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48, usedMaxMonths: 24 };
   const [pct, setPct] = useState(b.minDeposit);
   const [months, setMonths] = useState(12);
-  const p = bnpl(price || 0, pct, months, cfg);
+  const [brandNew, setBrandNew] = useState(false);
+  const cond = onPrice ? (brandNew ? 'Brand New' : 'Used') : condition;
+  const max = bnplMax(cfg, cond);
+  const p = bnpl(price || 0, pct, months, cfg, cond);
   const yrs = (m) => (m % 12 === 0 ? `${m / 12} year${m > 12 ? 's' : ''}` : m > 12 ? `${Math.floor(m / 12)} yr ${m % 12} mo` : `${m} months`);
 
   return (
@@ -81,12 +86,20 @@ export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false })
           <input id="bnpl-dep" type="range" min={b.minDeposit} max={90} step={1} value={pct} onChange={(e) => setPct(Number(e.target.value))} aria-valuetext={`${pct} percent, ${naira(p.deposit)}`} />
           <div className="ends"><span>{b.minDeposit}% minimum</span><span>90%</span></div>
         </div>
+        {onPrice && (
+          <div className="field"><div className="f">The car is</div>
+            <div className="pills" role="group" aria-label="Car condition">
+              <button type="button" className={'pill' + (!brandNew ? ' on' : '')} aria-pressed={!brandNew} onClick={() => setBrandNew(false)}>Used (tokunbo or Nigerian used)</button>
+              <button type="button" className={'pill' + (brandNew ? ' on' : '')} aria-pressed={brandNew} onClick={() => setBrandNew(true)}>Brand new</button>
+            </div>
+          </div>
+        )}
         <div className="range-row">
           <div className="top"><label className="f" htmlFor="bnpl-m" style={{ margin: 0 }}>Pay over</label><span className="val">{p.months} months</span></div>
-          <input id="bnpl-m" type="range" min={b.minMonths} max={b.maxMonths} step={1} value={months} onChange={(e) => setMonths(Number(e.target.value))} aria-valuetext={`${p.months} months`} />
-          <div className="ends"><span>{b.minMonths} months</span><span>{yrs(b.maxMonths)}</span></div>
+          <input id="bnpl-m" type="range" min={b.minMonths} max={max} step={1} value={Math.min(months, max)} onChange={(e) => setMonths(Number(e.target.value))} aria-valuetext={`${p.months} months`} />
+          <div className="ends"><span>{b.minMonths} months</span><span>{yrs(max)}</span></div>
         </div>
-        <p className="small muted">Estimate only: a deposit of at least {b.minDeposit}%, then a {b.markup}% charge on the balance. Our credit partner checks if you qualify and sets the final deposit, charge and months.</p>
+        <p className="small muted">{isNewCar(cond) ? `Brand-new cars: up to ${yrs(max)}.` : `Used cars (tokunbo and Nigerian used): up to ${yrs(max)}. Brand-new cars: up to ${yrs(b.maxMonths)}.`} Estimate only: a deposit of at least {b.minDeposit}%, then a {b.markup}% charge on the balance. Our credit partner checks if you qualify and sets the final deposit, charge and months.</p>
       </div>
       <div className="summary" aria-live="polite">
         <div className="small" style={{ color: '#a1a1aa' }}>Estimated monthly payment</div>
@@ -98,7 +111,7 @@ export function BnplCalc({ price, onPrice, carTitle, carSlug, compact = false })
         <div className="ln"><span>Total to repay</span><span>{naira(p.repay)}</span></div>
         <div className="ln"><span>Total you pay</span><span>{naira(p.total)}</span></div>
         <div className="ln" style={{ borderBottom: 0 }}><span>More than the cash price</span><span>{naira(p.extra)}</span></div>
-        <Link className="btn btn-red" to={'/pay-small-small?' + new URLSearchParams(Object.entries({ car: carSlug || '', price: carSlug ? '' : String(price || ''), deposit: String(pct), months: String(p.months) }).filter(([, v]) => v))} style={{ marginTop: 8 }}>Apply through our credit partners</Link>
+        <Link className="btn btn-red" to={'/pay-small-small?' + new URLSearchParams(Object.entries({ car: carSlug || '', price: carSlug ? '' : String(price || ''), deposit: String(pct), months: String(p.months), new: !carSlug && brandNew ? '1' : '' }).filter(([, v]) => v))} style={{ marginTop: 8 }}>Apply through our credit partners</Link>
       </div>
     </div>
   );

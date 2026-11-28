@@ -40,7 +40,8 @@ module.exports = {
     minDeposit: Number(env.BNPL_MIN_DEPOSIT_PCT) || 40,
     markup: Number(env.BNPL_MARKUP_PCT) || 20,
     minMonths: Number(env.BNPL_MIN_MONTHS) || 6,
-    maxMonths: Number(env.BNPL_MAX_MONTHS) || 48
+    maxMonths: Number(env.BNPL_MAX_MONTHS) || 48, // brand-new cars
+    usedMaxMonths: Number(env.BNPL_USED_MAX_MONTHS) || 24 // used cars (tokunbo and Nigerian used): credit partners allow 2 years (Nov 2026)
   },
   swapFeePct: Number(env.SWAP_FEE_PCT) || 2,
   // Business details shown in the footer and in structured data for Google and AI assistants

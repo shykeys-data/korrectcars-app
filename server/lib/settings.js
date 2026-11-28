@@ -12,7 +12,8 @@ const FIELDS = {
   bankPartner: { type: 'text', label: 'Credit partner names (optional, comma separated; banks or finance companies)' },
   bnplMinDeposit: { type: 'number', label: 'Estimate: minimum deposit %', min: 0, max: 90 },
   bnplMarkup: { type: 'number', label: 'Estimate: charge on balance %', min: 0, max: 100 },
-  bnplMaxMonths: { type: 'number', label: 'Estimate: longest plan (months)', min: 6, max: 96 },
+  bnplMaxMonths: { type: 'number', label: 'Estimate: longest plan for brand-new cars (months)', min: 6, max: 96 },
+  bnplUsedMaxMonths: { type: 'number', label: 'Estimate: longest plan for used cars, tokunbo and Nigerian used (months)', min: 6, max: 96 },
   swapFeePct: { type: 'number', label: 'Swap fee %', min: 0, max: 20 },
   // Trust details buyers look for. Each shows on the site only once filled in (nothing is made up when empty).
   cacNumber: { type: 'text', label: 'CAC registration number (RC/BN), shown in the footer and FAQs' },
@@ -37,7 +38,7 @@ function current() {
     whatsapp: String(g('whatsapp', config.whatsapp)).replace(/\D/g, ''),
     email: g('email', config.email), hours: g('hours', config.hours), instagram: String(g('instagram', config.instagram)).replace(/^@/, ''),
     bankPartner: g('bankPartner', config.bankPartner),
-    bnpl: { ...config.bnpl, minDeposit: num('bnplMinDeposit', config.bnpl.minDeposit), markup: num('bnplMarkup', config.bnpl.markup), maxMonths: num('bnplMaxMonths', config.bnpl.maxMonths) },
+    bnpl: { ...config.bnpl, minDeposit: num('bnplMinDeposit', config.bnpl.minDeposit), markup: num('bnplMarkup', config.bnpl.markup), maxMonths: num('bnplMaxMonths', config.bnpl.maxMonths), usedMaxMonths: num('bnplUsedMaxMonths', config.bnpl.usedMaxMonths) },
     swapFeePct: num('swapFeePct', config.swapFeePct),
     cacNumber: String(g('cacNumber', '')).trim(), returnsPolicy: String(g('returnsPolicy', '')).trim(), inspectionPromise: String(g('inspectionPromise', '')).trim(),
     aiTraining: g('aiTraining', 'allow') === 'block' ? 'block' : 'allow',

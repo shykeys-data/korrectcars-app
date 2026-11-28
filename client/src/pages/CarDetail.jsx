@@ -76,7 +76,7 @@ export function CarDetail({ slug }) {
             {car.info && car.info.length > 0 && <ul>{car.info.map((x) => <li key={x}>{x}</li>)}</ul>}</div>}
           {tab === 'specs' && <table className="specs"><tbody>{spec.concat(tech.filter((r) => !spec.some((s) => s[0].toLowerCase() === String(r[0]).toLowerCase()))).map(([k, v]) => <tr key={k}><td>{k}</td><td>{v}</td></tr>)}</tbody></table>}
           {tab === 'features' && (car.features && car.features.length ? <ul className="feat">{car.features.map((x) => <li key={x}>{x}</li>)}</ul> : <p className="muted">Ask us on WhatsApp for the full feature list.</p>)}
-          {tab === 'bnpl' && (!hasPrice(car) && !sold ? <p className="muted">The seller gives this car's price on request. Ask on WhatsApp, then we can work out Pay Small Small with you.</p> : sold ? <p className="muted">This car is sold. Pick another car to see Pay Small Small options.</p> : <BnplCalc price={Number(car.price)} carTitle={car.title} carSlug={car.slug} />)}
+          {tab === 'bnpl' && (!hasPrice(car) && !sold ? <p className="muted">The seller gives this car's price on request. Ask on WhatsApp, then we can work out Pay Small Small with you.</p> : sold ? <p className="muted">This car is sold. Pick another car to see Pay Small Small options.</p> : <BnplCalc price={Number(car.price)} carTitle={car.title} carSlug={car.slug} condition={car.car_condition} />)}
           <InspectionNotes ins={car.inspection} />
         </div>
         <aside className="side">

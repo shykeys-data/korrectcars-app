@@ -55,14 +55,21 @@ export const date = (s) => { if (!s) return ''; const d = new Date(String(s).rep
 export const firstPhoto = (c) => (c && c.photos && c.photos[0]) || '/img/hero.jpg';
 
 // ---------- Pay Small Small ----------
-export function bnpl(price, depositPct, months, cfg) {
-  const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 };
+// Longest plan for a car: brand-new cars up to bnpl.maxMonths (4 years), used cars (tokunbo, Nigerian used, or no
+// condition given) up to bnpl.usedMaxMonths (2 years), as our credit partners allow. Same rule as the server's bnplPlan.
+export const isNewCar = (condition) => /^\s*(brand[\s-]*)?new\s*$/i.test(String(condition || ''));
+export function bnplMax(cfg, condition) {
+  const b = (cfg && cfg.bnpl) || { maxMonths: 48, usedMaxMonths: 24 };
+  return isNewCar(condition) ? b.maxMonths : Math.min(b.maxMonths, b.usedMaxMonths || b.maxMonths);
+}
+export function bnpl(price, depositPct, months, cfg, condition) {
+  const b = (cfg && cfg.bnpl) || { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48, usedMaxMonths: 24 };
   const pct = Math.max(b.minDeposit, Math.min(100, depositPct));
   const deposit = Math.ceil(price * pct / 100);
   const balance = Math.max(0, price - deposit);
   const charge = Math.round(balance * b.markup / 100);
   const repay = balance + charge;
-  const m = Math.max(b.minMonths, Math.min(b.maxMonths, months));
+  const m = Math.max(b.minMonths, Math.min(bnplMax(cfg, condition), months));
   const total = deposit + repay; // everything the buyer pays: deposit plus all the monthly payments
   return { deposit, balance, charge, repay, months: m, monthly: Math.ceil(repay / m), pct, total, extra: Math.max(0, total - price) };
 }
@@ -128,7 +135,7 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(booted('/auth/me') ? booted('/auth/me').user : undefined);
   const [catalog, setCatalog] = useState(null);
   useEffect(() => {
-    api('/config').then(setCfg).catch(() => setCfg({ whatsapp: '2348063135732', phones: ['+234 806 313 5732'], email: 'info@korrectcars.com', bnpl: { minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 }, swapFeePct: 2, hours: 'Mon–Sat, 8am – 6pm', instagram: 'korrectcarsofficial' }));
+    api('/config').then(setCfg).catch(() => setCfg({ whatsapp: '2348063135732', phones: ['+234 806 313 5732'], email: 'info@korrectcars.com', bnpl: { usedMaxMonths: 24, minDeposit: 40, markup: 20, minMonths: 6, maxMonths: 48 }, swapFeePct: 2, hours: 'Mon–Sat, 8am – 6pm', instagram: 'korrectcarsofficial' }));
     api('/auth/me').then((d) => setUser(d.user)).catch(() => setUser(null));
   }, []);
   const loadCatalog = useCallback(() => { if (!catalog) api('/catalog').then(setCatalog).catch(() => {}); }, [catalog]);

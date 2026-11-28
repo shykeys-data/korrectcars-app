@@ -154,6 +154,19 @@ test('Pay Small Small estimate: 40% deposit and 20% charge on the balance', asyn
   assert.strictEqual((await call('GET', '/api/bnpl/quote?price=abc')).status, 400);
 });
 
+test('Pay Small Small length: brand-new cars up to 4 years, used cars up to 2 years (credit partners, Nov 2026)', async () => {
+  const months = async (cond) => (await call('GET', `/api/bnpl/quote?price=10000000&months=48${cond ? '&condition=' + encodeURIComponent(cond) : ''}`)).json.months;
+  assert.strictEqual(await months('Brand New'), 48);
+  assert.strictEqual(await months('Foreign Used'), 24, 'tokunbo: 2 years at most');
+  assert.strictEqual(await months('Nigerian Used'), 24);
+  assert.strictEqual(await months(''), 24, 'no condition given: the shorter, used-car limit');
+  const cfg = (await call('GET', '/api/config')).json.bnpl;
+  assert.deepStrictEqual([cfg.maxMonths, cfg.usedMaxMonths], [48, 24]);
+  // The page text and the summary for AI assistants say the same
+  assert.match(await (await fetch(B + '/pay-small-small')).text(), /up to 48 months \(4 years\) for brand-new cars, and up to 24 months \(2 years\) for used cars/);
+  assert.match(await (await fetch(B + '/llms.txt')).text(), /up to 24 months for used cars/);
+});
+
 test('form validation answers with a clear message, never a crash', async () => {
   const r = await call('POST', '/api/enquiries', { body: { type: 'contact', name: 'A', phone: '1' } });
   assert.strictEqual(r.status, 400);

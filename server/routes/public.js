@@ -361,14 +361,14 @@ r.post('/enquiries', limiter(60, 8, 'Too many messages sent. Please call or What
   if (v.website) return res.json({ ok: true }); // honeypot
   let carId = null; let bnpl = [null, null, null]; let seller = null;
   if (v.car) {
-    const car = await one('SELECT id, price, title, slug, dealer_id FROM cars WHERE id = ?', [v.car]);
+    const car = await one('SELECT id, price, title, slug, dealer_id, car_condition FROM cars WHERE id = ?', [v.car]);
     if (!car) return res.status(400).json({ error: 'Car not found' });
     carId = car.id;
     // Viewings, offers and questions on another seller's car go to that seller; Pay Small Small stays with
     // Korrect Cars (we work with the credit partners). Staff always keep a copy in Leads.
     if (car.dealer_id && Number(car.dealer_id) !== 1 && v.type !== 'bnpl') seller = car;
     if (v.type === 'bnpl' && Number(car.price) > 0) {
-      const plan = bnplPlan(Number(car.price), v.deposit, v.months);
+      const plan = bnplPlan(Number(car.price), v.deposit, v.months, car.car_condition);
       bnpl = [plan.deposit, plan.months, plan.monthly];
     }
   }
@@ -380,10 +380,14 @@ r.post('/enquiries', limiter(60, 8, 'Too many messages sent. Please call or What
   res.status(201).json({ ok: true, tracked: !!userId, seller: seller ? true : undefined });
 });
 
-// Pay Small Small: minimum deposit, then a flat markup on the balance spread over the months
-function bnplPlan(price, depositIn, monthsIn) {
+// Pay Small Small: minimum deposit, then a flat markup on the balance spread over the months.
+// The longest plan depends on the car: brand-new cars up to bnpl.maxMonths (4 years), used cars (tokunbo,
+// Nigerian used, or no condition given) up to bnpl.usedMaxMonths (2 years), as our credit partners allow (Nov 2026).
+const isNewCar = (condition) => /^\s*(brand[\s-]*)?new\s*$/i.test(String(condition || ''));
+const bnplMaxMonths = (condition, b = settings.current().bnpl) => (isNewCar(condition) ? b.maxMonths : Math.min(b.maxMonths, b.usedMaxMonths || b.maxMonths));
+function bnplPlan(price, depositIn, monthsIn, condition) {
   const b = settings.current().bnpl;
-  const months = Math.min(b.maxMonths, Math.max(b.minMonths, Math.round(monthsIn || b.minMonths)));
+  const months = Math.min(bnplMaxMonths(condition, b), Math.max(b.minMonths, Math.round(monthsIn || b.minMonths)));
   const minDep = Math.ceil(price * b.minDeposit / 100);
   const deposit = Math.min(price, Math.max(minDep, Math.round(depositIn || 0)));
   const balance = price - deposit;
@@ -393,7 +397,7 @@ function bnplPlan(price, depositIn, monthsIn) {
 r.get('/bnpl/quote', (req, res) => {
   const price = Number(req.query.price);
   if (!(price > 0)) return res.status(400).json({ error: 'Enter a car price' });
-  res.json(bnplPlan(price, Number(req.query.deposit), Number(req.query.months)));
+  res.json(bnplPlan(price, Number(req.query.deposit), Number(req.query.months), String(req.query.condition || '')));
 });
 
 // ---------- Blog and pages ----------
@@ -442,4 +446,4 @@ r.get('/pages/:slug', async (req, res) => {
 });
 
 module.exports = r;
-Object.assign(module.exports, { sellerPage, SELLER_INDEX_MIN, bnplPlan, publicConfig, facets, listCars, carDetail, publicUser, withDealer, PUBLIC_POST_COLS });
+Object.assign(module.exports, { sellerPage, SELLER_INDEX_MIN, bnplPlan, bnplMaxMonths, isNewCar, publicConfig, facets, listCars, carDetail, publicUser, withDealer, PUBLIC_POST_COLS });
